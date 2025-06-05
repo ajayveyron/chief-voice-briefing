@@ -2,40 +2,107 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   try {
+    console.log('Gmail callback function invoked')
+    
     const url = new URL(req.url)
     const code = url.searchParams.get('code')
     const state = url.searchParams.get('state')
+    const error = url.searchParams.get('error')
 
-    if (!code || !state) {
-      return new Response('Missing code or state parameter', { status: 400 })
+    console.log('Callback parameters:', { code: !!code, state: !!state, error })
+
+    if (error) {
+      console.error('OAuth error from Google:', error)
+      return new Response(`OAuth error: ${error}`, { 
+        status: 400,
+        headers: corsHeaders 
+      })
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    if (!code || !state) {
+      console.error('Missing required parameters:', { code: !!code, state: !!state })
+      return new Response('Missing code or state parameter', { 
+        status: 400,
+        headers: corsHeaders 
+      })
+    }
+
+    // Use service role key for database operations
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error('Missing environment variables:', { 
+        supabaseUrl: !!supabaseUrl, 
+        serviceRoleKey: !!serviceRoleKey 
+      })
+      return new Response('Server configuration error', { 
+        status: 500,
+        headers: corsHeaders 
+      })
+    }
+
+    console.log('Creating Supabase client with service role')
+    const supabaseClient = createClient(supabaseUrl, serviceRoleKey)
 
     // Verify state token
-    const { data: oauthState } = await supabaseClient
+    console.log('Looking up OAuth state:', state)
+    const { data: oauthState, error: stateError } = await supabaseClient
       .from('oauth_states')
       .select('*')
       .eq('state_token', state)
       .eq('integration_type', 'gmail')
       .single()
 
-    if (!oauthState) {
-      return new Response('Invalid state token', { status: 400 })
+    if (stateError) {
+      console.error('Error looking up OAuth state:', stateError)
+      return new Response('Database error during state verification', { 
+        status: 500,
+        headers: corsHeaders 
+      })
     }
 
+    if (!oauthState) {
+      console.error('Invalid state token:', state)
+      return new Response('Invalid state token', { 
+        status: 400,
+        headers: corsHeaders 
+      })
+    }
+
+    console.log('OAuth state found for user:', oauthState.user_id)
+
     // Exchange code for tokens
+    const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
+    const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
+    
+    if (!clientId || !clientSecret) {
+      console.error('Missing Google credentials')
+      return new Response('Google configuration error', { 
+        status: 500,
+        headers: corsHeaders 
+      })
+    }
+
+    console.log('Exchanging code for tokens')
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: Deno.env.get('GOOGLE_CLIENT_ID') ?? '',
-        client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') ?? '',
+        client_id: clientId,
+        client_secret: clientSecret,
         code,
         grant_type: 'authorization_code',
         redirect_uri: oauthState.redirect_uri || ''
@@ -43,13 +110,23 @@ serve(async (req) => {
     })
 
     const tokens = await tokenResponse.json()
+    console.log('Token exchange response:', { 
+      success: !tokens.error, 
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token 
+    })
 
     if (tokens.error) {
-      return new Response(`OAuth error: ${tokens.error}`, { status: 400 })
+      console.error('OAuth token error:', tokens.error)
+      return new Response(`OAuth error: ${tokens.error}`, { 
+        status: 400,
+        headers: corsHeaders 
+      })
     }
 
     // Store integration
-    await supabaseClient.from('user_integrations').upsert({
+    console.log('Storing integration for user:', oauthState.user_id)
+    const { error: insertError } = await supabaseClient.from('user_integrations').upsert({
       user_id: oauthState.user_id,
       integration_type: 'gmail',
       access_token: tokens.access_token,
@@ -58,19 +135,43 @@ serve(async (req) => {
       is_active: true
     })
 
+    if (insertError) {
+      console.error('Error storing integration:', insertError)
+      return new Response('Error storing integration', { 
+        status: 500,
+        headers: corsHeaders 
+      })
+    }
+
     // Clean up state
-    await supabaseClient
+    console.log('Cleaning up OAuth state')
+    const { error: deleteError } = await supabaseClient
       .from('oauth_states')
       .delete()
       .eq('id', oauthState.id)
 
+    if (deleteError) {
+      console.error('Error cleaning up state:', deleteError)
+      // Don't fail the request for cleanup errors
+    }
+
     // Redirect back to app
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+    const redirectUrl = `${frontendUrl}?tab=settings&connected=gmail`
+    
+    console.log('Redirecting to:', redirectUrl)
     return new Response(null, {
       status: 302,
-      headers: { Location: `${Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'}?tab=settings&connected=gmail` }
+      headers: { 
+        ...corsHeaders,
+        Location: redirectUrl 
+      }
     })
   } catch (error) {
-    console.error('Error:', error)
-    return new Response('Internal server error', { status: 500 })
+    console.error('Unexpected error in gmail-callback:', error)
+    return new Response('Internal server error', { 
+      status: 500,
+      headers: corsHeaders 
+    })
   }
 })
