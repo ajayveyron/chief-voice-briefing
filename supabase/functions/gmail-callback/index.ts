@@ -60,8 +60,8 @@ serve(async (req) => {
       })
     }
 
-    // Create Supabase client with service role key
-    console.log('Creating Supabase client with service role key')
+    // Create Supabase admin client using service role key
+    console.log('Creating Supabase admin client')
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
@@ -69,7 +69,7 @@ serve(async (req) => {
       }
     })
 
-    // Verify state token
+    // Verify state token using admin client
     console.log('Looking up OAuth state:', state)
     const { data: oauthState, error: stateError } = await supabase
       .from('oauth_states')
@@ -125,7 +125,7 @@ serve(async (req) => {
       })
     }
 
-    // Store integration
+    // Store integration using admin client
     console.log('Storing integration for user:', oauthState.user_id)
     const { error: insertError } = await supabase.from('user_integrations').upsert({
       user_id: oauthState.user_id,
@@ -146,7 +146,7 @@ serve(async (req) => {
 
     console.log('Integration stored successfully')
 
-    // Clean up state
+    // Clean up state using admin client
     console.log('Cleaning up OAuth state')
     const { error: deleteError } = await supabase
       .from('oauth_states')
