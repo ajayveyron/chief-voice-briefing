@@ -60,14 +60,9 @@ serve(async (req) => {
       })
     }
 
-    // Create Supabase admin client using service role key
+    // Create Supabase admin client with service role key (bypasses RLS)
     console.log('Creating Supabase admin client')
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
+    const supabase = createClient(supabaseUrl, serviceRoleKey)
 
     // Verify state token using admin client
     console.log('Looking up OAuth state:', state)
