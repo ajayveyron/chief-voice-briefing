@@ -1,22 +1,21 @@
 
-import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUpdates } from "@/hooks/useUpdates";
-import { useRealtimeChat } from "@/hooks/useRealtimeChat";
-import RealVoiceInterface from "./RealVoiceInterface";
+import { useVoiceChat } from "@/hooks/useVoiceChat";
+import SimpleVoiceInterface from "./SimpleVoiceInterface";
 
 const HomePage = () => {
   const { user } = useAuth();
   const { updates, loading } = useUpdates();
   const {
-    connectionState,
     voiceState,
     messages,
-    currentTranscript,
-    connect,
-    disconnect,
-    sendTextMessage
-  } = useRealtimeChat();
+    isRecording,
+    startRecording,
+    stopRecording,
+    sendTextMessage,
+    audioRef
+  } = useVoiceChat();
 
   if (loading) {
     return (
@@ -41,12 +40,12 @@ const HomePage = () => {
         </div>
 
         {/* Voice Interface */}
-        <RealVoiceInterface
-          connectionState={connectionState}
+        <SimpleVoiceInterface
           voiceState={voiceState}
-          onConnect={connect}
-          onDisconnect={disconnect}
-          currentTranscript={currentTranscript}
+          isRecording={isRecording}
+          onStartRecording={startRecording}
+          onStopRecording={stopRecording}
+          onSendText={sendTextMessage}
         />
 
         {/* Recent conversation */}
@@ -73,7 +72,7 @@ const HomePage = () => {
         )}
 
         {/* Updates preview when idle */}
-        {connectionState === 'disconnected' && updates.length > 0 && (
+        {voiceState === 'idle' && updates.length > 0 && (
           <div className="mt-8 max-w-md">
             <h3 className="text-sm text-gray-400 mb-3">Recent Updates:</h3>
             <div className="space-y-2">
@@ -87,11 +86,14 @@ const HomePage = () => {
         )}
 
         {/* Voice commands help */}
-        {connectionState === 'connected' && voiceState === 'idle' && (
+        {voiceState === 'idle' && (
           <div className="text-center mt-6 text-sm text-gray-500">
             Try saying: "What updates do I have?" or "Tell me about my notifications"
           </div>
         )}
+
+        {/* Hidden audio element for playback */}
+        <audio ref={audioRef} style={{ display: 'none' }} />
       </div>
     </div>
   );
