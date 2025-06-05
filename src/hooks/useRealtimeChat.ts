@@ -41,8 +41,11 @@ export const useRealtimeChat = () => {
       setConnectionState('connecting');
       setVoiceState('processing');
 
+      console.log('Starting connection process...');
+
       // Initialize audio context
       audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+      console.log('Audio context initialized');
 
       // Connect to WebSocket using the correct Supabase Edge Function WebSocket URL format
       const wsUrl = `wss://xxccvppbxnhowncdhvdi.functions.supabase.co/functions/v1/realtime-chat`;
@@ -50,7 +53,7 @@ export const useRealtimeChat = () => {
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('WebSocket connected successfully');
         setConnectionState('connected');
         setVoiceState('idle');
         toast({
@@ -60,88 +63,111 @@ export const useRealtimeChat = () => {
       };
 
       wsRef.current.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
-        console.log('Received message:', data.type);
+        try {
+          const data = JSON.parse(event.data);
+          console.log('Received message type:', data.type);
 
-        switch (data.type) {
-          case 'session.created':
-            console.log('Session created');
-            break;
+          switch (data.type) {
+            case 'session.created':
+              console.log('Session created successfully');
+              break;
 
-          case 'session.updated':
-            console.log('Session updated');
-            break;
+            case 'session.updated':
+              console.log('Session updated successfully');
+              break;
 
-          case 'input_audio_buffer.speech_started':
-            console.log('Speech started');
-            setVoiceState('listening');
-            break;
+            case 'input_audio_buffer.speech_started':
+              console.log('Speech detection started');
+              setVoiceState('listening');
+              break;
 
-          case 'input_audio_buffer.speech_stopped':
-            console.log('Speech stopped');
-            setVoiceState('processing');
-            break;
+            case 'input_audio_buffer.speech_stopped':
+              console.log('Speech detection stopped');
+              setVoiceState('processing');
+              break;
 
-          case 'response.created':
-            console.log('Response created');
-            setCurrentTranscript('');
-            break;
-
-          case 'response.audio.delta':
-            setVoiceState('speaking');
-            if (data.delta && audioContextRef.current) {
-              const binaryString = atob(data.delta);
-              const bytes = new Uint8Array(binaryString.length);
-              for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-              }
-              await playAudioData(audioContextRef.current, bytes);
-            }
-            break;
-
-          case 'response.audio_transcript.delta':
-            if (data.delta) {
-              setCurrentTranscript(prev => prev + data.delta);
-            }
-            break;
-
-          case 'response.audio_transcript.done':
-            if (data.transcript) {
-              addMessage(data.transcript, 'assistant');
+            case 'response.created':
+              console.log('Response creation started');
               setCurrentTranscript('');
-            }
-            break;
+              break;
 
-          case 'response.audio.done':
-            setVoiceState('idle');
-            break;
+            case 'response.audio.delta':
+              setVoiceState('speaking');
+              if (data.delta && audioContextRef.current) {
+                try {
+                  const binaryString = atob(data.delta);
+                  const bytes = new Uint8Array(binaryString.length);
+                  for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                  }
+                  await playAudioData(audioContextRef.current, bytes);
+                } catch (audioError) {
+                  console.error('Error playing audio:', audioError);
+                }
+              }
+              break;
 
-          case 'input_audio_buffer.committed':
-            console.log('Audio buffer committed');
-            break;
+            case 'response.audio_transcript.delta':
+              if (data.delta) {
+                setCurrentTranscript(prev => prev + data.delta);
+              }
+              break;
 
-          case 'conversation.item.input_audio_transcription.completed':
-            if (data.transcript) {
-              addMessage(data.transcript, 'user');
-            }
-            break;
+            case 'response.audio_transcript.done':
+              if (data.transcript) {
+                console.log('Assistant transcript completed:', data.transcript);
+                addMessage(data.transcript, 'assistant');
+                setCurrentTranscript('');
+              }
+              break;
 
-          case 'error':
-            console.error('Realtime API error:', data);
-            toast({
-              title: "Error",
-              description: data.error?.message || 'An error occurred',
-              variant: "destructive",
-            });
-            break;
+            case 'response.audio.done':
+              console.log('Audio response completed');
+              setVoiceState('idle');
+              break;
+
+            case 'input_audio_buffer.committed':
+              console.log('Audio buffer committed');
+              break;
+
+            case 'conversation.item.input_audio_transcription.completed':
+              if (data.transcript) {
+                console.log('User transcript completed:', data.transcript);
+                addMessage(data.transcript, 'user');
+              }
+              break;
+
+            case 'error':
+              console.error('Realtime API error:', data);
+              toast({
+                title: "Error",
+                description: data.error?.message || 'An error occurred',
+                variant: "destructive",
+              });
+              break;
+
+            default:
+              console.log('Unhandled message type:', data.type);
+              break;
+          }
+        } catch (parseError) {
+          console.error('Error parsing WebSocket message:', parseError, event.data);
         }
       };
 
-      wsRef.current.onclose = () => {
-        console.log('WebSocket disconnected');
+      wsRef.current.onclose = (event) => {
+        console.log('WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
         setConnectionState('disconnected');
         setVoiceState('idle');
         cleanup();
+        
+        if (event.code !== 1000) { // Not a normal closure
+          toast({
+            title: "Connection Lost",
+            description: "Voice connection was lost",
+            variant: "destructive",
+          });
+        }
       };
 
       wsRef.current.onerror = (error) => {
@@ -150,30 +176,36 @@ export const useRealtimeChat = () => {
         setVoiceState('idle');
         toast({
           title: "Connection Error",
-          description: "Failed to connect to voice service",
+          description: "Failed to connect to voice service. Please check if the OpenAI API key is configured.",
           variant: "destructive",
         });
       };
 
       // Start audio recording
+      console.log('Starting audio recording...');
       audioRecorderRef.current = new AudioRecorder((audioData) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
-          const base64Audio = encodeAudioForAPI(audioData);
-          wsRef.current.send(JSON.stringify({
-            type: 'input_audio_buffer.append',
-            audio: base64Audio
-          }));
+          try {
+            const base64Audio = encodeAudioForAPI(audioData);
+            wsRef.current.send(JSON.stringify({
+              type: 'input_audio_buffer.append',
+              audio: base64Audio
+            }));
+          } catch (encodingError) {
+            console.error('Error encoding audio:', encodingError);
+          }
         }
       });
 
       await audioRecorderRef.current.start();
+      console.log('Audio recording started successfully');
 
     } catch (error) {
-      console.error('Error connecting:', error);
+      console.error('Error in connect function:', error);
       setConnectionState('error');
       setVoiceState('idle');
       toast({
-        title: "Error",
+        title: "Connection Error",
         description: error instanceof Error ? error.message : 'Failed to connect',
         variant: "destructive",
       });
@@ -181,6 +213,7 @@ export const useRealtimeChat = () => {
   }, [connectionState, toast, addMessage]);
 
   const disconnect = useCallback(() => {
+    console.log('Disconnecting...');
     cleanup();
     setConnectionState('disconnected');
     setVoiceState('idle');
@@ -189,6 +222,8 @@ export const useRealtimeChat = () => {
   }, []);
 
   const cleanup = useCallback(() => {
+    console.log('Cleaning up resources...');
+    
     audioRecorderRef.current?.stop();
     audioRecorderRef.current = null;
     
@@ -203,6 +238,8 @@ export const useRealtimeChat = () => {
 
   const sendTextMessage = useCallback((text: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log('Sending text message:', text);
+      
       const event = {
         type: 'conversation.item.create',
         item: {
@@ -220,6 +257,8 @@ export const useRealtimeChat = () => {
       wsRef.current.send(JSON.stringify(event));
       wsRef.current.send(JSON.stringify({ type: 'response.create' }));
       addMessage(text, 'user');
+    } else {
+      console.error('Cannot send message: WebSocket not connected');
     }
   }, [addMessage]);
 
