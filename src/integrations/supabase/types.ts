@@ -9,7 +9,87 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      updates: {
+        Row: {
+          created_at: string
+          id: string
+          integration_type: string
+          is_read: boolean | null
+          priority: number | null
+          raw_data: Json | null
+          summary: string
+          title: string
+          update_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          integration_type: string
+          is_read?: boolean | null
+          priority?: number | null
+          raw_data?: Json | null
+          summary: string
+          title: string
+          update_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          integration_type?: string
+          is_read?: boolean | null
+          priority?: number | null
+          raw_data?: Json | null
+          summary?: string
+          title?: string
+          update_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_integrations: {
+        Row: {
+          access_token: string | null
+          created_at: string
+          id: string
+          integration_data: Json | null
+          integration_type: string
+          is_active: boolean | null
+          refresh_token: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string
+          id?: string
+          integration_data?: Json | null
+          integration_type: string
+          is_active?: boolean | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string
+          id?: string
+          integration_data?: Json | null
+          integration_type?: string
+          is_active?: boolean | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
