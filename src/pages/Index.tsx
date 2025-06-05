@@ -1,10 +1,15 @@
 
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import VoiceInterface from "@/components/VoiceInterface";
 import AuthForm from "@/components/AuthForm";
+import BottomNav from "@/components/BottomNav";
+import HomePage from "@/components/HomePage";
+import ChatPage from "@/components/ChatPage";
+import SettingsPage from "@/components/SettingsPage";
 
 const Index = () => {
   const { user, loading } = useAuth();
+  const [activeTab, setActiveTab] = useState("home");
 
   if (loading) {
     return (
@@ -18,9 +23,28 @@ const Index = () => {
     return <AuthForm onAuthSuccess={() => {}} />;
   }
 
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case "home":
+        return <HomePage />;
+      case "chat":
+        return <ChatPage />;
+      case "settings":
+        return <SettingsPage />;
+      default:
+        return <HomePage />;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center">
-      <VoiceInterface />
+    <div className="min-h-screen bg-black text-white flex flex-col max-w-md mx-auto">
+      {/* Main content area */}
+      <div className="flex-1 pb-16">
+        {renderActiveTab()}
+      </div>
+      
+      {/* Bottom navigation */}
+      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 };
