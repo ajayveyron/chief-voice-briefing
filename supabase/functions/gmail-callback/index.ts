@@ -39,27 +39,39 @@ serve(async (req) => {
       })
     }
 
-    // Use service role key for database operations
+    // Get environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
+    const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
     
-    if (!supabaseUrl || !serviceRoleKey) {
-      console.error('Missing environment variables:', { 
-        supabaseUrl: !!supabaseUrl, 
-        serviceRoleKey: !!serviceRoleKey 
-      })
+    console.log('Environment check:', { 
+      supabaseUrl: !!supabaseUrl, 
+      serviceRoleKey: !!serviceRoleKey,
+      clientId: !!clientId,
+      clientSecret: !!clientSecret
+    })
+
+    if (!supabaseUrl || !serviceRoleKey || !clientId || !clientSecret) {
+      console.error('Missing environment variables')
       return new Response('Server configuration error', { 
         status: 500,
         headers: corsHeaders 
       })
     }
 
-    console.log('Creating Supabase client with service role')
-    const supabaseClient = createClient(supabaseUrl, serviceRoleKey)
+    // Create Supabase client with service role key
+    console.log('Creating Supabase client with service role key')
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
 
     // Verify state token
     console.log('Looking up OAuth state:', state)
-    const { data: oauthState, error: stateError } = await supabaseClient
+    const { data: oauthState, error: stateError } = await supabase
       .from('oauth_states')
       .select('*')
       .eq('state_token', state)
@@ -85,17 +97,6 @@ serve(async (req) => {
     console.log('OAuth state found for user:', oauthState.user_id)
 
     // Exchange code for tokens
-    const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
-    const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
-    
-    if (!clientId || !clientSecret) {
-      console.error('Missing Google credentials')
-      return new Response('Google configuration error', { 
-        status: 500,
-        headers: corsHeaders 
-      })
-    }
-
     console.log('Exchanging code for tokens')
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -126,7 +127,7 @@ serve(async (req) => {
 
     // Store integration
     console.log('Storing integration for user:', oauthState.user_id)
-    const { error: insertError } = await supabaseClient.from('user_integrations').upsert({
+    const { error: insertError } = await supabase.from('user_integrations').upsert({
       user_id: oauthState.user_id,
       integration_type: 'gmail',
       access_token: tokens.access_token,
@@ -143,9 +144,11 @@ serve(async (req) => {
       })
     }
 
+    console.log('Integration stored successfully')
+
     // Clean up state
     console.log('Cleaning up OAuth state')
-    const { error: deleteError } = await supabaseClient
+    const { error: deleteError } = await supabase
       .from('oauth_states')
       .delete()
       .eq('id', oauthState.id)
