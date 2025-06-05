@@ -44,7 +44,7 @@ export const useRealtimeChat = () => {
       // Initialize audio context
       audioContextRef.current = new AudioContext({ sampleRate: 24000 });
 
-      // Connect to WebSocket using the correct Supabase Edge Function format
+      // Connect to WebSocket using the correct Supabase Edge Function WebSocket URL
       const wsUrl = `wss://xxccvppbxnhowncdhvdi.functions.supabase.co/realtime-chat`;
       console.log('Connecting to WebSocket:', wsUrl);
       wsRef.current = new WebSocket(wsUrl);
