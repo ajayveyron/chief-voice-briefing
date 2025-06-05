@@ -3,16 +3,18 @@ import { useState } from "react";
 import { useUpdates } from "@/hooks/useUpdates";
 import { Button } from "@/components/ui/button";
 import { Send } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Array<{id: string, text: string, sender: 'user' | 'assistant'}>>([
     { id: '1', text: "Hi! I'm Chief, your AI assistant. I can help you stay updated with your notifications. What would you like to know?", sender: 'assistant' }
   ]);
   const [inputText, setInputText] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const { updates } = useUpdates();
 
-  const handleSendMessage = () => {
-    if (!inputText.trim()) return;
+  const handleSendMessage = async () => {
+    if (!inputText.trim() || isLoading) return;
 
     const userMessage = {
       id: Date.now().toString(),
@@ -21,30 +23,51 @@ const ChatPage = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
-    
-    // Simple AI responses based on input
-    setTimeout(() => {
-      let response = "";
-      const lowerInput = inputText.toLowerCase();
+    setInputText("");
+    setIsLoading(true);
+
+    try {
+      // Prepare conversation history for the API
+      const conversationMessages = messages.map(msg => ({
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      }));
       
-      if (lowerInput.includes("update") || lowerInput.includes("notification")) {
-        response = `You have ${updates.length} updates. Would you like me to go through them with you?`;
-      } else if (lowerInput.includes("hello") || lowerInput.includes("hi")) {
-        response = "Hello! How can I help you stay updated today?";
-      } else {
-        response = "I understand you're asking about staying updated. Is there something specific you'd like to know about your notifications?";
+      // Add the new user message
+      conversationMessages.push({
+        role: 'user',
+        content: inputText
+      });
+
+      const { data, error } = await supabase.functions.invoke('chat-with-ai', {
+        body: {
+          messages: conversationMessages,
+          userUpdates: updates
+        }
+      });
+
+      if (error) {
+        throw error;
       }
 
       const assistantMessage = {
         id: (Date.now() + 1).toString(),
-        text: response,
+        text: data.message,
         sender: 'assistant' as const
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-    }, 500);
-
-    setInputText("");
+    } catch (error) {
+      console.error('Error calling AI:', error);
+      const errorMessage = {
+        id: (Date.now() + 1).toString(),
+        text: "Sorry, I'm having trouble connecting right now. Please try again.",
+        sender: 'assistant' as const
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -59,7 +82,7 @@ const ChatPage = () => {
       {/* Header */}
       <div className="p-4 border-b border-gray-700">
         <h1 className="text-xl font-semibold">Chat with Chief</h1>
-        <p className="text-sm text-gray-400">Test the conversation flow</p>
+        <p className="text-sm text-gray-400">AI-powered conversation with ChatGPT</p>
       </div>
 
       {/* Messages */}
@@ -80,6 +103,18 @@ const ChatPage = () => {
             </div>
           </div>
         ))}
+        
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-gray-800 text-gray-200 p-3 rounded-lg">
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Input */}
@@ -91,9 +126,10 @@ const ChatPage = () => {
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Type your message..."
-            className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+            disabled={isLoading}
+            className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50"
           />
-          <Button onClick={handleSendMessage} size="sm">
+          <Button onClick={handleSendMessage} size="sm" disabled={isLoading}>
             <Send size={16} />
           </Button>
         </div>
