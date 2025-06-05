@@ -78,14 +78,14 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-gray-700">
+      <div className="p-4 border-b border-gray-700 flex-shrink-0">
         <h1 className="text-xl font-semibold">Chat with Chief</h1>
         <p className="text-sm text-gray-400">AI-powered conversation with ChatGPT</p>
       </div>
 
-      {/* Messages */}
+      {/* Messages - takes remaining space and scrolls */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div
@@ -117,8 +117,8 @@ const ChatPage = () => {
         )}
       </div>
 
-      {/* Input */}
-      <div className="p-4 border-t border-gray-700">
+      {/* Input - fixed at bottom */}
+      <div className="p-4 border-t border-gray-700 flex-shrink-0">
         <div className="flex space-x-2">
           <input
             type="text"
