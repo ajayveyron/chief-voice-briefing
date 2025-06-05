@@ -32,11 +32,12 @@ serve(async (req) => {
     }
 
     if (req.method === 'POST') {
-      // Initiate OAuth flow
       const state = crypto.randomUUID()
       const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/gmail-callback`
       
-      // Store state in database
+      console.log('Creating OAuth state for user:', user.id)
+      console.log('Redirect URI:', redirectUri)
+      
       await supabaseClient.from('oauth_states').insert({
         user_id: user.id,
         integration_type: 'gmail',
@@ -52,6 +53,9 @@ serve(async (req) => {
       authUrl.searchParams.set('state', state)
       authUrl.searchParams.set('access_type', 'offline')
       authUrl.searchParams.set('prompt', 'consent')
+      authUrl.searchParams.set('include_granted_scopes', 'true')
+
+      console.log('Generated auth URL:', authUrl.toString())
 
       return new Response(JSON.stringify({ authUrl: authUrl.toString() }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -63,7 +67,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Error in gmail-auth:', error)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
