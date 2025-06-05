@@ -91,13 +91,12 @@ serve(async (req) => {
 
     console.log('OAuth state found for user:', oauthState.user_id)
 
-    // Exchange code for tokens
+    // Exchange code for tokens - NO Authorization header needed for Google's OAuth endpoint
     console.log('Exchanging code for tokens')
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Bearer ${serviceRoleKey}` // Add Authorization header
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: new URLSearchParams({
         client_id: clientId,
@@ -123,7 +122,7 @@ serve(async (req) => {
       })
     }
 
-    // Test Gmail API access with the new token
+    // Test Gmail API access with the new token - THIS is where we need the Authorization header
     console.log('Testing Gmail API access')
     const gmailTestResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
       headers: {
