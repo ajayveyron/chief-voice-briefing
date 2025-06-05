@@ -9,6 +9,36 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          integration_type: string
+          redirect_uri: string | null
+          state_token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          integration_type: string
+          redirect_uri?: string | null
+          state_token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          integration_type?: string
+          redirect_uri?: string | null
+          state_token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       updates: {
         Row: {
           created_at: string
