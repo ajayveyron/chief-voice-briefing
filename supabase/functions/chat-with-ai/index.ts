@@ -2,8 +2,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -11,16 +9,35 @@ const corsHeaders = {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { messages, userUpdates } = await req.json();
+    const { prompt, messages } = await req.json();
 
-    const systemMessage = {
-      role: 'system',
-      content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You have access to the user's current updates: ${JSON.stringify(userUpdates || [])}. Be helpful, conversational, and focus on helping them stay organized with their notifications.`
-    };
+    if (!prompt && !messages) {
+      throw new Error('Either prompt or messages is required');
+    }
+
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    console.log('🤖 Processing chat request...');
+
+    // Build messages array based on input
+    let chatMessages;
+    if (messages && Array.isArray(messages)) {
+      chatMessages = messages;
+    } else if (prompt) {
+      chatMessages = [
+        { role: 'system', content: 'You are Chief, an AI assistant that helps users manage their notifications and updates. Be helpful, conversational, and keep responses concise for voice conversation.' },
+        { role: 'user', content: prompt }
+      ];
+    } else {
+      throw new Error('Invalid request format');
+    }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -30,29 +47,37 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages: [systemMessage, ...messages],
+        messages: chatMessages,
+        max_tokens: 150,
         temperature: 0.7,
-        max_tokens: 500,
       }),
     });
 
-    const data = await response.json();
-    
     if (!response.ok) {
-      console.error('OpenAI API error:', data);
-      throw new Error(data.error?.message || 'OpenAI API request failed');
+      const errorText = await response.text();
+      console.error('OpenAI API error:', errorText);
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    const assistantMessage = data.choices[0].message.content;
+    const data = await response.json();
+    const generatedText = data.choices[0].message.content;
 
-    return new Response(JSON.stringify({ message: assistantMessage }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.log('✅ Chat response generated');
+
+    return new Response(
+      JSON.stringify({ generatedText }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    );
   } catch (error) {
-    console.error('Error in chat-with-ai function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('❌ Error in chat-with-ai function:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    );
   }
 });
