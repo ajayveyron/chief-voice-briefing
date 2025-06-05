@@ -95,7 +95,10 @@ serve(async (req) => {
     console.log('Exchanging code for tokens')
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { 
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Bearer ${serviceRoleKey}` // Add Authorization header
+      },
       body: new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
@@ -119,6 +122,25 @@ serve(async (req) => {
         headers: corsHeaders 
       })
     }
+
+    // Test Gmail API access with the new token
+    console.log('Testing Gmail API access')
+    const gmailTestResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!gmailTestResponse.ok) {
+      console.error('Gmail API test failed:', await gmailTestResponse.text())
+      return new Response('Gmail API access test failed', { 
+        status: 400,
+        headers: corsHeaders 
+      })
+    }
+
+    console.log('Gmail API test successful')
 
     // Store integration using admin client
     console.log('Storing integration for user:', oauthState.user_id)
