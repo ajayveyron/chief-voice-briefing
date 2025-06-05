@@ -91,7 +91,7 @@ serve(async (req) => {
 
     console.log('OAuth state found for user:', oauthState.user_id)
 
-    // Exchange code for tokens - NO Authorization header needed for Google's OAuth endpoint
+    // Exchange code for tokens
     console.log('Exchanging code for tokens')
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -107,23 +107,34 @@ serve(async (req) => {
       })
     })
 
-    const tokens = await tokenResponse.json()
-    console.log('Token exchange response:', { 
-      success: !tokens.error, 
-      hasAccessToken: !!tokens.access_token,
-      hasRefreshToken: !!tokens.refresh_token 
-    })
-
-    if (tokens.error) {
-      console.error('OAuth token error:', tokens.error)
-      return new Response(`OAuth error: ${tokens.error}`, { 
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text()
+      console.error('Token exchange failed:', errorText)
+      return new Response(`Token exchange failed: ${errorText}`, { 
         status: 400,
         headers: corsHeaders 
       })
     }
 
-    // Test Gmail API access with the new token - THIS is where we need the Authorization header
-    console.log('Testing Gmail API access')
+    const tokens = await tokenResponse.json()
+    console.log('Token exchange response:', { 
+      success: !tokens.error, 
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      tokenType: tokens.token_type,
+      expiresIn: tokens.expires_in
+    })
+
+    if (tokens.error) {
+      console.error('OAuth token error:', tokens.error, tokens.error_description)
+      return new Response(`OAuth error: ${tokens.error} - ${tokens.error_description}`, { 
+        status: 400,
+        headers: corsHeaders 
+      })
+    }
+
+    // Test Gmail API access with the new token
+    console.log('Testing Gmail API access with token:', tokens.access_token?.substring(0, 20) + '...')
     const gmailTestResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
       headers: {
         'Authorization': `Bearer ${tokens.access_token}`,
@@ -132,14 +143,16 @@ serve(async (req) => {
     })
 
     if (!gmailTestResponse.ok) {
-      console.error('Gmail API test failed:', await gmailTestResponse.text())
-      return new Response('Gmail API access test failed', { 
+      const errorText = await gmailTestResponse.text()
+      console.error('Gmail API test failed:', gmailTestResponse.status, errorText)
+      return new Response(`Gmail API access test failed: ${errorText}`, { 
         status: 400,
         headers: corsHeaders 
       })
     }
 
-    console.log('Gmail API test successful')
+    const gmailProfile = await gmailTestResponse.json()
+    console.log('Gmail API test successful, profile:', gmailProfile)
 
     // Store integration using admin client
     console.log('Storing integration for user:', oauthState.user_id)
