@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -32,11 +32,25 @@ export const useIntegrations = () => {
 
   const connectIntegration = async (type: 'gmail' | 'calendar') => {
     try {
-      const { data, error } = await supabase.functions.invoke(`${type}-auth`, {
-        method: 'POST'
-      });
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        throw sessionError || new Error('User session not found');
+      }
 
-      if (error) throw error;
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/${type}-auth`,
+        {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Function error');
       
       if (data.authUrl) {
         window.location.href = data.authUrl;
