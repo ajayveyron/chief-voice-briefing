@@ -5,7 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
 }
 
 serve(async (req) => {
@@ -15,14 +15,21 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Gmail callback function invoked')
+    console.log('Gmail callback function invoked with method:', req.method)
+    console.log('Request URL:', req.url)
     
     const url = new URL(req.url)
     const code = url.searchParams.get('code')
     const state = url.searchParams.get('state')
     const error = url.searchParams.get('error')
 
-    console.log('Callback parameters:', { code: !!code, state: !!state, error })
+    console.log('Callback parameters:', { 
+      hasCode: !!code, 
+      hasState: !!state, 
+      error,
+      codeLength: code?.length,
+      stateValue: state
+    })
 
     if (error) {
       console.error('OAuth error from Google:', error)
@@ -38,7 +45,7 @@ serve(async (req) => {
     }
 
     if (!code || !state) {
-      console.error('Missing required parameters:', { code: !!code, state: !!state })
+      console.error('Missing required parameters:', { hasCode: !!code, hasState: !!state })
       const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
       const redirectUrl = `${frontendUrl}?tab=settings&error=missing_params`
       return new Response(null, {
@@ -60,11 +67,17 @@ serve(async (req) => {
       supabaseUrl: !!supabaseUrl, 
       serviceRoleKey: !!serviceRoleKey,
       clientId: !!clientId,
-      clientSecret: !!clientSecret
+      clientSecret: !!clientSecret,
+      supabaseUrlPrefix: supabaseUrl?.substring(0, 20)
     })
 
     if (!supabaseUrl || !serviceRoleKey || !clientId || !clientSecret) {
-      console.error('Missing environment variables')
+      console.error('Missing environment variables:', {
+        SUPABASE_URL: !!supabaseUrl,
+        SUPABASE_SERVICE_ROLE_KEY: !!serviceRoleKey,
+        GOOGLE_CLIENT_ID: !!clientId,
+        GOOGLE_CLIENT_SECRET: !!clientSecret
+      })
       const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
       const redirectUrl = `${frontendUrl}?tab=settings&error=config_error`
       return new Response(null, {
@@ -78,7 +91,12 @@ serve(async (req) => {
 
     // Create Supabase admin client with service role key (bypasses RLS)
     console.log('Creating Supabase admin client')
-    const supabase = createClient(supabaseUrl, serviceRoleKey)
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
 
     // Verify state token using admin client
     console.log('Looking up OAuth state:', state)
@@ -103,7 +121,7 @@ serve(async (req) => {
     }
 
     if (!oauthState) {
-      console.error('Invalid state token:', state)
+      console.error('Invalid state token - no matching record found:', state)
       const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
       const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
       return new Response(null, {
@@ -135,7 +153,7 @@ serve(async (req) => {
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
-      console.error('Token exchange failed:', errorText)
+      console.error('Token exchange failed:', tokenResponse.status, errorText)
       const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
       const redirectUrl = `${frontendUrl}?tab=settings&error=token_exchange_failed`
       return new Response(null, {
@@ -170,7 +188,7 @@ serve(async (req) => {
     }
 
     // Test Gmail API access with the new token
-    console.log('Testing Gmail API access with token:', tokens.access_token?.substring(0, 20) + '...')
+    console.log('Testing Gmail API access')
     const gmailTestResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
       headers: {
         'Authorization': `Bearer ${tokens.access_token}`,
@@ -193,7 +211,7 @@ serve(async (req) => {
     }
 
     const gmailProfile = await gmailTestResponse.json()
-    console.log('Gmail API test successful, profile:', gmailProfile)
+    console.log('Gmail API test successful, profile email:', gmailProfile.emailAddress)
 
     // Store integration using admin client
     console.log('Storing integration for user:', oauthState.user_id)
