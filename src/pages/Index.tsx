@@ -5,6 +5,7 @@ import AuthForm from "@/components/AuthForm";
 import BottomNav from "@/components/BottomNav";
 import HomePage from "@/components/HomePage";
 import ChatPage from "@/components/ChatPage";
+import DataPage from "@/components/DataPage";
 import SettingsPage from "@/components/SettingsPage";
 
 const Index = () => {
@@ -29,6 +30,8 @@ const Index = () => {
         return <HomePage />;
       case "chat":
         return <ChatPage />;
+      case "data":
+        return <DataPage />;
       case "settings":
         return <SettingsPage />;
       default:

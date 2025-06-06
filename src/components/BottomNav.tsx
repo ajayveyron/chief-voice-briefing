@@ -1,5 +1,5 @@
 
-import { Home, MessageSquare, Settings } from "lucide-react";
+import { Home, MessageSquare, Settings, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BottomNavProps {
@@ -11,6 +11,7 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
   const tabs = [
     { id: "home", label: "Home", icon: Home },
     { id: "chat", label: "Chat", icon: MessageSquare },
+    { id: "data", label: "Data", icon: Database },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
