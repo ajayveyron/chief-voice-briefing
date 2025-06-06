@@ -56,16 +56,56 @@ const SettingsPage = () => {
     }
   };
 
-  // Check for connection success from URL params
+  // Check for connection success or errors from URL params
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const connected = urlParams.get('connected');
+    const error = urlParams.get('error');
+    
     if (connected) {
       toast({
         title: "Connected!",
         description: `${connected} has been connected successfully.`,
       });
       refetch();
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (error) {
+      let errorMessage = 'An error occurred during connection.';
+      
+      switch (error) {
+        case 'oauth_error':
+          errorMessage = 'OAuth authentication was denied or failed.';
+          break;
+        case 'missing_params':
+          errorMessage = 'Missing required parameters from OAuth provider.';
+          break;
+        case 'config_error':
+          errorMessage = 'Server configuration error. Please contact support.';
+          break;
+        case 'invalid_state':
+          errorMessage = 'Invalid authentication state. Please try again.';
+          break;
+        case 'token_exchange_failed':
+          errorMessage = 'Failed to exchange authorization code for tokens.';
+          break;
+        case 'token_error':
+          errorMessage = 'Error with OAuth tokens from provider.';
+          break;
+        case 'storage_error':
+          errorMessage = 'Failed to store integration data.';
+          break;
+        case 'unexpected_error':
+          errorMessage = 'An unexpected error occurred.';
+          break;
+      }
+      
+      toast({
+        title: "Connection failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
       // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
     }
