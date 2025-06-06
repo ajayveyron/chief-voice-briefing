@@ -33,7 +33,8 @@ serve(async (req) => {
 
     if (req.method === 'POST') {
       const state = crypto.randomUUID()
-      const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/gmail-callback`
+     const redirectUri = Deno.env.get('GOOGLE_REDIRECT_URI') || 
+                   `${Deno.env.get('SUPABASE_URL')}/functions/v1/gmail-callback`
       
       console.log('Creating OAuth state for user:', user.id)
       console.log('Redirect URI:', redirectUri)

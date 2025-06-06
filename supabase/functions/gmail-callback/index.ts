@@ -93,6 +93,13 @@ serve(async (req) => {
 
     // Exchange code for tokens
     console.log('Exchanging code for tokens')
+    if (!oauthState.redirect_uri) {
+  console.error('Missing redirect_uri in state record')
+  return new Response('Invalid OAuth configuration', {
+    status: 400,
+    headers: corsHeaders
+  })
+}
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 
