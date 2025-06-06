@@ -26,17 +26,27 @@ serve(async (req) => {
 
     if (error) {
       console.error('OAuth error from Google:', error)
-      return new Response(`OAuth error: ${error}`, { 
-        status: 400,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=oauth_error`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
     if (!code || !state) {
       console.error('Missing required parameters:', { code: !!code, state: !!state })
-      return new Response('Missing code or state parameter', { 
-        status: 400,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=missing_params`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -55,9 +65,14 @@ serve(async (req) => {
 
     if (!supabaseUrl || !serviceRoleKey || !clientId || !clientSecret) {
       console.error('Missing environment variables')
-      return new Response('Server configuration error', { 
-        status: 500,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=config_error`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -76,17 +91,27 @@ serve(async (req) => {
 
     if (stateError) {
       console.error('Error looking up OAuth state:', stateError)
-      return new Response('Database error during state verification', { 
-        status: 500,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
     if (!oauthState) {
       console.error('Invalid state token:', state)
-      return new Response('Invalid state token', { 
-        status: 400,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -111,9 +136,14 @@ serve(async (req) => {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
       console.error('Token exchange failed:', errorText)
-      return new Response(`Token exchange failed: ${errorText}`, { 
-        status: 400,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=token_exchange_failed`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -128,9 +158,14 @@ serve(async (req) => {
 
     if (tokens.error) {
       console.error('OAuth token error:', tokens.error, tokens.error_description)
-      return new Response(`OAuth error: ${tokens.error} - ${tokens.error_description}`, { 
-        status: 400,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=token_error`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -146,9 +181,14 @@ serve(async (req) => {
     if (!gmailTestResponse.ok) {
       const errorText = await gmailTestResponse.text()
       console.error('Gmail API test failed:', gmailTestResponse.status, errorText)
-      return new Response(`Gmail API access test failed: ${errorText}`, { 
-        status: 400,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=gmail_api_failed`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -168,9 +208,14 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('Error storing integration:', insertError)
-      return new Response('Error storing integration', { 
-        status: 500,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=storage_error`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -202,9 +247,14 @@ serve(async (req) => {
     })
   } catch (error) {
     console.error('Unexpected error in gmail-callback:', error)
-    return new Response('Internal server error', { 
-      status: 500,
-      headers: corsHeaders 
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+    const redirectUrl = `${frontendUrl}?tab=settings&error=unexpected_error`
+    return new Response(null, {
+      status: 302,
+      headers: { 
+        ...corsHeaders,
+        Location: redirectUrl 
+      }
     })
   }
 })
