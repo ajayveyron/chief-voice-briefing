@@ -92,6 +92,12 @@ const SettingsPage = () => {
         case 'token_error':
           errorMessage = 'Error with OAuth tokens from provider.';
           break;
+        case 'gmail_api_failed':
+          errorMessage = 'Failed to access Gmail API. Please check permissions.';
+          break;
+        case 'calendar_api_failed':
+          errorMessage = 'Failed to access Calendar API. Please check permissions.';
+          break;
         case 'storage_error':
           errorMessage = 'Failed to store integration data.';
           break;

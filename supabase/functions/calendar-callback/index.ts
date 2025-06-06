@@ -4,7 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
 }
 
 serve(async (req) => {
@@ -25,17 +26,27 @@ serve(async (req) => {
 
     if (error) {
       console.error('OAuth error from Google:', error)
-      return new Response(`OAuth error: ${error}`, { 
-        status: 400,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=oauth_error`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
     if (!code || !state) {
       console.error('Missing required parameters:', { code: !!code, state: !!state })
-      return new Response('Missing code or state parameter', { 
-        status: 400,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=missing_params`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -54,9 +65,14 @@ serve(async (req) => {
 
     if (!supabaseUrl || !serviceRoleKey || !clientId || !clientSecret) {
       console.error('Missing environment variables')
-      return new Response('Server configuration error', { 
-        status: 500,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=config_error`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -75,17 +91,27 @@ serve(async (req) => {
 
     if (stateError) {
       console.error('Error looking up OAuth state:', stateError)
-      return new Response('Database error during state verification', { 
-        status: 500,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
     if (!oauthState) {
       console.error('Invalid state token:', state)
-      return new Response('Invalid state token', { 
-        status: 400,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -95,7 +121,9 @@ serve(async (req) => {
     console.log('Exchanging code for tokens')
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { 
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
       body: new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
@@ -105,20 +133,67 @@ serve(async (req) => {
       })
     })
 
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text()
+      console.error('Token exchange failed:', errorText)
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=token_exchange_failed`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
+      })
+    }
+
     const tokens = await tokenResponse.json()
     console.log('Token exchange response:', { 
       success: !tokens.error, 
       hasAccessToken: !!tokens.access_token,
-      hasRefreshToken: !!tokens.refresh_token 
+      hasRefreshToken: !!tokens.refresh_token,
+      tokenType: tokens.token_type,
+      expiresIn: tokens.expires_in
     })
 
     if (tokens.error) {
-      console.error('OAuth token error:', tokens.error)
-      return new Response(`OAuth error: ${tokens.error}`, { 
-        status: 400,
-        headers: corsHeaders 
+      console.error('OAuth token error:', tokens.error, tokens.error_description)
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=token_error`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
+
+    // Test Calendar API access with the new token
+    console.log('Testing Calendar API access with token:', tokens.access_token?.substring(0, 20) + '...')
+    const calendarTestResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!calendarTestResponse.ok) {
+      const errorText = await calendarTestResponse.text()
+      console.error('Calendar API test failed:', calendarTestResponse.status, errorText)
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=calendar_api_failed`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
+      })
+    }
+
+    const calendarData = await calendarTestResponse.json()
+    console.log('Calendar API test successful, calendars found:', calendarData.items?.length || 0)
 
     // Store integration using admin client
     console.log('Storing integration for user:', oauthState.user_id)
@@ -133,9 +208,14 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('Error storing integration:', insertError)
-      return new Response('Error storing integration', { 
-        status: 500,
-        headers: corsHeaders 
+      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const redirectUrl = `${frontendUrl}?tab=settings&error=storage_error`
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl 
+        }
       })
     }
 
@@ -167,9 +247,14 @@ serve(async (req) => {
     })
   } catch (error) {
     console.error('Unexpected error in calendar-callback:', error)
-    return new Response('Internal server error', { 
-      status: 500,
-      headers: corsHeaders 
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+    const redirectUrl = `${frontendUrl}?tab=settings&error=unexpected_error`
+    return new Response(null, {
+      status: 302,
+      headers: { 
+        ...corsHeaders,
+        Location: redirectUrl 
+      }
     })
   }
 })
