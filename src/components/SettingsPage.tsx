@@ -92,7 +92,7 @@ const SettingsPage = () => {
             </div>
             <Button 
               onClick={handleSignOut}
-              variant="filled" 
+              variant="default" 
               className="w-full"
             >
               Sign Out
