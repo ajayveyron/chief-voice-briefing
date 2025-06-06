@@ -32,8 +32,16 @@ export const useIntegrations = () => {
 
   const connectIntegration = async (type: 'gmail' | 'calendar') => {
     try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        throw sessionError || new Error('User session not found');
+      }
+
       const { data, error } = await supabase.functions.invoke(`${type}-auth`, {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`
+        }
       });
 
       if (error) throw error;
