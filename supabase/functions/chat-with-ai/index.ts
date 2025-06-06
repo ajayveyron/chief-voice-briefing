@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, messages } = await req.json();
+    const { prompt, messages, userUpdates, userDocuments } = await req.json();
 
     if (!prompt && !messages) {
       throw new Error('Either prompt or messages is required');
@@ -26,6 +26,23 @@ serve(async (req) => {
 
     console.log('🤖 Processing chat request...');
 
+    // Build context from user data
+    let contextInfo = '';
+    
+    if (userUpdates && userUpdates.length > 0) {
+      contextInfo += '\n\nRecent notifications and updates:\n';
+      userUpdates.slice(0, 10).forEach((update: any) => {
+        contextInfo += `- ${update.title}: ${update.summary}\n`;
+      });
+    }
+
+    if (userDocuments && userDocuments.length > 0) {
+      contextInfo += '\n\nUser uploaded documents:\n';
+      userDocuments.forEach((doc: any) => {
+        contextInfo += `\nDocument: ${doc.name}\nContent: ${doc.content.slice(0, 1000)}${doc.content.length > 1000 ? '...' : ''}\n`;
+      });
+    }
+
     // Build messages array based on input
     let chatMessages;
     if (messages && Array.isArray(messages)) {
@@ -37,7 +54,10 @@ serve(async (req) => {
       );
     } else if (prompt) {
       chatMessages = [
-        { role: 'system', content: 'You are Chief, an AI assistant that helps users manage their notifications and updates. Be helpful, conversational, and keep responses concise for voice conversation.' },
+        { 
+          role: 'system', 
+          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}` 
+        },
         { role: 'user', content: prompt }
       ];
     } else {
@@ -47,9 +67,23 @@ serve(async (req) => {
     // Ensure we have at least one message
     if (chatMessages.length === 0) {
       chatMessages = [
-        { role: 'system', content: 'You are Chief, an AI assistant that helps users manage their notifications and updates. Be helpful, conversational, and keep responses concise for voice conversation.' },
+        { 
+          role: 'system', 
+          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}` 
+        },
         { role: 'user', content: 'Hello' }
       ];
+    } else {
+      // Add context to the system message if we have one
+      if (chatMessages[0]?.role === 'system' && contextInfo) {
+        chatMessages[0].content += contextInfo;
+      } else if (contextInfo) {
+        // Insert system message with context at the beginning
+        chatMessages.unshift({
+          role: 'system',
+          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}`
+        });
+      }
     }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -61,7 +95,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: chatMessages,
-        max_tokens: 150,
+        max_tokens: 500,
         temperature: 0.7,
       }),
     });
