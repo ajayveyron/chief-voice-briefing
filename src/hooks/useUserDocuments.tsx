@@ -30,7 +30,7 @@ export const useUserDocuments = () => {
 
     try {
       const { data, error: queryError } = await supabase
-        .from("user_documents")
+        .from("user_documents" as any)
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });

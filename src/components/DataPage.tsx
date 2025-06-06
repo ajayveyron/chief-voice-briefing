@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import React, { useState } from "react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,18 +10,13 @@ import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, F
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserDocuments } from "@/hooks/useUserDocuments";
 
 const DataPage = () => {
   const { integrations, isConnected } = useIntegrations();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [customDocs, setCustomDocs] = useState<Array<{
-    id: string;
-    name: string;
-    content: string;
-    type: string;
-    uploadedAt: string;
-  }>>([]);
+  const { documents, refetch } = useUserDocuments();
   const [isUploading, setIsUploading] = useState(false);
 
   const getFileIcon = (type: string) => {
@@ -58,7 +54,7 @@ const DataPage = () => {
 
       // Store in Supabase
       const { data, error } = await supabase
-        .from('user_documents')
+        .from('user_documents' as any)
         .insert([
           {
             user_id: user.id,
@@ -73,15 +69,7 @@ const DataPage = () => {
 
       if (error) throw error;
 
-      const newDoc = {
-        id: data.id,
-        name: file.name,
-        content: content,
-        type: file.type,
-        uploadedAt: data.created_at
-      };
-
-      setCustomDocs(prev => [...prev, newDoc]);
+      await refetch();
       toast({
         title: "Document uploaded",
         description: `${file.name} has been added to your data.`
@@ -105,14 +93,14 @@ const DataPage = () => {
 
     try {
       const { error } = await supabase
-        .from('user_documents')
+        .from('user_documents' as any)
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
 
       if (error) throw error;
 
-      setCustomDocs(prev => prev.filter(doc => doc.id !== id));
+      await refetch();
       toast({
         title: "Document removed",
         description: "The document has been removed from your data."
@@ -126,37 +114,6 @@ const DataPage = () => {
       });
     }
   };
-
-  // Load documents on component mount
-  React.useEffect(() => {
-    const loadDocuments = async () => {
-      if (!user) return;
-
-      try {
-        const { data, error } = await supabase
-          .from('user_documents')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-
-        const docs = (data || []).map(doc => ({
-          id: doc.id,
-          name: doc.name,
-          content: doc.content,
-          type: doc.file_type,
-          uploadedAt: doc.created_at
-        }));
-
-        setCustomDocs(docs);
-      } catch (error) {
-        console.error('Error loading documents:', error);
-      }
-    };
-
-    loadDocuments();
-  }, [user]);
 
   const integrationData = [
     {
@@ -291,18 +248,18 @@ const DataPage = () => {
               </CardContent>
             </Card>
 
-            {customDocs.length > 0 && (
+            {documents.length > 0 && (
               <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
                   <CardTitle>Uploaded Documents</CardTitle>
                   <CardDescription>
-                    {customDocs.length} document{customDocs.length > 1 ? 's' : ''} available for AI reference
+                    {documents.length} document{documents.length > 1 ? 's' : ''} available for AI reference
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {customDocs.map((doc, index) => {
-                      const FileIcon = getFileIcon(doc.type);
+                    {documents.map((doc, index) => {
+                      const FileIcon = getFileIcon(doc.file_type);
                       return (
                         <div key={doc.id}>
                           <div className="flex items-center justify-between p-3 bg-gray-900 rounded-lg">
@@ -311,7 +268,7 @@ const DataPage = () => {
                               <div>
                                 <p className="text-sm font-medium">{doc.name}</p>
                                 <p className="text-xs text-gray-400">
-                                  Uploaded {new Date(doc.uploadedAt).toLocaleDateString()} • {doc.type}
+                                  Uploaded {new Date(doc.created_at).toLocaleDateString()} • {doc.file_type}
                                 </p>
                               </div>
                             </div>
@@ -324,7 +281,7 @@ const DataPage = () => {
                               <Trash2 size={16} />
                             </Button>
                           </div>
-                          {index < customDocs.length - 1 && <Separator className="bg-gray-700" />}
+                          {index < documents.length - 1 && <Separator className="bg-gray-700" />}
                         </div>
                       );
                     })}
