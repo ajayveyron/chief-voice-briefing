@@ -4,7 +4,7 @@ import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { Mail, Calendar, CheckCircle, AlertCircle } from "lucide-react";
+import { Mail, Calendar, CheckCircle, AlertCircle, MessageSquare } from "lucide-react";
 import { useEffect } from "react";
 
 const SettingsPage = () => {
@@ -28,7 +28,7 @@ const SettingsPage = () => {
     }
   };
 
-  const handleConnect = async (type: 'gmail' | 'calendar') => {
+  const handleConnect = async (type: 'gmail' | 'calendar' | 'slack') => {
     try {
       await connectIntegration(type);
     } catch (error) {
@@ -97,6 +97,9 @@ const SettingsPage = () => {
           break;
         case 'calendar_api_failed':
           errorMessage = 'Failed to access Calendar API. Please check permissions.';
+          break;
+        case 'slack_api_failed':
+          errorMessage = 'Failed to access Slack API. Please check permissions.';
           break;
         case 'storage_error':
           errorMessage = 'Failed to store integration data.';
@@ -228,14 +231,42 @@ const SettingsPage = () => {
               )}
             </div>
 
-            {/* Slack Integration - Coming Soon */}
-            <div className="p-4 bg-gray-800 rounded-lg opacity-50">
+            {/* Slack Integration */}
+            <div className="p-4 bg-gray-800 rounded-lg">
               <div className="flex justify-between items-center mb-2">
-                <span className="font-medium">Slack</span>
-                <span className="text-sm text-gray-400">Coming soon</span>
+                <div className="flex items-center space-x-2">
+                  <MessageSquare size={20} className="text-green-500" />
+                  <span className="font-medium">Slack</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {isConnected('slack') ? (
+                    <CheckCircle size={16} className="text-green-500" />
+                  ) : (
+                    <AlertCircle size={16} className="text-gray-400" />
+                  )}
+                  <span className="text-sm text-gray-400">
+                    {isConnected('slack') ? 'Connected' : 'Not connected'}
+                  </span>
+                </div>
               </div>
               <p className="text-sm text-gray-500 mb-3">Receive important Slack notifications</p>
-              <Button size="sm" disabled>Connect Slack</Button>
+              {isConnected('slack') ? (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => handleDisconnect('slack')}
+                >
+                  Disconnect
+                </Button>
+              ) : (
+                <Button 
+                  size="sm" 
+                  onClick={() => handleConnect('slack')}
+                  disabled={loading}
+                >
+                  Connect Slack
+                </Button>
+              )}
             </div>
           </div>
         </div>

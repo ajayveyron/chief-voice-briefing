@@ -1,10 +1,11 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 type Integration = Database["public"]["Tables"]["user_integrations"]["Row"];
-type IntegrationType = 'gmail' | 'calendar' | string;
+type IntegrationType = 'gmail' | 'calendar' | 'slack' | string;
 
 export const useIntegrations = () => {
   const { user } = useAuth();
