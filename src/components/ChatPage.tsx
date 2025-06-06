@@ -16,11 +16,11 @@ const ChatPage = () => {
   }]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const {
-    updates
-  } = useUpdates();
+  const { updates } = useUpdates();
+
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
+
     const userMessage = {
       id: Date.now().toString(),
       text: inputText,
@@ -29,36 +29,42 @@ const ChatPage = () => {
     setMessages(prev => [...prev, userMessage]);
     setInputText("");
     setIsLoading(true);
+
     try {
-      // Prepare conversation history for the API
-      const conversationMessages = messages.map(msg => ({
-        role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
-      }));
+      // Prepare conversation history for the API - only include messages with content
+      const conversationMessages = messages
+        .filter(msg => msg.text && msg.text.trim()) // Filter out empty messages
+        .map(msg => ({
+          role: msg.sender === 'user' ? 'user' : 'assistant',
+          content: msg.text
+        }));
 
       // Add the new user message
       conversationMessages.push({
         role: 'user',
         content: inputText
       });
-      const {
-        data,
-        error
-      } = await supabase.functions.invoke('chat-with-ai', {
+
+      const { data, error } = await supabase.functions.invoke('chat-with-ai', {
         body: {
           messages: conversationMessages,
           userUpdates: updates
         }
       });
+
       if (error) {
         throw error;
       }
-      const assistantMessage = {
-        id: (Date.now() + 1).toString(),
-        text: data.message,
-        sender: 'assistant' as const
-      };
-      setMessages(prev => [...prev, assistantMessage]);
+
+      // Only add assistant message if we have valid content
+      if (data?.generatedText && data.generatedText.trim()) {
+        const assistantMessage = {
+          id: (Date.now() + 1).toString(),
+          text: data.generatedText,
+          sender: 'assistant' as const
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+      }
     } catch (error) {
       console.error('Error calling AI:', error);
       const errorMessage = {
@@ -71,12 +77,14 @@ const ChatPage = () => {
       setIsLoading(false);
     }
   };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
+
   return (
     <div className="h-full flex flex-col relative">
       {/* Header */}

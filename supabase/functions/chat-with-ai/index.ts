@@ -29,7 +29,12 @@ serve(async (req) => {
     // Build messages array based on input
     let chatMessages;
     if (messages && Array.isArray(messages)) {
-      chatMessages = messages;
+      // Filter out any messages with null or empty content
+      chatMessages = messages.filter(msg => 
+        msg.content && 
+        typeof msg.content === 'string' && 
+        msg.content.trim()
+      );
     } else if (prompt) {
       chatMessages = [
         { role: 'system', content: 'You are Chief, an AI assistant that helps users manage their notifications and updates. Be helpful, conversational, and keep responses concise for voice conversation.' },
@@ -37,6 +42,14 @@ serve(async (req) => {
       ];
     } else {
       throw new Error('Invalid request format');
+    }
+
+    // Ensure we have at least one message
+    if (chatMessages.length === 0) {
+      chatMessages = [
+        { role: 'system', content: 'You are Chief, an AI assistant that helps users manage their notifications and updates. Be helpful, conversational, and keep responses concise for voice conversation.' },
+        { role: 'user', content: 'Hello' }
+      ];
     }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
