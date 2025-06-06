@@ -25,25 +25,17 @@ serve(async (req) => {
 
     if (error) {
       console.error('OAuth error from Google:', error)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-voice-briefing.lovable.app'
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: `${frontendUrl}?tab=settings&error=oauth_error` 
-        }
+      return new Response(`OAuth error: ${error}`, { 
+        status: 400,
+        headers: corsHeaders 
       })
     }
 
     if (!code || !state) {
       console.error('Missing required parameters:', { code: !!code, state: !!state })
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-voice-briefing.lovable.app'
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: `${frontendUrl}?tab=settings&error=missing_params` 
-        }
+      return new Response('Missing code or state parameter', { 
+        status: 400,
+        headers: corsHeaders 
       })
     }
 
@@ -62,13 +54,9 @@ serve(async (req) => {
 
     if (!supabaseUrl || !serviceRoleKey || !clientId || !clientSecret) {
       console.error('Missing environment variables')
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-voice-briefing.lovable.app'
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: `${frontendUrl}?tab=settings&error=config_error` 
-        }
+      return new Response('Server configuration error', { 
+        status: 500,
+        headers: corsHeaders 
       })
     }
 
@@ -85,15 +73,19 @@ serve(async (req) => {
       .eq('integration_type', 'gmail')
       .single()
 
-    if (stateError || !oauthState) {
+    if (stateError) {
       console.error('Error looking up OAuth state:', stateError)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-voice-briefing.lovable.app'
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: `${frontendUrl}?tab=settings&error=invalid_state` 
-        }
+      return new Response('Database error during state verification', { 
+        status: 500,
+        headers: corsHeaders 
+      })
+    }
+
+    if (!oauthState) {
+      console.error('Invalid state token:', state)
+      return new Response('Invalid state token', { 
+        status: 400,
+        headers: corsHeaders 
       })
     }
 
@@ -104,7 +96,8 @@ serve(async (req) => {
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Bearer ${tokens.access_token}`,
       },
       body: new URLSearchParams({
         client_id: clientId,
@@ -118,30 +111,49 @@ serve(async (req) => {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
       console.error('Token exchange failed:', errorText)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-voice-briefing.lovable.app'
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: `${frontendUrl}?tab=settings&error=token_exchange_failed` 
-        }
+      return new Response(`Token exchange failed: ${errorText}`, { 
+        status: 400,
+        headers: corsHeaders 
       })
     }
 
     const tokens = await tokenResponse.json()
-    console.log('Token exchange successful')
+    console.log('Token exchange response:', { 
+      success: !tokens.error, 
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      tokenType: tokens.token_type,
+      expiresIn: tokens.expires_in
+    })
 
     if (tokens.error) {
-      console.error('OAuth token error:', tokens.error)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-voice-briefing.lovable.app'
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: `${frontendUrl}?tab=settings&error=token_error` 
-        }
+      console.error('OAuth token error:', tokens.error, tokens.error_description)
+      return new Response(`OAuth error: ${tokens.error} - ${tokens.error_description}`, { 
+        status: 400,
+        headers: corsHeaders 
       })
     }
+
+    // Test Gmail API access with the new token
+    console.log('Testing Gmail API access with token:', tokens.access_token?.substring(0, 20) + '...')
+    const gmailTestResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!gmailTestResponse.ok) {
+      const errorText = await gmailTestResponse.text()
+      console.error('Gmail API test failed:', gmailTestResponse.status, errorText)
+      return new Response(`Gmail API access test failed: ${errorText}`, { 
+        status: 400,
+        headers: corsHeaders 
+      })
+    }
+
+    const gmailProfile = await gmailTestResponse.json()
+    console.log('Gmail API test successful, profile:', gmailProfile)
 
     // Store integration using admin client
     console.log('Storing integration for user:', oauthState.user_id)
@@ -156,13 +168,9 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('Error storing integration:', insertError)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-voice-briefing.lovable.app'
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: `${frontendUrl}?tab=settings&error=storage_error` 
-        }
+      return new Response('Error storing integration', { 
+        status: 500,
+        headers: corsHeaders 
       })
     }
 
@@ -170,13 +178,18 @@ serve(async (req) => {
 
     // Clean up state using admin client
     console.log('Cleaning up OAuth state')
-    await supabase
+    const { error: deleteError } = await supabase
       .from('oauth_states')
       .delete()
       .eq('id', oauthState.id)
 
-    // Redirect back to app with success
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-voice-briefing.lovable.app'
+    if (deleteError) {
+      console.error('Error cleaning up state:', deleteError)
+      // Don't fail the request for cleanup errors
+    }
+
+    // Redirect back to app
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
     const redirectUrl = `${frontendUrl}?tab=settings&connected=gmail`
     
     console.log('Redirecting to:', redirectUrl)
@@ -189,13 +202,9 @@ serve(async (req) => {
     })
   } catch (error) {
     console.error('Unexpected error in gmail-callback:', error)
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-voice-briefing.lovable.app'
-    return new Response(null, {
-      status: 302,
-      headers: { 
-        ...corsHeaders,
-        Location: `${frontendUrl}?tab=settings&error=unexpected_error` 
-      }
+    return new Response('Internal server error', { 
+      status: 500,
+      headers: corsHeaders 
     })
   }
 })
