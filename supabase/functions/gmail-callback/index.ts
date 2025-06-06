@@ -4,7 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
 }
 
 serve(async (req) => {
@@ -93,13 +94,6 @@ serve(async (req) => {
 
     // Exchange code for tokens
     console.log('Exchanging code for tokens')
-    if (!oauthState.redirect_uri) {
-  console.error('Missing redirect_uri in state record')
-  return new Response('Invalid OAuth configuration', {
-    status: 400,
-    headers: corsHeaders
-  })
-}
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 
