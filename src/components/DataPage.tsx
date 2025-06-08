@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet } from "lucide-react";
+import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,11 +17,43 @@ const DataPage = () => {
   const { user } = useAuth();
   const { documents, refetch } = useUserDocuments();
   const [isUploading, setIsUploading] = useState(false);
+  const [gmailEmails, setGmailEmails] = useState<any[]>([]);
+  const [loadingGmail, setLoadingGmail] = useState(false);
 
   const getFileIcon = (type: string) => {
     if (type.startsWith('image/')) return Image;
     if (type.includes('spreadsheet') || type.includes('csv')) return FileSpreadsheet;
     return File;
+  };
+
+  const fetchGmailEmails = async () => {
+    setLoadingGmail(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error('No session');
+
+      const { data, error } = await supabase.functions.invoke('fetch-gmail-emails', {
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`
+        }
+      });
+
+      if (error) throw error;
+      setGmailEmails(data.emails || []);
+      toast({
+        title: "Gmail emails fetched",
+        description: `Retrieved ${data.emails?.length || 0} recent emails`
+      });
+    } catch (error) {
+      console.error('Error fetching Gmail emails:', error);
+      toast({
+        title: "Failed to fetch emails",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingGmail(false);
+    }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,7 +85,7 @@ const DataPage = () => {
 
       // Store in Supabase
       const { data, error } = await supabase
-        .from('user_documents' as any)
+        .from('user_documents')
         .insert([
           {
             user_id: user.id,
@@ -93,7 +124,7 @@ const DataPage = () => {
 
     try {
       const { error } = await supabase
-        .from('user_documents' as any)
+        .from('user_documents')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
@@ -183,10 +214,38 @@ const DataPage = () => {
                     </CardHeader>
                     <CardContent>
                       {integration.connected ? (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           <p className="text-sm text-green-400">
                             ✓ Data is being synced from this integration
                           </p>
+                          
+                          {integration.type === 'gmail' && (
+                            <div className="space-y-3">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={fetchGmailEmails}
+                                disabled={loadingGmail}
+                              >
+                                {loadingGmail ? <RefreshCw className="animate-spin h-4 w-4 mr-2" /> : <Mail className="h-4 w-4 mr-2" />}
+                                {loadingGmail ? 'Loading...' : 'Fetch Recent Emails'}
+                              </Button>
+                              
+                              {gmailEmails.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  <p className="text-xs text-gray-400">Recent emails:</p>
+                                  {gmailEmails.map((email, index) => (
+                                    <div key={email.id} className="p-2 bg-gray-900 rounded text-xs">
+                                      <div className="font-medium text-gray-200">{email.subject}</div>
+                                      <div className="text-gray-400">From: {email.from}</div>
+                                      <div className="text-gray-500 mt-1">{email.snippet}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
                           <p className="text-xs text-gray-500">
                             Last sync: Real-time updates enabled
                           </p>
