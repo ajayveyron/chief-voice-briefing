@@ -188,58 +188,89 @@ serve(async (req) => {
       }
     }
 
-    // 4. Fetch ALL channels without limit
-    const channelsResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&exclude_archived=true', {
-      headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
-        'Content-Type': 'application/json'
+    // 4. Fetch ALL channels with pagination to ensure we don't miss any
+    let allChannels = []
+    let cursor = ''
+    let hasMore = true
+    
+    console.log('Starting to fetch all channels with pagination...')
+    
+    while (hasMore) {
+      // Remove types filter and use pagination to get ALL channels
+      let url = 'https://slack.com/api/conversations.list?exclude_archived=false&limit=1000'
+      if (cursor) {
+        url += `&cursor=${cursor}`
       }
-    })
-
-    if (!channelsResponse.ok) {
-      const errorText = await channelsResponse.text()
-      console.error('Slack channels API error:', channelsResponse.status, errorText)
-      return new Response(JSON.stringify({ 
-        error: 'Failed to fetch Slack channels',
-        details: errorText
-      }), {
-        status: channelsResponse.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const channelsData = await channelsResponse.json()
-    if (!channelsData.ok) {
-      console.error('Slack channels API error:', channelsData.error)
       
-      if (channelsData.error === 'missing_scope') {
+      console.log(`Fetching channels page with cursor: ${cursor || 'none'}`)
+      
+      const channelsResponse = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${integration.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!channelsResponse.ok) {
+        const errorText = await channelsResponse.text()
+        console.error('Slack channels API error:', channelsResponse.status, errorText)
         return new Response(JSON.stringify({ 
-          error: 'Insufficient Slack permissions',
-          details: 'The Slack integration needs additional permissions to read channels and messages. Please reconnect your Slack integration with the required scopes.'
+          error: 'Failed to fetch Slack channels',
+          details: errorText
         }), {
-          status: 403,
+          status: channelsResponse.status,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+
+      const channelsData = await channelsResponse.json()
+      if (!channelsData.ok) {
+        console.error('Slack channels API error:', channelsData.error)
+        
+        if (channelsData.error === 'missing_scope') {
+          return new Response(JSON.stringify({ 
+            error: 'Insufficient Slack permissions',
+            details: 'The Slack integration needs additional permissions to read channels and messages. Please reconnect your Slack integration with the required scopes.'
+          }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+        
+        return new Response(JSON.stringify({ 
+          error: 'Failed to fetch Slack channels',
+          details: channelsData.error
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const pageChannels = channelsData.channels || []
+      allChannels = allChannels.concat(pageChannels)
       
-      return new Response(JSON.stringify({ 
-        error: 'Failed to fetch Slack channels',
-        details: channelsData.error
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      console.log(`Fetched ${pageChannels.length} channels in this page. Total so far: ${allChannels.length}`)
+      
+      // Check if there are more channels to fetch
+      hasMore = channelsData.response_metadata && channelsData.response_metadata.next_cursor
+      cursor = hasMore ? channelsData.response_metadata.next_cursor : ''
+      
+      if (hasMore) {
+        console.log(`More channels available, next cursor: ${cursor}`)
+      } else {
+        console.log('No more channels to fetch')
+      }
     }
 
-    console.log(`Found ${channelsData.channels?.length || 0} channels`)
+    console.log(`Total channels fetched: ${allChannels.length}`)
 
-    // 5. Get recent messages from accessible channels and detailed channel info
-    const messages = []
+    // Log all channel names for debugging
+    console.log('All channel names:', allChannels.map(ch => ch.name).join(', '))
+
+    // 5. Get detailed channel info for all channels
     const detailedChannels = []
-    const channelsToCheck = channelsData.channels || []
-
-    for (const channel of channelsToCheck) {
-      // Get detailed channel info
+    
+    for (const channel of allChannels) {
       try {
         const channelInfoResponse = await fetch(`https://slack.com/api/conversations.info?channel=${channel.id}`, {
           headers: {
@@ -254,44 +285,12 @@ serve(async (req) => {
           if (channelInfoData.ok) {
             detailedChannel = {
               ...channelInfoData.channel,
-              // Ensure we keep the basic info
               purpose: channelInfoData.channel.purpose?.value,
               topic: channelInfoData.channel.topic?.value
             }
           }
         }
         detailedChannels.push(detailedChannel)
-
-        // Try to get messages if we're a member
-        if (channel.is_member) {
-          const messagesResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}&limit=30`, {
-            headers: {
-              'Authorization': `Bearer ${integration.access_token}`,
-              'Content-Type': 'application/json'
-            }
-          })
-
-          if (messagesResponse.ok) {
-            const messagesData = await messagesResponse.json()
-            if (messagesData.ok && messagesData.messages) {
-              for (const message of messagesData.messages) {
-                if (message.text && !message.bot_id) {
-                  messages.push({
-                    id: message.ts,
-                    text: message.text,
-                    user: message.user || 'Unknown',
-                    channel: `#${channel.name}`,
-                    timestamp: new Date(parseFloat(message.ts) * 1000).toISOString()
-                  })
-                }
-              }
-            } else {
-              console.log(`Failed to get messages from channel ${channel.name}:`, messagesData.error)
-            }
-          }
-        } else {
-          console.log(`Skipping messages for channel ${channel.name} - not a member`)
-        }
       } catch (error) {
         console.error(`Error processing channel ${channel.name}:`, error)
         // Still add the basic channel info
@@ -302,9 +301,6 @@ serve(async (req) => {
         })
       }
     }
-
-    // Sort messages by timestamp (newest first)
-    messages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
     // 6. Fetch user profile
     let userProfile = null
@@ -371,25 +367,24 @@ serve(async (req) => {
         is_group: ch.is_group
       })),
       users: users,
-      messages: messages.slice(0, 100),
+      messages: [], // Empty since we're only fetching channels
       summary: {
         total_channels: detailedChannels.length,
         accessible_channels: accessibleChannels,
-        total_messages: messages.length,
+        total_messages: 0,
         total_users: users.length,
         member_channels: detailedChannels.filter(ch => ch.is_member).map(ch => ch.name),
-        non_member_channels: detailedChannels.filter(ch => !ch.is_member).map(ch => ch.name)
+        non_member_channels: detailedChannels.filter(ch => !ch.is_member).map(ch => ch.name),
+        all_channel_names: detailedChannels.map(ch => ch.name)
       }
     }
 
     console.log(`Successfully fetched comprehensive Slack data:
     - Team: ${teamInfo?.name}
-    - Channels: ${response.summary.total_channels}
+    - Total Channels: ${response.summary.total_channels}
     - Accessible Channels: ${response.summary.accessible_channels}
-    - Messages: ${response.summary.total_messages}
     - Users: ${response.summary.total_users}
-    - Member of: ${response.summary.member_channels.join(', ')}
-    - Not member of: ${response.summary.non_member_channels.join(', ')}`)
+    - All channel names: ${response.summary.all_channel_names.join(', ')}`)
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
