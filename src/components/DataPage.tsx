@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw } from "lucide-react";
+import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,7 +20,7 @@ const DataPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [gmailEmails, setGmailEmails] = useState<any[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
-  const [slackMessages, setSlackMessages] = useState<any[]>([]);
+  const [slackData, setSlackData] = useState<any>(null);
   const [loadingGmail, setLoadingGmail] = useState(false);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
   const [loadingSlack, setLoadingSlack] = useState(false);
@@ -91,7 +92,7 @@ const fetchCalendarEvents = async () => {
   }
 };
 
- const fetchSlackMessages = async () => {
+ const fetchSlackData = async () => {
   setLoadingSlack(true);
   try {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -105,15 +106,15 @@ const fetchCalendarEvents = async () => {
 
     if (error) throw error;
 
-    setSlackMessages(data.messages || []);
+    setSlackData(data);
     toast({
-      title: "Slack messages fetched",
-      description: `Retrieved ${data.messages?.length || 0} recent messages`
+      title: "Slack data fetched",
+      description: `Retrieved comprehensive data: ${data.summary?.total_channels || 0} channels, ${data.summary?.total_messages || 0} messages, ${data.summary?.total_users || 0} users`
     });
   } catch (error: any) {
-    console.error('Error fetching Slack messages:', error);
+    console.error('Error fetching Slack data:', error);
     toast({
-      title: "Failed to fetch slack messages",
+      title: "Failed to fetch slack data",
       description: error.message || "Slack integration failed",
       variant: "destructive"
     });
@@ -243,11 +244,11 @@ const fetchCalendarEvents = async () => {
       label: 'Slack',
       color: 'text-green-500',
       connected: isConnected('slack'),
-      description: 'Messages and channel content',
-      fetchFunction: fetchSlackMessages,
+      description: 'Messages, channels, users, and team data',
+      fetchFunction: fetchSlackData,
       loading: loadingSlack,
-      data: slackMessages,
-      dataLabel: 'messages'
+      data: slackData,
+      dataLabel: 'comprehensive data'
     }
   ];
 
@@ -308,32 +309,102 @@ const fetchCalendarEvents = async () => {
                               {integration.loading ? 'Loading...' : `Fetch Recent ${integration.label} Data`}
                             </Button>
                             
-                            {integration.data.length > 0 && (
+                            {/* Gmail Data Display */}
+                            {integration.type === 'gmail' && integration.data.length > 0 && (
                               <div className="mt-3 space-y-2">
-                                <p className="text-xs text-gray-400">Recent {integration.dataLabel}:</p>
+                                <p className="text-xs text-gray-400">Recent emails:</p>
                                 {integration.data.map((item, index) => (
                                   <div key={item.id || index} className="p-2 bg-gray-900 rounded text-xs">
-                                    {integration.type === 'gmail' && (
-                                      <>
-                                        <div className="font-medium text-gray-200">{item.subject}</div>
-                                        <div className="text-gray-400">From: {item.from}</div>
-                                        <div className="text-gray-500 mt-1">{item.snippet}</div>
-                                      </>
-                                    )}
-                                    {integration.type === 'calendar' && (
-                                      <>
-                                        <div className="font-medium text-gray-200">{item.summary}</div>
-                                        <div className="text-gray-400">Start: {new Date(item.start).toLocaleString()}</div>
-                                      </>
-                                    )}
-                                    {integration.type === 'slack' && (
-                                      <>
-                                        <div className="font-medium text-gray-200">{item.text}</div>
-                                        <div className="text-gray-400">From: {item.user} in {item.channel}</div>
-                                      </>
-                                    )}
+                                    <div className="font-medium text-gray-200">{item.subject}</div>
+                                    <div className="text-gray-400">From: {item.from}</div>
+                                    <div className="text-gray-500 mt-1">{item.snippet}</div>
                                   </div>
                                 ))}
+                              </div>
+                            )}
+
+                            {/* Calendar Data Display */}
+                            {integration.type === 'calendar' && integration.data.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                <p className="text-xs text-gray-400">Recent events:</p>
+                                {integration.data.map((item, index) => (
+                                  <div key={item.id || index} className="p-2 bg-gray-900 rounded text-xs">
+                                    <div className="font-medium text-gray-200">{item.summary}</div>
+                                    <div className="text-gray-400">Start: {new Date(item.start).toLocaleString()}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Slack Data Display */}
+                            {integration.type === 'slack' && integration.data && (
+                              <div className="mt-3 space-y-3">
+                                {/* Team Info */}
+                                {integration.data.team && (
+                                  <div className="p-3 bg-gray-900 rounded">
+                                    <p className="text-xs text-gray-400 mb-2">Team Info:</p>
+                                    <div className="text-xs">
+                                      <div className="font-medium text-gray-200">{integration.data.team.name}</div>
+                                      <div className="text-gray-400">{integration.data.team.domain}</div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Summary */}
+                                {integration.data.summary && (
+                                  <div className="p-3 bg-gray-900 rounded">
+                                    <p className="text-xs text-gray-400 mb-2">Data Summary:</p>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div className="flex items-center space-x-1">
+                                        <Hash size={12} />
+                                        <span>{integration.data.summary.total_channels} channels</span>
+                                      </div>
+                                      <div className="flex items-center space-x-1">
+                                        <Users size={12} />
+                                        <span>{integration.data.summary.total_users} users</span>
+                                      </div>
+                                      <div className="flex items-center space-x-1">
+                                        <MessageSquare size={12} />
+                                        <span>{integration.data.summary.total_messages} messages</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Recent Messages */}
+                                {integration.data.messages && integration.data.messages.length > 0 && (
+                                  <div className="space-y-2">
+                                    <p className="text-xs text-gray-400">Recent messages:</p>
+                                    {integration.data.messages.slice(0, 3).map((message, index) => (
+                                      <div key={message.id || index} className="p-2 bg-gray-900 rounded text-xs">
+                                        <div className="font-medium text-gray-200">{message.text}</div>
+                                        <div className="text-gray-400">From: {message.user} in {message.channel}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Channels */}
+                                {integration.data.channels && integration.data.channels.length > 0 && (
+                                  <div className="space-y-2">
+                                    <p className="text-xs text-gray-400">Available channels:</p>
+                                    <div className="max-h-32 overflow-y-auto space-y-1">
+                                      {integration.data.channels.slice(0, 5).map((channel, index) => (
+                                        <div key={channel.id || index} className="p-2 bg-gray-900 rounded text-xs">
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-medium text-gray-200">#{channel.name}</span>
+                                            <Badge variant={channel.is_member ? "default" : "secondary"} className="text-xs">
+                                              {channel.is_member ? "Member" : "Not Member"}
+                                            </Badge>
+                                          </div>
+                                          {channel.purpose && (
+                                            <div className="text-gray-500 mt-1">{channel.purpose}</div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
