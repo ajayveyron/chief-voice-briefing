@@ -52,35 +52,135 @@ serve(async (req) => {
 
     console.log('Found Slack integration:', integration.id)
 
-    // For now, return mock data since Slack API implementation would be more complex
-    // In a real implementation, you would use the Slack Web API to fetch messages
-    const mockMessages = [
-      {
-        id: 'msg1',
-        text: 'Hey team, the deployment is complete!',
-        user: 'john.doe',
-        channel: '#general',
-        timestamp: new Date().toISOString()
-      },
-      {
-        id: 'msg2', 
-        text: 'Can we schedule a meeting for the Q1 review?',
-        user: 'jane.smith',
-        channel: '#planning',
-        timestamp: new Date(Date.now() - 3600000).toISOString()
-      },
-      {
-        id: 'msg3',
-        text: 'The new feature is ready for testing',
-        user: 'mike.wilson',
-        channel: '#development',
-        timestamp: new Date(Date.now() - 7200000).toISOString()
+    // Check if token is expired and needs refresh
+    if (integration.token_expires_at && new Date(integration.token_expires_at) <= new Date()) {
+      console.log('Access token expired, attempting refresh...')
+      
+      if (!integration.refresh_token) {
+        return new Response(JSON.stringify({ error: 'Access token expired and no refresh token available' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
-    ]
 
-    console.log(`Successfully fetched ${mockMessages.length} Slack messages`)
+      // Refresh the token
+      const tokenResponse = await fetch('https://slack.com/api/oauth.v2.access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: Deno.env.get('SLACK_CLIENT_ID') ?? '',
+          client_secret: Deno.env.get('SLACK_CLIENT_SECRET') ?? '',
+          refresh_token: integration.refresh_token,
+          grant_type: 'refresh_token'
+        })
+      })
 
-    return new Response(JSON.stringify({ messages: mockMessages }), {
+      if (!tokenResponse.ok) {
+        console.error('Token refresh failed:', await tokenResponse.text())
+        return new Response(JSON.stringify({ error: 'Failed to refresh access token' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const tokens = await tokenResponse.json()
+      
+      if (!tokens.ok) {
+        console.error('Token refresh error:', tokens.error)
+        return new Response(JSON.stringify({ error: 'Failed to refresh access token' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      
+      // Update the integration with new token
+      await supabaseClient
+        .from('user_integrations')
+        .update({
+          access_token: tokens.access_token,
+          token_expires_at: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null,
+        })
+        .eq('id', integration.id)
+
+      integration.access_token = tokens.access_token
+    }
+
+    console.log('Fetching Slack messages from Slack API...')
+
+    // First, get the list of channels the user has access to
+    const channelsResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&limit=20', {
+      headers: {
+        'Authorization': `Bearer ${integration.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!channelsResponse.ok) {
+      const errorText = await channelsResponse.text()
+      console.error('Slack channels API error:', channelsResponse.status, errorText)
+      return new Response(JSON.stringify({ 
+        error: 'Failed to fetch Slack channels',
+        details: errorText
+      }), {
+        status: channelsResponse.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const channelsData = await channelsResponse.json()
+    if (!channelsData.ok) {
+      console.error('Slack channels API error:', channelsData.error)
+      return new Response(JSON.stringify({ 
+        error: 'Failed to fetch Slack channels',
+        details: channelsData.error
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    console.log('Slack channels response:', channelsData)
+
+    // Get recent messages from the first few channels
+    const messages = []
+    const channelsToCheck = channelsData.channels?.slice(0, 3) || []
+
+    for (const channel of channelsToCheck) {
+      try {
+        const messagesResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}&limit=5`, {
+          headers: {
+            'Authorization': `Bearer ${integration.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (messagesResponse.ok) {
+          const messagesData = await messagesResponse.json()
+          if (messagesData.ok && messagesData.messages) {
+            for (const message of messagesData.messages.slice(0, 2)) {
+              if (message.text && !message.bot_id) { // Skip bot messages
+                messages.push({
+                  id: message.ts,
+                  text: message.text,
+                  user: message.user || 'Unknown',
+                  channel: `#${channel.name}`,
+                  timestamp: new Date(parseFloat(message.ts) * 1000).toISOString()
+                })
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching messages from channel ${channel.name}:`, error)
+      }
+    }
+
+    // Sort messages by timestamp (newest first)
+    messages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+    console.log(`Successfully fetched ${messages.length} Slack messages`)
+
+    return new Response(JSON.stringify({ messages: messages.slice(0, 10) }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
