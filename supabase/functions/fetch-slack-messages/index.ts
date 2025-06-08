@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -188,8 +187,8 @@ serve(async (req) => {
       }
     }
 
-    // 4. Fetch channels list
-    const channelsResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&limit=20', {
+    // 4. Fetch channels list with more details
+    const channelsResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&limit=20&exclude_archived=true', {
       headers: {
         'Authorization': `Bearer ${integration.access_token}`,
         'Content-Type': 'application/json'
@@ -233,39 +232,73 @@ serve(async (req) => {
 
     console.log(`Found ${channelsData.channels?.length || 0} channels`)
 
-    // 5. Get recent messages from the first few accessible channels
+    // 5. Get recent messages from accessible channels and detailed channel info
     const messages = []
-    const channelsToCheck = channelsData.channels?.slice(0, 3) || []
+    const detailedChannels = []
+    const channelsToCheck = channelsData.channels || []
 
     for (const channel of channelsToCheck) {
+      // Get detailed channel info
       try {
-        const messagesResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}&limit=3`, {
+        const channelInfoResponse = await fetch(`https://slack.com/api/conversations.info?channel=${channel.id}`, {
           headers: {
             'Authorization': `Bearer ${integration.access_token}`,
             'Content-Type': 'application/json'
           }
         })
 
-        if (messagesResponse.ok) {
-          const messagesData = await messagesResponse.json()
-          if (messagesData.ok && messagesData.messages) {
-            for (const message of messagesData.messages) {
-              if (message.text && !message.bot_id) {
-                messages.push({
-                  id: message.ts,
-                  text: message.text,
-                  user: message.user || 'Unknown',
-                  channel: `#${channel.name}`,
-                  timestamp: new Date(parseFloat(message.ts) * 1000).toISOString()
-                })
-              }
+        let detailedChannel = { ...channel }
+        if (channelInfoResponse.ok) {
+          const channelInfoData = await channelInfoResponse.json()
+          if (channelInfoData.ok) {
+            detailedChannel = {
+              ...channelInfoData.channel,
+              // Ensure we keep the basic info
+              purpose: channelInfoData.channel.purpose?.value,
+              topic: channelInfoData.channel.topic?.value
             }
-          } else {
-            console.log(`No messages or access denied for channel ${channel.name}:`, messagesData.error)
           }
         }
+        detailedChannels.push(detailedChannel)
+
+        // Try to get messages if we're a member
+        if (channel.is_member) {
+          const messagesResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}&limit=3`, {
+            headers: {
+              'Authorization': `Bearer ${integration.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          })
+
+          if (messagesResponse.ok) {
+            const messagesData = await messagesResponse.json()
+            if (messagesData.ok && messagesData.messages) {
+              for (const message of messagesData.messages) {
+                if (message.text && !message.bot_id) {
+                  messages.push({
+                    id: message.ts,
+                    text: message.text,
+                    user: message.user || 'Unknown',
+                    channel: `#${channel.name}`,
+                    timestamp: new Date(parseFloat(message.ts) * 1000).toISOString()
+                  })
+                }
+              }
+            } else {
+              console.log(`Failed to get messages from channel ${channel.name}:`, messagesData.error)
+            }
+          }
+        } else {
+          console.log(`Skipping messages for channel ${channel.name} - not a member`)
+        }
       } catch (error) {
-        console.error(`Error fetching messages from channel ${channel.name}:`, error)
+        console.error(`Error processing channel ${channel.name}:`, error)
+        // Still add the basic channel info
+        detailedChannels.push({
+          ...channel,
+          purpose: channel.purpose?.value,
+          topic: channel.topic?.value
+        })
       }
     }
 
@@ -300,6 +333,9 @@ serve(async (req) => {
       }
     }
 
+    // Count accessible channels (where user is member)
+    const accessibleChannels = detailedChannels.filter(ch => ch.is_member).length
+
     const response = {
       auth: {
         user_id: authData.user_id,
@@ -309,31 +345,50 @@ serve(async (req) => {
       },
       team: teamInfo,
       user_profile: userProfile,
-      channels: channelsData.channels?.slice(0, 10).map(ch => ({
+      channels: detailedChannels.map(ch => ({
         id: ch.id,
         name: ch.name,
         is_channel: ch.is_channel,
         is_private: ch.is_private,
         is_member: ch.is_member,
         num_members: ch.num_members,
-        purpose: ch.purpose?.value,
-        topic: ch.topic?.value
-      })) || [],
+        purpose: ch.purpose,
+        topic: ch.topic,
+        created: ch.created,
+        creator: ch.creator,
+        is_archived: ch.is_archived,
+        is_general: ch.is_general,
+        unlinked: ch.unlinked,
+        name_normalized: ch.name_normalized,
+        is_shared: ch.is_shared,
+        is_ext_shared: ch.is_ext_shared,
+        is_org_shared: ch.is_org_shared,
+        pending_shared: ch.pending_shared,
+        is_pending_ext_shared: ch.is_pending_ext_shared,
+        is_im: ch.is_im,
+        is_mpim: ch.is_mpim,
+        is_group: ch.is_group
+      })),
       users: users,
       messages: messages.slice(0, 10),
       summary: {
-        total_channels: channelsData.channels?.length || 0,
-        accessible_channels: channelsToCheck.length,
+        total_channels: detailedChannels.length,
+        accessible_channels: accessibleChannels,
         total_messages: messages.length,
-        total_users: users.length
+        total_users: users.length,
+        member_channels: detailedChannels.filter(ch => ch.is_member).map(ch => ch.name),
+        non_member_channels: detailedChannels.filter(ch => !ch.is_member).map(ch => ch.name)
       }
     }
 
     console.log(`Successfully fetched comprehensive Slack data:
     - Team: ${teamInfo?.name}
     - Channels: ${response.summary.total_channels}
+    - Accessible Channels: ${response.summary.accessible_channels}
     - Messages: ${response.summary.total_messages}
-    - Users: ${response.summary.total_users}`)
+    - Users: ${response.summary.total_users}
+    - Member of: ${response.summary.member_channels.join(', ')}
+    - Not member of: ${response.summary.non_member_channels.join(', ')}`)
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

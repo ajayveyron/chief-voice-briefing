@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash, Lock, Globe, Eye } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,6 +24,8 @@ const DataPage = () => {
   const [loadingGmail, setLoadingGmail] = useState(false);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
   const [loadingSlack, setLoadingSlack] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<any>(null);
+  const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
 
   const getFileIcon = (type: string) => {
     if (type.startsWith('image/')) return Image;
@@ -61,67 +63,67 @@ const DataPage = () => {
     }
   };
 
-const fetchCalendarEvents = async () => {
-  setLoadingCalendar(true);
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) throw new Error('No session');
+  const fetchCalendarEvents = async () => {
+    setLoadingCalendar(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error('No session');
 
-    const { data, error } = await supabase.functions.invoke('fetch-calendar-events', {
-      headers: {
-        Authorization: `Bearer ${sessionData.session.access_token}`
-      }
-    });
+      const { data, error } = await supabase.functions.invoke('fetch-calendar-events', {
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`
+        }
+      });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    setCalendarEvents(data.events || []);
-    toast({
-      title: "Calendar events fetched",
-      description: `Retrieved ${data.events?.length || 0} recent events`
-    });
-  } catch (error: any) {
-    console.error('Error fetching Calendar events:', error);
-    toast({
-      title: "Failed to fetch calendar events",
-      description: error.message || "Calendar integration failed",
-      variant: "destructive"
-    });
-  } finally {
-    setLoadingCalendar(false);
-  }
-};
+      setCalendarEvents(data.events || []);
+      toast({
+        title: "Calendar events fetched",
+        description: `Retrieved ${data.events?.length || 0} recent events`
+      });
+    } catch (error: any) {
+      console.error('Error fetching Calendar events:', error);
+      toast({
+        title: "Failed to fetch calendar events",
+        description: error.message || "Calendar integration failed",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingCalendar(false);
+    }
+  };
 
- const fetchSlackData = async () => {
-  setLoadingSlack(true);
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) throw new Error('No session');
+  const fetchSlackData = async () => {
+    setLoadingSlack(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error('No session');
 
-    const { data, error } = await supabase.functions.invoke('fetch-slack-messages', {
-      headers: {
-        Authorization: `Bearer ${sessionData.session.access_token}`
-      }
-    });
+      const { data, error } = await supabase.functions.invoke('fetch-slack-messages', {
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`
+        }
+      });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    setSlackData(data);
-    toast({
-      title: "Slack data fetched",
-      description: `Retrieved comprehensive data: ${data.summary?.total_channels || 0} channels, ${data.summary?.total_messages || 0} messages, ${data.summary?.total_users || 0} users`
-    });
-  } catch (error: any) {
-    console.error('Error fetching Slack data:', error);
-    toast({
-      title: "Failed to fetch slack data",
-      description: error.message || "Slack integration failed",
-      variant: "destructive"
-    });
-  } finally {
-    setLoadingSlack(false);
-  }
-};
+      setSlackData(data);
+      toast({
+        title: "Slack data fetched",
+        description: `Retrieved comprehensive data: ${data.summary?.total_channels || 0} channels, ${data.summary?.total_messages || 0} messages, ${data.summary?.total_users || 0} users`
+      });
+    } catch (error: any) {
+      console.error('Error fetching Slack data:', error);
+      toast({
+        title: "Failed to fetch slack data",
+        description: error.message || "Slack integration failed",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingSlack(false);
+    }
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -213,6 +215,11 @@ const fetchCalendarEvents = async () => {
     }
   };
 
+  const handleChannelClick = (channel: any) => {
+    setSelectedChannel(channel);
+    setIsChannelDialogOpen(true);
+  };
+
   const integrationData = [
     {
       type: 'gmail',
@@ -280,8 +287,8 @@ const fetchCalendarEvents = async () => {
                         <div className="flex items-center space-x-3">
                           <Icon size={24} className={integration.color} />
                           <div>
-                            <CardTitle className="text-lg text-gray-50">{integration.label}</CardTitle>
-                            <CardDescription className="text-gray-400">
+                            <CardTitle className="text-lg text-white">{integration.label}</CardTitle>
+                            <CardDescription className="text-gray-300">
                               {integration.description}
                             </CardDescription>
                           </div>
@@ -312,12 +319,12 @@ const fetchCalendarEvents = async () => {
                             {/* Gmail Data Display */}
                             {integration.type === 'gmail' && integration.data.length > 0 && (
                               <div className="mt-3 space-y-2">
-                                <p className="text-sm font-medium text-gray-200">Recent emails:</p>
+                                <p className="text-sm font-medium text-white">Recent emails:</p>
                                 {integration.data.map((item, index) => (
                                   <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                    <div className="font-medium text-gray-100">{item.subject}</div>
-                                    <div className="text-gray-300 text-sm">From: {item.from}</div>
-                                    <div className="text-gray-400 text-sm mt-1">{item.snippet}</div>
+                                    <div className="font-medium text-white">{item.subject}</div>
+                                    <div className="text-gray-200 text-sm">From: {item.from}</div>
+                                    <div className="text-gray-300 text-sm mt-1">{item.snippet}</div>
                                   </div>
                                 ))}
                               </div>
@@ -326,11 +333,11 @@ const fetchCalendarEvents = async () => {
                             {/* Calendar Data Display */}
                             {integration.type === 'calendar' && integration.data.length > 0 && (
                               <div className="mt-3 space-y-2">
-                                <p className="text-sm font-medium text-gray-200">Recent events:</p>
+                                <p className="text-sm font-medium text-white">Recent events:</p>
                                 {integration.data.map((item, index) => (
                                   <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                    <div className="font-medium text-gray-100">{item.summary}</div>
-                                    <div className="text-gray-300 text-sm">Start: {new Date(item.start).toLocaleString()}</div>
+                                    <div className="font-medium text-white">{item.summary}</div>
+                                    <div className="text-gray-200 text-sm">Start: {new Date(item.start).toLocaleString()}</div>
                                   </div>
                                 ))}
                               </div>
@@ -342,10 +349,42 @@ const fetchCalendarEvents = async () => {
                                 {/* Team Info */}
                                 {integration.data.team && (
                                   <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                    <p className="text-sm font-medium text-gray-200 mb-2">Team Info:</p>
+                                    <p className="text-sm font-medium text-white mb-2">Team Info:</p>
                                     <div className="space-y-1">
-                                      <div className="font-medium text-gray-100">{integration.data.team.name}</div>
-                                      <div className="text-gray-300 text-sm">{integration.data.team.domain}</div>
+                                      <div className="font-medium text-white">{integration.data.team.name}</div>
+                                      <div className="text-gray-200 text-sm">{integration.data.team.domain}</div>
+                                      {integration.data.team.url && (
+                                        <div className="text-blue-400 text-sm">{integration.data.team.url}</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* User Profile */}
+                                {integration.data.user_profile && (
+                                  <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
+                                    <p className="text-sm font-medium text-white mb-2">Your Profile:</p>
+                                    <div className="flex items-center space-x-3">
+                                      {integration.data.user_profile.profile_image && (
+                                        <img 
+                                          src={integration.data.user_profile.profile_image} 
+                                          alt="Profile" 
+                                          className="w-8 h-8 rounded-full"
+                                        />
+                                      )}
+                                      <div>
+                                        <div className="font-medium text-white">
+                                          {integration.data.user_profile.display_name || integration.data.user_profile.real_name || integration.data.user_profile.name}
+                                        </div>
+                                        {integration.data.user_profile.title && (
+                                          <div className="text-gray-200 text-sm">{integration.data.user_profile.title}</div>
+                                        )}
+                                        {integration.data.user_profile.status_text && (
+                                          <div className="text-gray-300 text-sm">
+                                            {integration.data.user_profile.status_emoji} {integration.data.user_profile.status_text}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 )}
@@ -353,19 +392,23 @@ const fetchCalendarEvents = async () => {
                                 {/* Summary */}
                                 {integration.data.summary && (
                                   <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                    <p className="text-sm font-medium text-gray-200 mb-3">Data Summary:</p>
+                                    <p className="text-sm font-medium text-white mb-3">Data Summary:</p>
                                     <div className="grid grid-cols-2 gap-3">
                                       <div className="flex items-center space-x-2">
-                                        <Hash size={14} className="text-gray-400" />
-                                        <span className="text-gray-100 text-sm">{integration.data.summary.total_channels} channels</span>
+                                        <Hash size={14} className="text-gray-300" />
+                                        <span className="text-white text-sm">{integration.data.summary.total_channels} channels</span>
                                       </div>
                                       <div className="flex items-center space-x-2">
-                                        <Users size={14} className="text-gray-400" />
-                                        <span className="text-gray-100 text-sm">{integration.data.summary.total_users} users</span>
+                                        <Users size={14} className="text-gray-300" />
+                                        <span className="text-white text-sm">{integration.data.summary.total_users} users</span>
                                       </div>
                                       <div className="flex items-center space-x-2">
-                                        <MessageSquare size={14} className="text-gray-400" />
-                                        <span className="text-gray-100 text-sm">{integration.data.summary.total_messages} messages</span>
+                                        <MessageSquare size={14} className="text-gray-300" />
+                                        <span className="text-white text-sm">{integration.data.summary.total_messages} messages</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Eye size={14} className="text-gray-300" />
+                                        <span className="text-white text-sm">{integration.data.summary.accessible_channels} accessible</span>
                                       </div>
                                     </div>
                                   </div>
@@ -374,35 +417,78 @@ const fetchCalendarEvents = async () => {
                                 {/* Recent Messages */}
                                 {integration.data.messages && integration.data.messages.length > 0 && (
                                   <div className="space-y-2">
-                                    <p className="text-sm font-medium text-gray-200">Recent messages:</p>
+                                    <p className="text-sm font-medium text-white">Recent messages:</p>
                                     {integration.data.messages.slice(0, 3).map((message, index) => (
                                       <div key={message.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                        <div className="font-medium text-gray-100 text-sm">{message.text}</div>
-                                        <div className="text-gray-300 text-xs mt-1">From: {message.user} in {message.channel}</div>
+                                        <div className="font-medium text-white text-sm">{message.text}</div>
+                                        <div className="text-gray-200 text-xs mt-1">From: {message.user} in {message.channel}</div>
+                                        <div className="text-gray-400 text-xs">{new Date(message.timestamp).toLocaleString()}</div>
                                       </div>
                                     ))}
                                   </div>
                                 )}
 
-                                {/* Channels */}
+                                {/* Channels - Now Clickable */}
                                 {integration.data.channels && integration.data.channels.length > 0 && (
                                   <div className="space-y-2">
-                                    <p className="text-sm font-medium text-gray-200">Available channels:</p>
-                                    <div className="max-h-32 overflow-y-auto space-y-2">
-                                      {integration.data.channels.slice(0, 5).map((channel, index) => (
-                                        <div key={channel.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                    <p className="text-sm font-medium text-white">Available channels (click to view details):</p>
+                                    <div className="max-h-40 overflow-y-auto space-y-2">
+                                      {integration.data.channels.slice(0, 10).map((channel, index) => (
+                                        <div 
+                                          key={channel.id || index} 
+                                          className="p-3 bg-gray-900 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-800 transition-colors"
+                                          onClick={() => handleChannelClick(channel)}
+                                        >
                                           <div className="flex items-center justify-between mb-1">
-                                            <span className="font-medium text-gray-100 text-sm">#{channel.name}</span>
-                                            <Badge 
-                                              variant={channel.is_member ? "default" : "secondary"} 
-                                              className={`text-xs ${channel.is_member ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'}`}
-                                            >
-                                              {channel.is_member ? "Member" : "Not Member"}
-                                            </Badge>
+                                            <div className="flex items-center space-x-2">
+                                              {channel.is_private ? <Lock size={14} className="text-gray-400" /> : <Globe size={14} className="text-gray-400" />}
+                                              <span className="font-medium text-white text-sm">#{channel.name}</span>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                              <Badge 
+                                                variant={channel.is_member ? "default" : "secondary"} 
+                                                className={`text-xs ${channel.is_member ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'}`}
+                                              >
+                                                {channel.is_member ? "Member" : "Not Member"}
+                                              </Badge>
+                                              {channel.num_members && (
+                                                <span className="text-xs text-gray-400">{channel.num_members} members</span>
+                                              )}
+                                            </div>
                                           </div>
                                           {channel.purpose && (
-                                            <div className="text-gray-300 text-xs">{channel.purpose}</div>
+                                            <div className="text-gray-200 text-xs mt-1">{channel.purpose}</div>
                                           )}
+                                          {channel.topic && (
+                                            <div className="text-gray-300 text-xs mt-1">Topic: {channel.topic}</div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Users */}
+                                {integration.data.users && integration.data.users.length > 0 && (
+                                  <div className="space-y-2">
+                                    <p className="text-sm font-medium text-white">Team members:</p>
+                                    <div className="max-h-32 overflow-y-auto space-y-2">
+                                      {integration.data.users.map((slackUser, index) => (
+                                        <div key={slackUser.id || index} className="flex items-center space-x-3 p-2 bg-gray-900 rounded border border-gray-600">
+                                          {slackUser.profile_image && (
+                                            <img src={slackUser.profile_image} alt="User" className="w-6 h-6 rounded-full" />
+                                          )}
+                                          <div className="flex-1">
+                                            <div className="text-white text-sm">
+                                              {slackUser.display_name || slackUser.real_name || slackUser.name}
+                                            </div>
+                                            {slackUser.is_admin && (
+                                              <Badge variant="outline" className="text-xs text-blue-400 border-blue-400">Admin</Badge>
+                                            )}
+                                            {slackUser.is_bot && (
+                                              <Badge variant="outline" className="text-xs text-purple-400 border-purple-400">Bot</Badge>
+                                            )}
+                                          </div>
                                         </div>
                                       ))}
                                     </div>
@@ -517,6 +603,75 @@ const fetchCalendarEvents = async () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Channel Details Dialog */}
+      <Dialog open={isChannelDialogOpen} onOpenChange={setIsChannelDialogOpen}>
+        <DialogContent className="bg-gray-800 border-gray-600 text-white max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              {selectedChannel?.is_private ? <Lock size={20} className="text-gray-400" /> : <Globe size={20} className="text-gray-400" />}
+              <span>#{selectedChannel?.name}</span>
+            </DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Complete channel information from Slack API
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedChannel && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-medium text-white mb-2">Basic Info</h4>
+                  <div className="space-y-2 text-sm">
+                    <div><span className="text-gray-400">ID:</span> <span className="text-gray-200">{selectedChannel.id}</span></div>
+                    <div><span className="text-gray-400">Name:</span> <span className="text-gray-200">#{selectedChannel.name}</span></div>
+                    <div><span className="text-gray-400">Type:</span> <span className="text-gray-200">{selectedChannel.is_private ? 'Private' : 'Public'} Channel</span></div>
+                    <div><span className="text-gray-400">Members:</span> <span className="text-gray-200">{selectedChannel.num_members || 'Unknown'}</span></div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-white mb-2">Membership</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-gray-400">Member Status:</span> 
+                      <Badge className={`ml-2 ${selectedChannel.is_member ? 'bg-green-600' : 'bg-red-600'}`}>
+                        {selectedChannel.is_member ? 'Member' : 'Not Member'}
+                      </Badge>
+                    </div>
+                    <div><span className="text-gray-400">Is Channel:</span> <span className="text-gray-200">{selectedChannel.is_channel ? 'Yes' : 'No'}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              {selectedChannel.purpose && (
+                <div>
+                  <h4 className="font-medium text-white mb-2">Purpose</h4>
+                  <p className="text-gray-200 text-sm bg-gray-900 p-3 rounded border border-gray-600">
+                    {selectedChannel.purpose}
+                  </p>
+                </div>
+              )}
+
+              {selectedChannel.topic && (
+                <div>
+                  <h4 className="font-medium text-white mb-2">Topic</h4>
+                  <p className="text-gray-200 text-sm bg-gray-900 p-3 rounded border border-gray-600">
+                    {selectedChannel.topic}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <h4 className="font-medium text-white mb-2">Raw Channel Data</h4>
+                <pre className="text-xs text-gray-300 bg-gray-900 p-3 rounded border border-gray-600 overflow-x-auto">
+                  {JSON.stringify(selectedChannel, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
