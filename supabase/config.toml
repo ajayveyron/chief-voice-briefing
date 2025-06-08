@@ -1,2 +1,29 @@
 
 project_id = "xxccvppbxnhowncdhvdi"
+
+[functions.slack-auth]
+verify_jwt = false
+
+[functions.slack-callback]
+verify_jwt = false
+
+[functions.calendar-auth]
+verify_jwt = false
+
+[functions.calendar-callback]
+verify_jwt = false
+
+[functions.gmail-auth]
+verify_jwt = false
+
+[functions.gmail-callback]
+verify_jwt = false
+
+[functions.fetch-calendar-events]
+verify_jwt = false
+
+[functions.fetch-gmail-emails]
+verify_jwt = false
+
+[functions.fetch-slack-messages]
+verify_jwt = false

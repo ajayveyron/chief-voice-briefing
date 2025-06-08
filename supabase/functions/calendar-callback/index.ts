@@ -26,7 +26,7 @@ serve(async (req) => {
 
     if (error) {
       console.error('OAuth error from Google:', error)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=oauth_error`
       return new Response(null, {
         status: 302,
@@ -39,7 +39,7 @@ serve(async (req) => {
 
     if (!code || !state) {
       console.error('Missing required parameters:', { code: !!code, state: !!state })
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=missing_params`
       return new Response(null, {
         status: 302,
@@ -65,7 +65,7 @@ serve(async (req) => {
 
     if (!supabaseUrl || !serviceRoleKey || !clientId || !clientSecret) {
       console.error('Missing environment variables')
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=config_error`
       return new Response(null, {
         status: 302,
@@ -91,7 +91,7 @@ serve(async (req) => {
 
     if (stateError) {
       console.error('Error looking up OAuth state:', stateError)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
       return new Response(null, {
         status: 302,
@@ -104,7 +104,7 @@ serve(async (req) => {
 
     if (!oauthState) {
       console.error('Invalid state token:', state)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
       return new Response(null, {
         status: 302,
@@ -136,7 +136,7 @@ serve(async (req) => {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
       console.error('Token exchange failed:', errorText)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=token_exchange_failed`
       return new Response(null, {
         status: 302,
@@ -158,7 +158,7 @@ serve(async (req) => {
 
     if (tokens.error) {
       console.error('OAuth token error:', tokens.error, tokens.error_description)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=token_error`
       return new Response(null, {
         status: 302,
@@ -181,7 +181,7 @@ serve(async (req) => {
     if (!calendarTestResponse.ok) {
       const errorText = await calendarTestResponse.text()
       console.error('Calendar API test failed:', calendarTestResponse.status, errorText)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=calendar_api_failed`
       return new Response(null, {
         status: 302,
@@ -208,7 +208,7 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('Error storing integration:', insertError)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=storage_error`
       return new Response(null, {
         status: 302,
@@ -234,7 +234,7 @@ serve(async (req) => {
     }
 
     // Redirect back to app
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+    const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
     const redirectUrl = `${frontendUrl}?tab=settings&connected=calendar`
     
     console.log('Redirecting to:', redirectUrl)
@@ -247,7 +247,7 @@ serve(async (req) => {
     })
   } catch (error) {
     console.error('Unexpected error in calendar-callback:', error)
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+    const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
     const redirectUrl = `${frontendUrl}?tab=settings&error=unexpected_error`
     return new Response(null, {
       status: 302,

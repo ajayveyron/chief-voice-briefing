@@ -33,7 +33,7 @@ serve(async (req) => {
 
     if (error) {
       console.error('OAuth error from Slack:', error)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=oauth_error`
       return new Response(null, {
         status: 302,
@@ -46,7 +46,7 @@ serve(async (req) => {
 
     if (!code || !state) {
       console.error('Missing required parameters:', { hasCode: !!code, hasState: !!state })
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=missing_params`
       return new Response(null, {
         status: 302,
@@ -78,7 +78,7 @@ serve(async (req) => {
         SLACK_CLIENT_ID: !!clientId,
         SLACK_CLIENT_SECRET: !!clientSecret
       })
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=config_error`
       return new Response(null, {
         status: 302,
@@ -109,7 +109,7 @@ serve(async (req) => {
 
     if (stateError) {
       console.error('Error looking up OAuth state:', stateError)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
       return new Response(null, {
         status: 302,
@@ -122,7 +122,7 @@ serve(async (req) => {
 
     if (!oauthState) {
       console.error('Invalid state token - no matching record found:', state)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
       return new Response(null, {
         status: 302,
@@ -153,7 +153,7 @@ serve(async (req) => {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
       console.error('Token exchange failed:', tokenResponse.status, errorText)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=token_exchange_failed`
       return new Response(null, {
         status: 302,
@@ -174,7 +174,7 @@ serve(async (req) => {
 
     if (!tokens.ok || tokens.error) {
       console.error('Slack OAuth token error:', tokens.error)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=token_error`
       return new Response(null, {
         status: 302,
@@ -197,7 +197,7 @@ serve(async (req) => {
     if (!slackTestResponse.ok) {
       const errorText = await slackTestResponse.text()
       console.error('Slack API test failed:', slackTestResponse.status, errorText)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
       const redirectUrl = `${frontendUrl}?tab=settings&error=slack_api_failed`
       return new Response(null, {
         status: 302,
@@ -240,7 +240,7 @@ serve(async (req) => {
 
       if (updateError) {
         console.error('Error updating integration:', updateError)
-        const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+        const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
         const redirectUrl = `${frontendUrl}?tab=settings&error=storage_error`
         return new Response(null, {
           status: 302,
@@ -269,7 +269,7 @@ serve(async (req) => {
 
       if (insertError) {
         console.error('Error creating integration:', insertError)
-        const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+        const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
         const redirectUrl = `${frontendUrl}?tab=settings&error=storage_error`
         return new Response(null, {
           status: 302,
@@ -295,7 +295,7 @@ serve(async (req) => {
     }
 
     // Redirect back to app
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+    const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
     const redirectUrl = `${frontendUrl}?tab=settings&connected=slack`
     
     console.log('Redirecting to:', redirectUrl)
@@ -308,7 +308,7 @@ serve(async (req) => {
     })
   } catch (error) {
     console.error('Unexpected error in slack-callback:', error)
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+    const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
     const redirectUrl = `${frontendUrl}?tab=settings&error=unexpected_error`
     return new Response(null, {
       status: 302,
