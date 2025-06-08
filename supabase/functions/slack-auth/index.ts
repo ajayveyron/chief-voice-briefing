@@ -84,7 +84,8 @@ serve(async (req) => {
       authUrl.searchParams.set('client_id', slackClientId)
       authUrl.searchParams.set('redirect_uri', slackRedirectUri)
       authUrl.searchParams.set('response_type', 'code')
-      authUrl.searchParams.set('scope', 'channels:read,chat:write,users:read')
+      // Updated scopes to include all the permissions needed for reading channels and messages
+      authUrl.searchParams.set('scope', 'channels:read,channels:history,groups:read,groups:history,im:read,im:history,mpim:read,mpim:history,chat:write,users:read')
       authUrl.searchParams.set('state', state)
 
       console.log('Generated auth URL:', authUrl.toString())

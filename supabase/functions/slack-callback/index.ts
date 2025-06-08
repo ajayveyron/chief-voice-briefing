@@ -211,35 +211,76 @@ serve(async (req) => {
     const slackProfile = await slackTestResponse.json()
     console.log('Slack API test successful, user:', slackProfile.user)
 
-    // Store integration using admin client
-    console.log('Storing integration for user:', oauthState.user_id)
-    const { error: insertError } = await supabase.from('user_integrations').upsert({
-      user_id: oauthState.user_id,
-      integration_type: 'slack',
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      is_active: true,
-      integration_data: {
-        team_id: tokens.team?.id,
-        team_name: tokens.team?.name,
-        user_id: tokens.authed_user?.id
-      }
-    })
+    // First, check if an integration already exists for this user
+    console.log('Checking for existing integration for user:', oauthState.user_id)
+    const { data: existingIntegration } = await supabase
+      .from('user_integrations')
+      .select('id')
+      .eq('user_id', oauthState.user_id)
+      .eq('integration_type', 'slack')
+      .single()
 
-    if (insertError) {
-      console.error('Error storing integration:', insertError)
-      const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
-      const redirectUrl = `${frontendUrl}?tab=settings&error=storage_error`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
+    if (existingIntegration) {
+      // Update existing integration
+      console.log('Updating existing integration:', existingIntegration.id)
+      const { error: updateError } = await supabase
+        .from('user_integrations')
+        .update({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          is_active: true,
+          integration_data: {
+            team_id: tokens.team?.id,
+            team_name: tokens.team?.name,
+            user_id: tokens.authed_user?.id
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingIntegration.id)
+
+      if (updateError) {
+        console.error('Error updating integration:', updateError)
+        const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+        const redirectUrl = `${frontendUrl}?tab=settings&error=storage_error`
+        return new Response(null, {
+          status: 302,
+          headers: { 
+            ...corsHeaders,
+            Location: redirectUrl 
+          }
+        })
+      }
+      console.log('Integration updated successfully')
+    } else {
+      // Create new integration
+      console.log('Creating new integration for user:', oauthState.user_id)
+      const { error: insertError } = await supabase.from('user_integrations').insert({
+        user_id: oauthState.user_id,
+        integration_type: 'slack',
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        is_active: true,
+        integration_data: {
+          team_id: tokens.team?.id,
+          team_name: tokens.team?.name,
+          user_id: tokens.authed_user?.id
         }
       })
-    }
 
-    console.log('Integration stored successfully')
+      if (insertError) {
+        console.error('Error creating integration:', insertError)
+        const frontendUrl = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000'
+        const redirectUrl = `${frontendUrl}?tab=settings&error=storage_error`
+        return new Response(null, {
+          status: 302,
+          headers: { 
+            ...corsHeaders,
+            Location: redirectUrl 
+          }
+        })
+      }
+      console.log('Integration created successfully')
+    }
 
     // Clean up state using admin client
     console.log('Cleaning up OAuth state')
