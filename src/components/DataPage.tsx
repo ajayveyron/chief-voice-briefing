@@ -312,12 +312,12 @@ const fetchCalendarEvents = async () => {
                             {/* Gmail Data Display */}
                             {integration.type === 'gmail' && integration.data.length > 0 && (
                               <div className="mt-3 space-y-2">
-                                <p className="text-xs text-gray-400">Recent emails:</p>
+                                <p className="text-sm font-medium text-gray-200">Recent emails:</p>
                                 {integration.data.map((item, index) => (
-                                  <div key={item.id || index} className="p-2 bg-gray-900 rounded text-xs">
-                                    <div className="font-medium text-gray-200">{item.subject}</div>
-                                    <div className="text-gray-400">From: {item.from}</div>
-                                    <div className="text-gray-500 mt-1">{item.snippet}</div>
+                                  <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                    <div className="font-medium text-gray-100">{item.subject}</div>
+                                    <div className="text-gray-300 text-sm">From: {item.from}</div>
+                                    <div className="text-gray-400 text-sm mt-1">{item.snippet}</div>
                                   </div>
                                 ))}
                               </div>
@@ -326,11 +326,11 @@ const fetchCalendarEvents = async () => {
                             {/* Calendar Data Display */}
                             {integration.type === 'calendar' && integration.data.length > 0 && (
                               <div className="mt-3 space-y-2">
-                                <p className="text-xs text-gray-400">Recent events:</p>
+                                <p className="text-sm font-medium text-gray-200">Recent events:</p>
                                 {integration.data.map((item, index) => (
-                                  <div key={item.id || index} className="p-2 bg-gray-900 rounded text-xs">
-                                    <div className="font-medium text-gray-200">{item.summary}</div>
-                                    <div className="text-gray-400">Start: {new Date(item.start).toLocaleString()}</div>
+                                  <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                    <div className="font-medium text-gray-100">{item.summary}</div>
+                                    <div className="text-gray-300 text-sm">Start: {new Date(item.start).toLocaleString()}</div>
                                   </div>
                                 ))}
                               </div>
@@ -341,31 +341,31 @@ const fetchCalendarEvents = async () => {
                               <div className="mt-3 space-y-3">
                                 {/* Team Info */}
                                 {integration.data.team && (
-                                  <div className="p-3 bg-gray-900 rounded">
-                                    <p className="text-xs text-gray-400 mb-2">Team Info:</p>
-                                    <div className="text-xs">
-                                      <div className="font-medium text-gray-200">{integration.data.team.name}</div>
-                                      <div className="text-gray-400">{integration.data.team.domain}</div>
+                                  <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
+                                    <p className="text-sm font-medium text-gray-200 mb-2">Team Info:</p>
+                                    <div className="space-y-1">
+                                      <div className="font-medium text-gray-100">{integration.data.team.name}</div>
+                                      <div className="text-gray-300 text-sm">{integration.data.team.domain}</div>
                                     </div>
                                   </div>
                                 )}
 
                                 {/* Summary */}
                                 {integration.data.summary && (
-                                  <div className="p-3 bg-gray-900 rounded">
-                                    <p className="text-xs text-gray-400 mb-2">Data Summary:</p>
-                                    <div className="grid grid-cols-2 gap-2 text-xs">
-                                      <div className="flex items-center space-x-1">
-                                        <Hash size={12} />
-                                        <span>{integration.data.summary.total_channels} channels</span>
+                                  <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
+                                    <p className="text-sm font-medium text-gray-200 mb-3">Data Summary:</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div className="flex items-center space-x-2">
+                                        <Hash size={14} className="text-gray-400" />
+                                        <span className="text-gray-100 text-sm">{integration.data.summary.total_channels} channels</span>
                                       </div>
-                                      <div className="flex items-center space-x-1">
-                                        <Users size={12} />
-                                        <span>{integration.data.summary.total_users} users</span>
+                                      <div className="flex items-center space-x-2">
+                                        <Users size={14} className="text-gray-400" />
+                                        <span className="text-gray-100 text-sm">{integration.data.summary.total_users} users</span>
                                       </div>
-                                      <div className="flex items-center space-x-1">
-                                        <MessageSquare size={12} />
-                                        <span>{integration.data.summary.total_messages} messages</span>
+                                      <div className="flex items-center space-x-2">
+                                        <MessageSquare size={14} className="text-gray-400" />
+                                        <span className="text-gray-100 text-sm">{integration.data.summary.total_messages} messages</span>
                                       </div>
                                     </div>
                                   </div>
@@ -374,11 +374,11 @@ const fetchCalendarEvents = async () => {
                                 {/* Recent Messages */}
                                 {integration.data.messages && integration.data.messages.length > 0 && (
                                   <div className="space-y-2">
-                                    <p className="text-xs text-gray-400">Recent messages:</p>
+                                    <p className="text-sm font-medium text-gray-200">Recent messages:</p>
                                     {integration.data.messages.slice(0, 3).map((message, index) => (
-                                      <div key={message.id || index} className="p-2 bg-gray-900 rounded text-xs">
-                                        <div className="font-medium text-gray-200">{message.text}</div>
-                                        <div className="text-gray-400">From: {message.user} in {message.channel}</div>
+                                      <div key={message.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                        <div className="font-medium text-gray-100 text-sm">{message.text}</div>
+                                        <div className="text-gray-300 text-xs mt-1">From: {message.user} in {message.channel}</div>
                                       </div>
                                     ))}
                                   </div>
@@ -387,18 +387,21 @@ const fetchCalendarEvents = async () => {
                                 {/* Channels */}
                                 {integration.data.channels && integration.data.channels.length > 0 && (
                                   <div className="space-y-2">
-                                    <p className="text-xs text-gray-400">Available channels:</p>
-                                    <div className="max-h-32 overflow-y-auto space-y-1">
+                                    <p className="text-sm font-medium text-gray-200">Available channels:</p>
+                                    <div className="max-h-32 overflow-y-auto space-y-2">
                                       {integration.data.channels.slice(0, 5).map((channel, index) => (
-                                        <div key={channel.id || index} className="p-2 bg-gray-900 rounded text-xs">
-                                          <div className="flex items-center justify-between">
-                                            <span className="font-medium text-gray-200">#{channel.name}</span>
-                                            <Badge variant={channel.is_member ? "default" : "secondary"} className="text-xs">
+                                        <div key={channel.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                          <div className="flex items-center justify-between mb-1">
+                                            <span className="font-medium text-gray-100 text-sm">#{channel.name}</span>
+                                            <Badge 
+                                              variant={channel.is_member ? "default" : "secondary"} 
+                                              className={`text-xs ${channel.is_member ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'}`}
+                                            >
                                               {channel.is_member ? "Member" : "Not Member"}
                                             </Badge>
                                           </div>
                                           {channel.purpose && (
-                                            <div className="text-gray-500 mt-1">{channel.purpose}</div>
+                                            <div className="text-gray-300 text-xs">{channel.purpose}</div>
                                           )}
                                         </div>
                                       ))}
@@ -409,7 +412,7 @@ const fetchCalendarEvents = async () => {
                             )}
                           </div>
                           
-                          <p className="text-xs text-gray-500">
+                          <p className="text-sm text-gray-400">
                             Last sync: Real-time updates enabled
                           </p>
                         </div>
