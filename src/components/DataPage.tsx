@@ -60,63 +60,67 @@ const DataPage = () => {
     }
   };
 
-  const fetchCalendarEvents = async () => {
-    setLoadingCalendar(true);
-    try {
-      // Placeholder for Calendar API call
-      // This would be implemented with a similar edge function
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      
-      const mockEvents = [
-        { id: '1', summary: 'Team Meeting', start: '2024-01-15T10:00:00Z' },
-        { id: '2', summary: 'Project Review', start: '2024-01-16T14:00:00Z' }
-      ];
-      
-      setCalendarEvents(mockEvents);
-      toast({
-        title: "Calendar events fetched",
-        description: `Retrieved ${mockEvents.length} recent events`
-      });
-    } catch (error) {
-      console.error('Error fetching Calendar events:', error);
-      toast({
-        title: "Failed to fetch calendar events",
-        description: "Calendar integration not yet implemented",
-        variant: "destructive"
-      });
-    } finally {
-      setLoadingCalendar(false);
-    }
-  };
+const fetchCalendarEvents = async () => {
+  setLoadingCalendar(true);
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) throw new Error('No session');
 
-  const fetchSlackMessages = async () => {
-    setLoadingSlack(true);
-    try {
-      // Placeholder for Slack API call
-      // This would be implemented with a similar edge function
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      
-      const mockMessages = [
-        { id: '1', text: 'Hello team!', user: 'john.doe', channel: '#general' },
-        { id: '2', text: 'Project update ready', user: 'jane.smith', channel: '#dev' }
-      ];
-      
-      setSlackMessages(mockMessages);
-      toast({
-        title: "Slack messages fetched",
-        description: `Retrieved ${mockMessages.length} recent messages`
-      });
-    } catch (error) {
-      console.error('Error fetching Slack messages:', error);
-      toast({
-        title: "Failed to fetch slack messages",
-        description: "Slack integration not yet implemented",
-        variant: "destructive"
-      });
-    } finally {
-      setLoadingSlack(false);
-    }
-  };
+    const { data, error } = await supabase.functions.invoke('fetch-calendar-events', {
+      headers: {
+        Authorization: `Bearer ${sessionData.session.access_token}`
+      }
+    });
+
+    if (error) throw error;
+
+    setCalendarEvents(data.events || []);
+    toast({
+      title: "Calendar events fetched",
+      description: `Retrieved ${data.events?.length || 0} recent events`
+    });
+  } catch (error: any) {
+    console.error('Error fetching Calendar events:', error);
+    toast({
+      title: "Failed to fetch calendar events",
+      description: error.message || "Calendar integration failed",
+      variant: "destructive"
+    });
+  } finally {
+    setLoadingCalendar(false);
+  }
+};
+
+ const fetchSlackMessages = async () => {
+  setLoadingSlack(true);
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) throw new Error('No session');
+
+    const { data, error } = await supabase.functions.invoke('fetch-slack-messages', {
+      headers: {
+        Authorization: `Bearer ${sessionData.session.access_token}`
+      }
+    });
+
+    if (error) throw error;
+
+    setSlackMessages(data.messages || []);
+    toast({
+      title: "Slack messages fetched",
+      description: `Retrieved ${data.messages?.length || 0} recent messages`
+    });
+  } catch (error: any) {
+    console.error('Error fetching Slack messages:', error);
+    toast({
+      title: "Failed to fetch slack messages",
+      description: error.message || "Slack integration failed",
+      variant: "destructive"
+    });
+  } finally {
+    setLoadingSlack(false);
+  }
+};
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
