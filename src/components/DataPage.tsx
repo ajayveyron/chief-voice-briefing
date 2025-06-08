@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash, Lock, Globe, Eye } from "lucide-react";
+import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash, Lock, Globe, Eye, Clock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -110,13 +110,13 @@ const DataPage = () => {
 
       setSlackData(data);
       toast({
-        title: "Slack data fetched",
-        description: `Retrieved comprehensive data: ${data.summary?.total_channels || 0} channels, ${data.summary?.total_messages || 0} messages, ${data.summary?.total_users || 0} users`
+        title: "Slack channels fetched",
+        description: `Retrieved ${data.summary?.total_channels || 0} channels, ${data.summary?.channels_with_recent_activity || 0} with recent activity`
       });
     } catch (error: any) {
       console.error('Error fetching Slack data:', error);
       toast({
-        title: "Failed to fetch slack data",
+        title: "Failed to fetch slack channels",
         description: error.message || "Slack integration failed",
         variant: "destructive"
       });
@@ -251,11 +251,11 @@ const DataPage = () => {
       label: 'Slack',
       color: 'text-green-500',
       connected: isConnected('slack'),
-      description: 'Messages, channels, users, and team data',
+      description: 'Channels ordered by most recent activity',
       fetchFunction: fetchSlackData,
       loading: loadingSlack,
       data: slackData,
-      dataLabel: 'comprehensive data'
+      dataLabel: 'channels by recent activity'
     }
   ];
 
@@ -343,103 +343,42 @@ const DataPage = () => {
                               </div>
                             )}
 
-                            {/* Slack Data Display */}
+                            {/* Slack Channels Display - Ordered by Recent Activity */}
                             {integration.type === 'slack' && integration.data && (
                               <div className="mt-3 space-y-3">
-                                {/* Team Info */}
-                                {integration.data.team && (
-                                  <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                    <p className="text-sm font-medium text-white mb-2">Team Info:</p>
-                                    <div className="space-y-1">
-                                      <div className="font-medium text-white">{integration.data.team.name}</div>
-                                      <div className="text-gray-200 text-sm">{integration.data.team.domain}</div>
-                                      {integration.data.team.url && (
-                                        <div className="text-blue-400 text-sm">{integration.data.team.url}</div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* User Profile */}
-                                {integration.data.user_profile && (
-                                  <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                    <p className="text-sm font-medium text-white mb-2">Your Profile:</p>
-                                    <div className="flex items-center space-x-3">
-                                      {integration.data.user_profile.profile_image && (
-                                        <img 
-                                          src={integration.data.user_profile.profile_image} 
-                                          alt="Profile" 
-                                          className="w-8 h-8 rounded-full"
-                                        />
-                                      )}
-                                      <div>
-                                        <div className="font-medium text-white">
-                                          {integration.data.user_profile.display_name || integration.data.user_profile.real_name || integration.data.user_profile.name}
-                                        </div>
-                                        {integration.data.user_profile.title && (
-                                          <div className="text-gray-200 text-sm">{integration.data.user_profile.title}</div>
-                                        )}
-                                        {integration.data.user_profile.status_text && (
-                                          <div className="text-gray-300 text-sm">
-                                            {integration.data.user_profile.status_emoji} {integration.data.user_profile.status_text}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-
                                 {/* Summary */}
                                 {integration.data.summary && (
                                   <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                    <p className="text-sm font-medium text-white mb-3">Data Summary:</p>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <p className="text-sm font-medium text-white mb-3">Channels Summary:</p>
+                                    <div className="grid grid-cols-3 gap-3">
                                       <div className="flex items-center space-x-2">
                                         <Hash size={14} className="text-gray-300" />
-                                        <span className="text-white text-sm">{integration.data.summary.total_channels} channels</span>
+                                        <span className="text-white text-sm">{integration.data.summary.total_channels} total</span>
                                       </div>
                                       <div className="flex items-center space-x-2">
                                         <Users size={14} className="text-gray-300" />
-                                        <span className="text-white text-sm">{integration.data.summary.total_users} users</span>
+                                        <span className="text-white text-sm">{integration.data.summary.member_channels} member</span>
                                       </div>
                                       <div className="flex items-center space-x-2">
-                                        <MessageSquare size={14} className="text-gray-300" />
-                                        <span className="text-white text-sm">{integration.data.summary.total_messages} messages</span>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <Eye size={14} className="text-gray-300" />
-                                        <span className="text-white text-sm">{integration.data.summary.accessible_channels} accessible</span>
+                                        <Clock size={14} className="text-gray-300" />
+                                        <span className="text-white text-sm">{integration.data.summary.channels_with_recent_activity} active</span>
                                       </div>
                                     </div>
                                   </div>
                                 )}
 
-                                {/* Recent Messages */}
-                                {integration.data.messages && integration.data.messages.length > 0 && (
-                                  <div className="space-y-2">
-                                    <p className="text-sm font-medium text-white">Recent messages:</p>
-                                    {integration.data.messages.slice(0, 3).map((message, index) => (
-                                      <div key={message.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                        <div className="font-medium text-white text-sm">{message.text}</div>
-                                        <div className="text-gray-200 text-xs mt-1">From: {message.user} in {message.channel}</div>
-                                        <div className="text-gray-400 text-xs">{new Date(message.timestamp).toLocaleString()}</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* Channels - Now Clickable */}
+                                {/* Channels - Ordered by Recent Activity */}
                                 {integration.data.channels && integration.data.channels.length > 0 && (
                                   <div className="space-y-2">
-                                    <p className="text-sm font-medium text-white">Available channels (click to view details):</p>
-                                    <div className="max-h-40 overflow-y-auto space-y-2">
-                                      {integration.data.channels.slice(0, 10).map((channel, index) => (
+                                    <p className="text-sm font-medium text-white">Channels (ordered by most recent activity):</p>
+                                    <div className="max-h-96 overflow-y-auto space-y-2">
+                                      {integration.data.channels.map((channel, index) => (
                                         <div 
                                           key={channel.id || index} 
                                           className="p-3 bg-gray-900 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-800 transition-colors"
                                           onClick={() => handleChannelClick(channel)}
                                         >
-                                          <div className="flex items-center justify-between mb-1">
+                                          <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center space-x-2">
                                               {channel.is_private ? <Lock size={14} className="text-gray-400" /> : <Globe size={14} className="text-gray-400" />}
                                               <span className="font-medium text-white text-sm">#{channel.name}</span>
@@ -456,39 +395,29 @@ const DataPage = () => {
                                               )}
                                             </div>
                                           </div>
+                                          
+                                          {channel.latest_message_date && (
+                                            <div className="flex items-center space-x-2 mb-1">
+                                              <Clock size={12} className="text-green-400" />
+                                              <span className="text-xs text-green-400">
+                                                Last activity: {new Date(channel.latest_message_date).toLocaleString()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          
+                                          {!channel.latest_message_date && channel.is_member && (
+                                            <div className="flex items-center space-x-2 mb-1">
+                                              <Clock size={12} className="text-gray-500" />
+                                              <span className="text-xs text-gray-500">No recent messages</span>
+                                            </div>
+                                          )}
+                                          
                                           {channel.purpose && (
-                                            <div className="text-gray-200 text-xs mt-1">{channel.purpose}</div>
+                                            <div className="text-gray-300 text-xs mt-1">{channel.purpose}</div>
                                           )}
                                           {channel.topic && (
-                                            <div className="text-gray-300 text-xs mt-1">Topic: {channel.topic}</div>
+                                            <div className="text-gray-400 text-xs mt-1">Topic: {channel.topic}</div>
                                           )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Users */}
-                                {integration.data.users && integration.data.users.length > 0 && (
-                                  <div className="space-y-2">
-                                    <p className="text-sm font-medium text-white">Team members:</p>
-                                    <div className="max-h-32 overflow-y-auto space-y-2">
-                                      {integration.data.users.map((slackUser, index) => (
-                                        <div key={slackUser.id || index} className="flex items-center space-x-3 p-2 bg-gray-900 rounded border border-gray-600">
-                                          {slackUser.profile_image && (
-                                            <img src={slackUser.profile_image} alt="User" className="w-6 h-6 rounded-full" />
-                                          )}
-                                          <div className="flex-1">
-                                            <div className="text-white text-sm">
-                                              {slackUser.display_name || slackUser.real_name || slackUser.name}
-                                            </div>
-                                            {slackUser.is_admin && (
-                                              <Badge variant="outline" className="text-xs text-blue-400 border-blue-400">Admin</Badge>
-                                            )}
-                                            {slackUser.is_bot && (
-                                              <Badge variant="outline" className="text-xs text-purple-400 border-purple-400">Bot</Badge>
-                                            )}
-                                          </div>
                                         </div>
                                       ))}
                                     </div>
@@ -631,7 +560,7 @@ const DataPage = () => {
                 </div>
                 
                 <div>
-                  <h4 className="font-medium text-white mb-2">Membership</h4>
+                  <h4 className="font-medium text-white mb-2">Activity</h4>
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="text-gray-400">Member Status:</span> 
@@ -639,7 +568,12 @@ const DataPage = () => {
                         {selectedChannel.is_member ? 'Member' : 'Not Member'}
                       </Badge>
                     </div>
-                    <div><span className="text-gray-400">Is Channel:</span> <span className="text-gray-200">{selectedChannel.is_channel ? 'Yes' : 'No'}</span></div>
+                    {selectedChannel.latest_message_date && (
+                      <div><span className="text-gray-400">Last Activity:</span> <span className="text-green-400">{new Date(selectedChannel.latest_message_date).toLocaleString()}</span></div>
+                    )}
+                    {!selectedChannel.latest_message_date && (
+                      <div><span className="text-gray-400">Last Activity:</span> <span className="text-gray-500">No recent messages</span></div>
+                    )}
                   </div>
                 </div>
               </div>

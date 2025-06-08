@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -30,7 +31,7 @@ serve(async (req) => {
       })
     }
 
-    console.log('Fetching Slack data for user:', user.id)
+    console.log('Fetching Slack channels for user:', user.id)
 
     // Get the user's Slack integration
     const { data: integration, error: integrationError } = await supabaseClient
@@ -104,9 +105,9 @@ serve(async (req) => {
       integration.access_token = tokens.access_token
     }
 
-    console.log('Testing Slack API with various endpoints...')
+    console.log('Fetching Slack channels and recent messages...')
 
-    // 1. Test auth and get user info
+    // Test auth first
     const authTestResponse = await fetch('https://slack.com/api/auth.test', {
       headers: {
         'Authorization': `Bearer ${integration.access_token}`,
@@ -137,58 +138,10 @@ serve(async (req) => {
       })
     }
 
-    console.log('Auth test successful:', authData)
+    console.log('Auth test successful')
 
-    // 2. Fetch team info
-    const teamInfoResponse = await fetch('https://slack.com/api/team.info', {
-      headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    let teamInfo = null
-    if (teamInfoResponse.ok) {
-      const teamData = await teamInfoResponse.json()
-      if (teamData.ok) {
-        teamInfo = {
-          id: teamData.team.id,
-          name: teamData.team.name,
-          domain: teamData.team.domain,
-          url: teamData.team.url,
-          icon: teamData.team.icon
-        }
-        console.log('Team info fetched:', teamInfo)
-      }
-    }
-
-    // 3. Fetch user list
-    const usersResponse = await fetch('https://slack.com/api/users.list?limit=10', {
-      headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    let users = []
-    if (usersResponse.ok) {
-      const usersData = await usersResponse.json()
-      if (usersData.ok && usersData.members) {
-        users = usersData.members.slice(0, 5).map(user => ({
-          id: user.id,
-          name: user.name,
-          real_name: user.real_name,
-          display_name: user.profile?.display_name || user.name,
-          is_bot: user.is_bot,
-          is_admin: user.is_admin,
-          profile_image: user.profile?.image_48
-        }))
-        console.log(`Fetched ${users.length} users`)
-      }
-    }
-
-    // 4. Fetch channels list with more details
-    const channelsResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&limit=20&exclude_archived=true', {
+    // Fetch channels list
+    const channelsResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&limit=50&exclude_archived=true', {
       headers: {
         'Authorization': `Bearer ${integration.access_token}`,
         'Content-Type': 'application/json'
@@ -232,14 +185,13 @@ serve(async (req) => {
 
     console.log(`Found ${channelsData.channels?.length || 0} channels`)
 
-    // 5. Get recent messages from accessible channels and detailed channel info
-    const messages = []
-    const detailedChannels = []
+    // Get recent messages from channels to determine latest activity
+    const channelsWithActivity = []
     const channelsToCheck = channelsData.channels || []
 
     for (const channel of channelsToCheck) {
-      // Get detailed channel info
       try {
+        // Get detailed channel info
         const channelInfoResponse = await fetch(`https://slack.com/api/conversations.info?channel=${channel.id}`, {
           headers: {
             'Authorization': `Bearer ${integration.access_token}`,
@@ -253,17 +205,16 @@ serve(async (req) => {
           if (channelInfoData.ok) {
             detailedChannel = {
               ...channelInfoData.channel,
-              // Ensure we keep the basic info
               purpose: channelInfoData.channel.purpose?.value,
               topic: channelInfoData.channel.topic?.value
             }
           }
         }
-        detailedChannels.push(detailedChannel)
 
-        // Try to get messages if we're a member
+        // Try to get the most recent message timestamp
+        let latestMessageTimestamp = null
         if (channel.is_member) {
-          const messagesResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}&limit=3`, {
+          const messagesResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}&limit=1`, {
             headers: {
               'Authorization': `Bearer ${integration.access_token}`,
               'Content-Type': 'application/json'
@@ -272,80 +223,47 @@ serve(async (req) => {
 
           if (messagesResponse.ok) {
             const messagesData = await messagesResponse.json()
-            if (messagesData.ok && messagesData.messages) {
-              for (const message of messagesData.messages) {
-                if (message.text && !message.bot_id) {
-                  messages.push({
-                    id: message.ts,
-                    text: message.text,
-                    user: message.user || 'Unknown',
-                    channel: `#${channel.name}`,
-                    timestamp: new Date(parseFloat(message.ts) * 1000).toISOString()
-                  })
-                }
-              }
-            } else {
-              console.log(`Failed to get messages from channel ${channel.name}:`, messagesData.error)
+            if (messagesData.ok && messagesData.messages && messagesData.messages.length > 0) {
+              latestMessageTimestamp = parseFloat(messagesData.messages[0].ts)
             }
           }
-        } else {
-          console.log(`Skipping messages for channel ${channel.name} - not a member`)
         }
+
+        channelsWithActivity.push({
+          ...detailedChannel,
+          latest_message_timestamp: latestMessageTimestamp,
+          latest_message_date: latestMessageTimestamp ? new Date(latestMessageTimestamp * 1000).toISOString() : null
+        })
+
       } catch (error) {
         console.error(`Error processing channel ${channel.name}:`, error)
-        // Still add the basic channel info
-        detailedChannels.push({
+        // Still add the channel but without activity data
+        channelsWithActivity.push({
           ...channel,
           purpose: channel.purpose?.value,
-          topic: channel.topic?.value
+          topic: channel.topic?.value,
+          latest_message_timestamp: null,
+          latest_message_date: null
         })
       }
     }
 
-    // Sort messages by timestamp (newest first)
-    messages.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-
-    // 6. Fetch user profile
-    let userProfile = null
-    if (authData.user_id) {
-      const profileResponse = await fetch(`https://slack.com/api/users.info?user=${authData.user_id}`, {
-        headers: {
-          'Authorization': `Bearer ${integration.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (profileResponse.ok) {
-        const profileData = await profileResponse.json()
-        if (profileData.ok && profileData.user) {
-          userProfile = {
-            id: profileData.user.id,
-            name: profileData.user.name,
-            real_name: profileData.user.real_name,
-            display_name: profileData.user.profile?.display_name,
-            email: profileData.user.profile?.email,
-            title: profileData.user.profile?.title,
-            status_text: profileData.user.profile?.status_text,
-            status_emoji: profileData.user.profile?.status_emoji,
-            profile_image: profileData.user.profile?.image_192
-          }
-        }
+    // Sort channels by most recent message timestamp (newest first)
+    channelsWithActivity.sort((a, b) => {
+      if (a.latest_message_timestamp && b.latest_message_timestamp) {
+        return b.latest_message_timestamp - a.latest_message_timestamp
       }
-    }
-
-    // Count accessible channels (where user is member)
-    const accessibleChannels = detailedChannels.filter(ch => ch.is_member).length
+      if (a.latest_message_timestamp && !b.latest_message_timestamp) {
+        return -1
+      }
+      if (!a.latest_message_timestamp && b.latest_message_timestamp) {
+        return 1
+      }
+      return 0
+    })
 
     const response = {
-      auth: {
-        user_id: authData.user_id,
-        user: authData.user,
-        team: authData.team,
-        url: authData.url
-      },
-      team: teamInfo,
-      user_profile: userProfile,
-      channels: detailedChannels.map(ch => ({
+      channels: channelsWithActivity.map(ch => ({
         id: ch.id,
         name: ch.name,
         is_channel: ch.is_channel,
@@ -367,28 +285,18 @@ serve(async (req) => {
         is_pending_ext_shared: ch.is_pending_ext_shared,
         is_im: ch.is_im,
         is_mpim: ch.is_mpim,
-        is_group: ch.is_group
+        is_group: ch.is_group,
+        latest_message_timestamp: ch.latest_message_timestamp,
+        latest_message_date: ch.latest_message_date
       })),
-      users: users,
-      messages: messages.slice(0, 10),
       summary: {
-        total_channels: detailedChannels.length,
-        accessible_channels: accessibleChannels,
-        total_messages: messages.length,
-        total_users: users.length,
-        member_channels: detailedChannels.filter(ch => ch.is_member).map(ch => ch.name),
-        non_member_channels: detailedChannels.filter(ch => !ch.is_member).map(ch => ch.name)
+        total_channels: channelsWithActivity.length,
+        member_channels: channelsWithActivity.filter(ch => ch.is_member).length,
+        channels_with_recent_activity: channelsWithActivity.filter(ch => ch.latest_message_timestamp).length
       }
     }
 
-    console.log(`Successfully fetched comprehensive Slack data:
-    - Team: ${teamInfo?.name}
-    - Channels: ${response.summary.total_channels}
-    - Accessible Channels: ${response.summary.accessible_channels}
-    - Messages: ${response.summary.total_messages}
-    - Users: ${response.summary.total_users}
-    - Member of: ${response.summary.member_channels.join(', ')}
-    - Not member of: ${response.summary.non_member_channels.join(', ')}`)
+    console.log(`Successfully fetched ${response.summary.total_channels} Slack channels ordered by recent activity`)
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
