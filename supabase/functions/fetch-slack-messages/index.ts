@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -188,57 +187,89 @@ serve(async (req) => {
       }
     }
 
-    // 4. Fetch ALL channels without limit
-    const channelsResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&exclude_archived=false', {
-      headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
-        'Content-Type': 'application/json'
+    // 4. Fetch ALL channels with proper pagination
+    console.log('Fetching ALL channels with pagination...')
+    let allChannels = []
+    let cursor = null
+    let hasMore = true
+    let pageCount = 0
+    const maxPages = 50 // Safety limit to prevent infinite loops
+
+    while (hasMore && pageCount < maxPages) {
+      pageCount++
+      let url = 'https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&exclude_archived=false&limit=1000'
+      if (cursor) {
+        url += `&cursor=${cursor}`
       }
-    })
-
-    if (!channelsResponse.ok) {
-      const errorText = await channelsResponse.text()
-      console.error('Slack channels API error:', channelsResponse.status, errorText)
-      return new Response(JSON.stringify({ 
-        error: 'Failed to fetch Slack channels',
-        details: errorText
-      }), {
-        status: channelsResponse.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const channelsData = await channelsResponse.json()
-    if (!channelsData.ok) {
-      console.error('Slack channels API error:', channelsData.error)
       
-      if (channelsData.error === 'missing_scope') {
+      console.log(`Fetching channels page ${pageCount} with cursor: ${cursor || 'none'}`)
+      
+      const channelsResponse = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${integration.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!channelsResponse.ok) {
+        const errorText = await channelsResponse.text()
+        console.error('Slack channels API error:', channelsResponse.status, errorText)
         return new Response(JSON.stringify({ 
-          error: 'Insufficient Slack permissions',
-          details: 'The Slack integration needs additional permissions to read channels and messages. Please reconnect your Slack integration with the required scopes.'
+          error: 'Failed to fetch Slack channels',
+          details: errorText
         }), {
-          status: 403,
+          status: channelsResponse.status,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-      
-      return new Response(JSON.stringify({ 
-        error: 'Failed to fetch Slack channels',
-        details: channelsData.error
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+
+      const channelsData = await channelsResponse.json()
+      if (!channelsData.ok) {
+        console.error('Slack channels API error:', channelsData.error)
+        
+        if (channelsData.error === 'missing_scope') {
+          return new Response(JSON.stringify({ 
+            error: 'Insufficient Slack permissions',
+            details: 'The Slack integration needs additional permissions to read channels and messages. Please reconnect your Slack integration with the required scopes.'
+          }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+        
+        return new Response(JSON.stringify({ 
+          error: 'Failed to fetch Slack channels',
+          details: channelsData.error
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const pageChannels = channelsData.channels || []
+      allChannels = allChannels.concat(pageChannels)
+      console.log(`Page ${pageCount}: Found ${pageChannels.length} channels (Total so far: ${allChannels.length})`)
+
+      // Check if there are more pages
+      if (channelsData.response_metadata && channelsData.response_metadata.next_cursor) {
+        cursor = channelsData.response_metadata.next_cursor
+        hasMore = true
+      } else {
+        hasMore = false
+        console.log(`Pagination complete after ${pageCount} pages. Total channels: ${allChannels.length}`)
+      }
     }
 
-    console.log(`Found ${channelsData.channels?.length || 0} channels`)
+    if (pageCount >= maxPages) {
+      console.log(`Warning: Reached maximum page limit (${maxPages}). Some channels might not have been fetched.`)
+    }
 
-    console.log(`Response channels data : ${JSON.stringify(channelsData)}`);
+    console.log(`Successfully fetched ${allChannels.length} channels across ${pageCount} pages`)
 
     // 5. Get recent messages from accessible channels and detailed channel info
     const messages = []
     const detailedChannels = []
-    const channelsToCheck = channelsData.channels || []
+    const channelsToCheck = allChannels
 
     for (const channel of channelsToCheck) {
       // Get detailed channel info
@@ -380,13 +411,17 @@ serve(async (req) => {
         total_messages: messages.length,
         total_users: users.length,
         member_channels: detailedChannels.filter(ch => ch.is_member).map(ch => ch.name),
-        non_member_channels: detailedChannels.filter(ch => !ch.is_member).map(ch => ch.name)
+        non_member_channels: detailedChannels.filter(ch => !ch.is_member).map(ch => ch.name),
+        pagination_info: {
+          pages_fetched: pageCount,
+          channels_per_page: pageCount > 0 ? Math.round(allChannels.length / pageCount) : 0
+        }
       }
     }
 
     console.log(`Successfully fetched comprehensive Slack data:
     - Team: ${teamInfo?.name}
-    - Channels: ${response.summary.total_channels}
+    - Channels: ${response.summary.total_channels} (fetched across ${pageCount} pages)
     - Accessible Channels: ${response.summary.accessible_channels}
     - Messages: ${response.summary.total_messages}
     - Users: ${response.summary.total_users}
