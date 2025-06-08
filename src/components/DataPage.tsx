@@ -428,12 +428,12 @@ const DataPage = () => {
                                   </div>
                                 )}
 
-                                {/* Channels - Now Clickable */}
+                                {/* Channels - Now shows ALL channels */}
                                 {integration.data.channels && integration.data.channels.length > 0 && (
                                   <div className="space-y-2">
-                                    <p className="text-sm font-medium text-white">Available channels (click to view details):</p>
-                                    <div className="max-h-40 overflow-y-auto space-y-2">
-                                      {integration.data.channels.slice(0, 10).map((channel, index) => (
+                                    <p className="text-sm font-medium text-white">All available channels ({integration.data.channels.length}) - click to view details:</p>
+                                    <div className="max-h-60 overflow-y-auto space-y-2">
+                                      {integration.data.channels.map((channel, index) => (
                                         <div 
                                           key={channel.id || index} 
                                           className="p-3 bg-gray-900 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-800 transition-colors"

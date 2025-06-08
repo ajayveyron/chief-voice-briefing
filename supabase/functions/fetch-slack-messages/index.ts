@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -187,8 +188,8 @@ serve(async (req) => {
       }
     }
 
-    // 4. Fetch channels list with more details
-    const channelsResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&limit=20&exclude_archived=true', {
+    // 4. Fetch ALL channels without limit
+    const channelsResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&exclude_archived=true', {
       headers: {
         'Authorization': `Bearer ${integration.access_token}`,
         'Content-Type': 'application/json'
