@@ -18,7 +18,11 @@ const DataPage = () => {
   const { documents, refetch } = useUserDocuments();
   const [isUploading, setIsUploading] = useState(false);
   const [gmailEmails, setGmailEmails] = useState<any[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+  const [slackMessages, setSlackMessages] = useState<any[]>([]);
   const [loadingGmail, setLoadingGmail] = useState(false);
+  const [loadingCalendar, setLoadingCalendar] = useState(false);
+  const [loadingSlack, setLoadingSlack] = useState(false);
 
   const getFileIcon = (type: string) => {
     if (type.startsWith('image/')) return Image;
@@ -53,6 +57,64 @@ const DataPage = () => {
       });
     } finally {
       setLoadingGmail(false);
+    }
+  };
+
+  const fetchCalendarEvents = async () => {
+    setLoadingCalendar(true);
+    try {
+      // Placeholder for Calendar API call
+      // This would be implemented with a similar edge function
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      
+      const mockEvents = [
+        { id: '1', summary: 'Team Meeting', start: '2024-01-15T10:00:00Z' },
+        { id: '2', summary: 'Project Review', start: '2024-01-16T14:00:00Z' }
+      ];
+      
+      setCalendarEvents(mockEvents);
+      toast({
+        title: "Calendar events fetched",
+        description: `Retrieved ${mockEvents.length} recent events`
+      });
+    } catch (error) {
+      console.error('Error fetching Calendar events:', error);
+      toast({
+        title: "Failed to fetch calendar events",
+        description: "Calendar integration not yet implemented",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingCalendar(false);
+    }
+  };
+
+  const fetchSlackMessages = async () => {
+    setLoadingSlack(true);
+    try {
+      // Placeholder for Slack API call
+      // This would be implemented with a similar edge function
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      
+      const mockMessages = [
+        { id: '1', text: 'Hello team!', user: 'john.doe', channel: '#general' },
+        { id: '2', text: 'Project update ready', user: 'jane.smith', channel: '#dev' }
+      ];
+      
+      setSlackMessages(mockMessages);
+      toast({
+        title: "Slack messages fetched",
+        description: `Retrieved ${mockMessages.length} recent messages`
+      });
+    } catch (error) {
+      console.error('Error fetching Slack messages:', error);
+      toast({
+        title: "Failed to fetch slack messages",
+        description: "Slack integration not yet implemented",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingSlack(false);
     }
   };
 
@@ -153,7 +215,11 @@ const DataPage = () => {
       label: 'Gmail',
       color: 'text-red-500',
       connected: isConnected('gmail'),
-      description: 'Email messages and attachments'
+      description: 'Email messages and attachments',
+      fetchFunction: fetchGmailEmails,
+      loading: loadingGmail,
+      data: gmailEmails,
+      dataLabel: 'emails'
     },
     {
       type: 'calendar',
@@ -161,7 +227,11 @@ const DataPage = () => {
       label: 'Calendar',
       color: 'text-blue-500',
       connected: isConnected('calendar'),
-      description: 'Events and meeting details'
+      description: 'Events and meeting details',
+      fetchFunction: fetchCalendarEvents,
+      loading: loadingCalendar,
+      data: calendarEvents,
+      dataLabel: 'events'
     },
     {
       type: 'slack',
@@ -169,7 +239,11 @@ const DataPage = () => {
       label: 'Slack',
       color: 'text-green-500',
       connected: isConnected('slack'),
-      description: 'Messages and channel content'
+      description: 'Messages and channel content',
+      fetchFunction: fetchSlackMessages,
+      loading: loadingSlack,
+      data: slackMessages,
+      dataLabel: 'messages'
     }
   ];
 
@@ -219,32 +293,46 @@ const DataPage = () => {
                             ✓ Data is being synced from this integration
                           </p>
                           
-                          {integration.type === 'gmail' && (
-                            <div className="space-y-3">
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={fetchGmailEmails}
-                                disabled={loadingGmail}
-                              >
-                                {loadingGmail ? <RefreshCw className="animate-spin h-4 w-4 mr-2" /> : <Mail className="h-4 w-4 mr-2" />}
-                                {loadingGmail ? 'Loading...' : 'Fetch Recent Emails'}
-                              </Button>
-                              
-                              {gmailEmails.length > 0 && (
-                                <div className="mt-3 space-y-2">
-                                  <p className="text-xs text-gray-400">Recent emails:</p>
-                                  {gmailEmails.map((email, index) => (
-                                    <div key={email.id} className="p-2 bg-gray-900 rounded text-xs">
-                                      <div className="font-medium text-gray-200">{email.subject}</div>
-                                      <div className="text-gray-400">From: {email.from}</div>
-                                      <div className="text-gray-500 mt-1">{email.snippet}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          <div className="space-y-3">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={integration.fetchFunction}
+                              disabled={integration.loading}
+                            >
+                              {integration.loading ? <RefreshCw className="animate-spin h-4 w-4 mr-2" /> : <Icon className="h-4 w-4 mr-2" />}
+                              {integration.loading ? 'Loading...' : `Fetch Recent ${integration.label} Data`}
+                            </Button>
+                            
+                            {integration.data.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                <p className="text-xs text-gray-400">Recent {integration.dataLabel}:</p>
+                                {integration.data.map((item, index) => (
+                                  <div key={item.id || index} className="p-2 bg-gray-900 rounded text-xs">
+                                    {integration.type === 'gmail' && (
+                                      <>
+                                        <div className="font-medium text-gray-200">{item.subject}</div>
+                                        <div className="text-gray-400">From: {item.from}</div>
+                                        <div className="text-gray-500 mt-1">{item.snippet}</div>
+                                      </>
+                                    )}
+                                    {integration.type === 'calendar' && (
+                                      <>
+                                        <div className="font-medium text-gray-200">{item.summary}</div>
+                                        <div className="text-gray-400">Start: {new Date(item.start).toLocaleString()}</div>
+                                      </>
+                                    )}
+                                    {integration.type === 'slack' && (
+                                      <>
+                                        <div className="font-medium text-gray-200">{item.text}</div>
+                                        <div className="text-gray-400">From: {item.user} in {item.channel}</div>
+                                      </>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                           
                           <p className="text-xs text-gray-500">
                             Last sync: Real-time updates enabled
