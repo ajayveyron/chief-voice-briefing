@@ -107,6 +107,37 @@ serve(async (req) => {
 
     console.log('Fetching Slack messages from Slack API...')
 
+    // Test the token with a simple API call first
+    const authTestResponse = await fetch('https://slack.com/api/auth.test', {
+      headers: {
+        'Authorization': `Bearer ${integration.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!authTestResponse.ok) {
+      console.error('Auth test failed:', authTestResponse.status)
+      return new Response(JSON.stringify({ 
+        error: 'Slack authentication failed',
+        details: 'Token may be invalid or expired'
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const authData = await authTestResponse.json()
+    if (!authData.ok) {
+      console.error('Auth test error:', authData.error)
+      return new Response(JSON.stringify({ 
+        error: 'Slack authentication failed',
+        details: authData.error
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     // First, get the list of channels the user has access to
     const channelsResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel,mpim,im&limit=20', {
       headers: {
@@ -130,6 +161,18 @@ serve(async (req) => {
     const channelsData = await channelsResponse.json()
     if (!channelsData.ok) {
       console.error('Slack channels API error:', channelsData.error)
+      
+      // Handle specific missing scope error
+      if (channelsData.error === 'missing_scope') {
+        return new Response(JSON.stringify({ 
+          error: 'Insufficient Slack permissions',
+          details: 'The Slack integration needs additional permissions to read channels and messages. Please reconnect your Slack integration with the required scopes: channels:read, channels:history, groups:read, groups:history, im:read, im:history, mpim:read, mpim:history.'
+        }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      
       return new Response(JSON.stringify({ 
         error: 'Failed to fetch Slack channels',
         details: channelsData.error
