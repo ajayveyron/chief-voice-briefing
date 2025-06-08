@@ -164,7 +164,7 @@ serve(async (req) => {
     }
 
     // 3. Fetch user list
-    const usersResponse = await fetch('https://slack.com/api/users.list?limit=10', {
+    const usersResponse = await fetch('https://slack.com/api/users.list?limit=100', {
       headers: {
         'Authorization': `Bearer ${integration.access_token}`,
         'Content-Type': 'application/json'
@@ -175,7 +175,7 @@ serve(async (req) => {
     if (usersResponse.ok) {
       const usersData = await usersResponse.json()
       if (usersData.ok && usersData.members) {
-        users = usersData.members.slice(0, 5).map(user => ({
+        users = usersData.members.map(user => ({
           id: user.id,
           name: user.name,
           real_name: user.real_name,
@@ -264,7 +264,7 @@ serve(async (req) => {
 
         // Try to get messages if we're a member
         if (channel.is_member) {
-          const messagesResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}&limit=3`, {
+          const messagesResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}&limit=30`, {
             headers: {
               'Authorization': `Bearer ${integration.access_token}`,
               'Content-Type': 'application/json'
@@ -371,7 +371,7 @@ serve(async (req) => {
         is_group: ch.is_group
       })),
       users: users,
-      messages: messages.slice(0, 10),
+      messages: messages.slice(0, 100),
       summary: {
         total_channels: detailedChannels.length,
         accessible_channels: accessibleChannels,
