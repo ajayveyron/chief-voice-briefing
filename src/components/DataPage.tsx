@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
@@ -368,7 +367,7 @@ const DataPage = () => {
                                     </div>
                                   ))}
                                 </div>
-                              )}
+                              </div>
                             )}
 
                             {/* Slack Data Display */}
