@@ -64,19 +64,19 @@ const HomePage = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-8 bg-background">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-8">
       <div className="flex flex-col items-center space-y-8 max-w-sm w-full">
         
         {/* Avatar and Name */}
         <div className="flex flex-col items-center space-y-4">
           <Avatar className="w-32 h-32">
             <AvatarImage src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400" />
-            <AvatarFallback className="text-2xl bg-muted">Chief</AvatarFallback>
+            <AvatarFallback className="text-2xl bg-muted text-foreground">Chief</AvatarFallback>
           </Avatar>
           
           <div className="text-center">
-            <h1 className="text-2xl font-semibold text-foreground">Chief</h1>
-            <p className="text-sm text-muted-foreground">AI Assistant</p>
+            <h1 className="text-2xl font-semibold text-white">Chief</h1>
+            <p className="text-sm text-gray-400">AI Assistant</p>
           </div>
         </div>
 
@@ -84,11 +84,11 @@ const HomePage = () => {
         <div className="text-center space-y-2">
           {isCallConnected ? (
             <>
-              <p className="text-sm text-muted-foreground">Call in progress</p>
-              <p className="text-lg font-mono text-foreground">{formatDuration(callDuration)}</p>
+              <p className="text-sm text-gray-400">Call in progress</p>
+              <p className="text-lg font-mono text-white">{formatDuration(callDuration)}</p>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Tap to start voice conversation</p>
+            <p className="text-sm text-gray-400">Tap to start voice conversation</p>
           )}
         </div>
 
@@ -110,7 +110,7 @@ const HomePage = () => {
               <Button
                 onClick={toggleMute}
                 variant={isMuted ? "destructive" : "outline"}
-                className="w-14 h-14 rounded-full"
+                className={`w-14 h-14 rounded-full ${isMuted ? '' : 'border-gray-600 text-white hover:bg-gray-800'}`}
                 size="icon"
               >
                 {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
@@ -129,7 +129,7 @@ const HomePage = () => {
               <Button
                 onClick={toggleSpeaker}
                 variant={isSpeakerOn ? "default" : "outline"}
-                className="w-14 h-14 rounded-full"
+                className={`w-14 h-14 rounded-full ${isSpeakerOn ? 'bg-white text-black' : 'border-gray-600 text-white hover:bg-gray-800'}`}
                 size="icon"
               >
                 <Speaker size={24} />
@@ -141,7 +141,7 @@ const HomePage = () => {
         {/* Voice State Indicator */}
         {isCallConnected && (
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-gray-400">
               {voiceState === 'recording' && 'Listening...'}
               {voiceState === 'processing' && 'Processing...'}
               {voiceState === 'speaking' && 'Chief is speaking...'}
