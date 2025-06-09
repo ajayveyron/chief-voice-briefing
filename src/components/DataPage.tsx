@@ -321,7 +321,7 @@ const DataPage = () => {
                     <AccordionContent className="px-4 sm:px-6 pb-4">
                       {integration.connected ? <div className="space-y-4">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <Button size="sm" variant="default" onClick={integration.fetchFunction} disabled={integration.loading} className="w-full sm:w-auto text-xs sm:text-sm">
+                            <Button size="sm" variant="outline" onClick={integration.fetchFunction} disabled={integration.loading} className="w-full sm:w-auto text-xs sm:text-sm">
                               {integration.loading ? <RefreshCw className="animate-spin h-3 w-3 sm:h-4 sm:w-4 mr-2" /> : <Icon className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />}
                               {integration.loading ? 'Syncing...' : `Sync ${integration.label} Data`}
                             </Button>
