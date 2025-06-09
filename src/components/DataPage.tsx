@@ -466,7 +466,7 @@ const DataPage = () => {
 
             {documents.length > 0 && <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
-                  <CardTitle className="text-base sm:text-lg">Uploaded Documents</CardTitle>
+                  <CardTitle className="text-base sm:text-lg text-zinc-50">Uploaded Documents</CardTitle>
                   <CardDescription className="text-xs sm:text-sm">
                     {documents.length} document{documents.length > 1 ? 's' : ''} available for AI reference
                   </CardDescription>
@@ -480,7 +480,7 @@ const DataPage = () => {
                             <div className="flex items-center space-x-3 min-w-0">
                               <FileIcon size={14} className="text-blue-400 shrink-0" />
                               <div className="min-w-0">
-                                <p className="text-xs sm:text-sm font-medium break-words">{doc.name}</p>
+                                <p className="text-xs sm:text-sm font-medium break-words text-zinc-50">{doc.name}</p>
                                 <p className="text-xs text-gray-400">
                                   Uploaded {new Date(doc.created_at).toLocaleDateString()} • {doc.file_type}
                                 </p>
