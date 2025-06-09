@@ -242,7 +242,6 @@ const SettingsPage = () => {
           {isConnected(integration.id) ? (
             <>
               <CheckCircle size={16} className="text-green-500" />
-              <span className="text-sm text-gray-300">Connected</span>
               <Button
                 size="sm"
                 variant="outline"
@@ -254,8 +253,7 @@ const SettingsPage = () => {
             </>
           ) : (
             <>
-              <AlertCircle size={16} className="text-gray-500" />
-              <span className="text-sm text-gray-400">Not connected</span>
+              <AlertCircle size={16} className="text-red-500" />
               <Button
                 size="sm"
                 onClick={() => handleConnect(integration.id)}
