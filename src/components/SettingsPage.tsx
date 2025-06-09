@@ -230,7 +230,7 @@ const SettingsPage = () => {
               <AlertCircle size={16} className="text-red-500" />
               <Button
                 size="sm"
-                onClick={() => handleConnect(integration.id)}
+                onClick={() => handleConnect(integrationsItems.id)}
                 disabled={loading}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
