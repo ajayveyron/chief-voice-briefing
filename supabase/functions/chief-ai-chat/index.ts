@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -23,12 +22,26 @@ interface EmailRequest {
   scheduledFor?: string;
 }
 
-// Function to extract email details from AI response and user message
+interface CalendarEvent {
+  title: string;
+  description?: string;
+  start: string;
+  end: string;
+  attendees?: string[];
+  location?: string;
+  reminders?: {
+    useDefault: boolean;
+    overrides?: { method: 'email' | 'popup'; minutes: number }[];
+  };
+}
+
+// Enhanced function to extract email details from AI response and user message
 function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequest | null {
   const lowerMessage = userMessage.toLowerCase();
   
   // Check if this is an email sending request
-  if (!(lowerMessage.includes('send') && (lowerMessage.includes('email') || lowerMessage.includes('mail')))) {
+  const emailKeywords = ['send email', 'compose email', 'write email', 'mail to'];
+  if (!emailKeywords.some(keyword => lowerMessage.includes(keyword))) {
     return null;
   }
 
@@ -36,18 +49,18 @@ function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequ
   const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
   const emails = userMessage.match(emailRegex) || [];
   
-  // Extract recipient names (simple approach - look for common patterns)
+  // Extract recipient names (improved pattern matching)
   const namePatterns = [
-    /email\s+([A-Z][a-z]+)/i,
-    /send\s+([A-Z][a-z]+)/i,
-    /to\s+([A-Z][a-z]+)/i
+    /to\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    /email\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    /send\s+(?:to|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i
   ];
   
-  let recipientName = '';
+  let recipientNames: string[] = [];
   for (const pattern of namePatterns) {
-    const match = userMessage.match(pattern);
-    if (match) {
-      recipientName = match[1];
+    const matches = userMessage.match(pattern);
+    if (matches) {
+      recipientNames = matches[1].split(/\s+/);
       break;
     }
   }
@@ -56,49 +69,56 @@ function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequ
   let recipients: string[] = [];
   if (emails.length > 0) {
     recipients = emails;
-  } else if (recipientName) {
-    // For demo purposes, you might want to maintain a contact list
-    // For now, we'll ask the AI to suggest an email format
-    recipients = [`${recipientName.toLowerCase()}@example.com`];
+  } else if (recipientNames.length > 0) {
+    // For demo purposes, we'll construct example emails
+    recipients = recipientNames.map(name => `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`);
   }
 
   if (recipients.length === 0) {
     return null;
   }
 
-  // Extract subject and body from the message
+  // Extract subject with improved pattern matching
   let subject = '';
-  let body = '';
+  const subjectPatterns = [
+    /subject\s*[:]?\s*["']?([^"'\n]+)["']?/i,
+    /about\s*[:]?\s*["']?([^"'\n]+)["']?/i,
+    /re\s*[:]?\s*["']?([^"'\n]+)["']?/i
+  ];
   
-  // Look for subject indicators
-  if (lowerMessage.includes('subject')) {
-    const subjectMatch = userMessage.match(/subject[:\s]+([^.!?]+)/i);
-    if (subjectMatch) {
-      subject = subjectMatch[1].trim();
+  for (const pattern of subjectPatterns) {
+    const match = userMessage.match(pattern);
+    if (match) {
+      subject = match[1].trim();
+      break;
     }
   }
   
-  // Generate subject and body based on the message content
+  // Generate subject based on the message content if not explicitly provided
   if (!subject) {
     if (lowerMessage.includes('reschedule') || lowerMessage.includes('rescheduling')) {
-      subject = 'Meeting Reschedule';
+      subject = 'Meeting Reschedule Request';
     } else if (lowerMessage.includes('thank') || lowerMessage.includes('thanks')) {
-      subject = 'Thank you';
+      subject = 'Thank You Note';
     } else if (lowerMessage.includes('follow') && lowerMessage.includes('up')) {
-      subject = 'Follow-up';
+      subject = 'Follow-up Regarding Our Conversation';
+    } else if (lowerMessage.includes('meeting') || lowerMessage.includes('call')) {
+      subject = 'Meeting Request';
     } else {
-      subject = 'Quick message';
+      subject = 'Important Message';
     }
   }
 
-  // Extract the main message content
-  const messagePatterns = [
-    /saying\s+(.+)$/i,
-    /that\s+(.+)$/i,
-    /about\s+(.+)$/i,
+  // Extract the main message content with better pattern matching
+  let body = '';
+  const bodyPatterns = [
+    /saying\s*[:]?\s*["']?([^"'\n]+)["']?/i,
+    /content\s*[:]?\s*["']?([^"'\n]+)["']?/i,
+    /message\s*[:]?\s*["']?([^"'\n]+)["']?/i,
+    /write\s*[:]?\s*["']?([^"'\n]+)["']?/i
   ];
   
-  for (const pattern of messagePatterns) {
+  for (const pattern of bodyPatterns) {
     const match = userMessage.match(pattern);
     if (match) {
       body = match[1].trim();
@@ -107,15 +127,166 @@ function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequ
   }
   
   if (!body) {
-    body = userMessage; // Use the full message as fallback
+    // If no specific content was mentioned, use the AI's response as the body
+    body = aiResponse.split('\n').slice(0, 5).join('\n');
+  }
+
+  // Check for HTML content indicators
+  const isHtml = lowerMessage.includes('html') || 
+                 lowerMessage.includes('rich text') || 
+                 lowerMessage.includes('formatted');
+
+  // Check for scheduling requests
+  const scheduledForMatch = userMessage.match(/(schedule|send)\s+(?:for|on)\s+([^.,!?]+)/i);
+  let scheduledFor = null;
+  if (scheduledForMatch) {
+    scheduledFor = new Date(scheduledForMatch[2]).toISOString();
   }
 
   return {
     to: recipients,
     subject,
     body,
-    isHtml: false
+    isHtml,
+    scheduledFor
   };
+}
+
+// Function to extract calendar event details from user message
+function extractCalendarEvent(userMessage: string): CalendarEvent | null {
+  const lowerMessage = userMessage.toLowerCase();
+  
+  // Check if this is a calendar-related request
+  const calendarKeywords = ['schedule meeting', 'create event', 'add to calendar', 'set up meeting'];
+  if (!calendarKeywords.some(keyword => lowerMessage.includes(keyword))) {
+    return null;
+  }
+
+  // Extract event title
+  let title = '';
+  const titlePatterns = [
+    /(?:meeting|event)\s+about\s+["']?([^"'\n]+)["']?/i,
+    /called\s+["']?([^"'\n]+)["']?/i,
+    /titled\s+["']?([^"'\n]+)["']?/i
+  ];
+  
+  for (const pattern of titlePatterns) {
+    const match = userMessage.match(pattern);
+    if (match) {
+      title = match[1].trim();
+      break;
+    }
+  }
+  
+  if (!title) {
+    if (lowerMessage.includes('meeting')) {
+      title = 'Team Meeting';
+    } else if (lowerMessage.includes('call')) {
+      title = 'Phone Call';
+    } else {
+      title = 'Calendar Event';
+    }
+  }
+
+  // Extract date and time
+  const dateTimePatterns = [
+    /on\s+([^,]+?(?:at\s+\d+:\d+\s*(?:am|pm)?)?)/i,
+    /at\s+([^,]+?(?:\son\s+\w+\s+\d+)?)/i,
+    /from\s+([^,]+?)\s+to\s+([^,]+)/i
+  ];
+  
+  let startDate = new Date();
+  let endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Default 1 hour duration
+  
+  for (const pattern of dateTimePatterns) {
+    const match = userMessage.match(pattern);
+    if (match) {
+      try {
+        if (match[2]) {
+          // Handle "from X to Y" format
+          startDate = new Date(match[1]);
+          endDate = new Date(match[2]);
+        } else {
+          // Handle single date/time
+          startDate = new Date(match[1]);
+          endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+        }
+        break;
+      } catch (e) {
+        console.error('Error parsing date:', e);
+      }
+    }
+  }
+
+  // Extract attendees
+  const attendeePattern = /with\s+([^,]+?(?:\s+and\s+[^,]+)*)/i;
+  const attendeesMatch = userMessage.match(attendeePattern);
+  let attendees: string[] = [];
+  
+  if (attendeesMatch) {
+    attendees = attendeesMatch[1].split(/\s+(?:and|,)\s+/).map(name => {
+      // Convert names to example emails
+      return `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`;
+    });
+  }
+
+  // Extract location
+  let location = '';
+  const locationPattern = /(?:at|in)\s+([^,]+)/i;
+  const locationMatch = userMessage.match(locationPattern);
+  if (locationMatch) {
+    location = locationMatch[1].trim();
+  }
+
+  return {
+    title,
+    description: userMessage,
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+    attendees: attendees.length > 0 ? attendees : undefined,
+    location: location || undefined,
+    reminders: {
+      useDefault: true
+    }
+  };
+}
+
+// Function to fetch emails from the database
+async function fetchEmails(supabase: any, userId: string, limit = 10) {
+  const { data, error } = await supabase
+    .from('user_emails')
+    .select('id, subject, from, snippet, received_at, is_read')
+    .eq('user_id', userId)
+    .order('received_at', { ascending: false })
+    .limit(limit);
+  
+  if (error) {
+    console.error('Error fetching emails:', error);
+    return [];
+  }
+  
+  return data || [];
+}
+
+// Function to fetch calendar events from the database
+async function fetchCalendarEvents(supabase: any, userId: string, days = 7) {
+  const now = new Date();
+  const futureDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .select('id, title, description, start_time, end_time, location, attendees')
+    .eq('user_id', userId)
+    .gte('start_time', now.toISOString())
+    .lte('start_time', futureDate.toISOString())
+    .order('start_time', { ascending: true });
+  
+  if (error) {
+    console.error('Error fetching calendar events:', error);
+    return [];
+  }
+  
+  return data || [];
 }
 
 serve(async (req) => {
@@ -183,10 +354,18 @@ serve(async (req) => {
         .order('priority', { ascending: false })
         .limit(10);
 
+      // Get recent emails
+      const recentEmails = await fetchEmails(supabase, user.id, 5);
+      
+      // Get upcoming calendar events
+      const upcomingEvents = await fetchCalendarEvents(supabase, user.id, 7);
+
       context = {
         conversationHistory,
         recentUpdates: recentUpdates || [],
-        pendingActions: actionItems || []
+        pendingActions: actionItems || [],
+        recentEmails,
+        upcomingEvents
       };
     }
 
@@ -203,10 +382,11 @@ serve(async (req) => {
 4. Remember conversations and provide context-aware responses
 5. Suggest actionable items based on user's data
 
-When the user asks you to send an email, you should:
-- Acknowledge that you'll send the email
-- Confirm the recipient, subject, and content
-- Be clear about what action you're taking
+When the user asks you to:
+- Send an email: Confirm the recipient, subject, and content before sending
+- Schedule a meeting: Confirm the title, time, and attendees
+- Check emails: Provide a summary of recent emails
+- Check calendar: List upcoming events
 
 Current context:
 ${includeContext ? `
@@ -217,14 +397,20 @@ Recent updates:
 ${context.recentUpdates?.map(u => `- ${u.source}: ${u.summary}`).join('\n')}
 
 Pending action items:
-${context.pendingActions?.map(a => `- ${a.title} (Priority: ${a.priority})`).join('\n')}
+${context.pendingActions?.map(a => `- ${a.title} (Priority: ${a.priority}, Due: ${a.due_date})`).join('\n')}
+
+Recent emails (last 5):
+${context.recentEmails?.map(e => `- From: ${e.from}, Subject: ${e.subject}, Snippet: ${e.snippet.substring(0, 50)}...`).join('\n')}
+
+Upcoming calendar events (next 7 days):
+${context.upcomingEvents?.map(e => `- ${e.title} (${new Date(e.start_time).toLocaleString()} - ${new Date(e.end_time).toLocaleString()})`).join('\n')}
 ` : 'No context requested'}
 
 Guidelines:
 - Be helpful, proactive, and concise
 - Reference past conversations when relevant
 - Suggest specific actions the user can take
-- If the user asks to send emails, confirm what you'll do and then actually do it
+- When asked to send emails or schedule events, confirm details before proceeding
 - Format responses with emojis for better readability
 - Always be professional but friendly
 
@@ -282,6 +468,34 @@ User message: ${message}`;
       }
     }
 
+    // Check if this is a calendar event request and extract details
+    const calendarEvent = extractCalendarEvent(message);
+    let calendarResult = null;
+    
+    if (calendarEvent) {
+      try {
+        console.log('📅 Creating calendar event:', calendarEvent);
+        
+        const { data: eventData, error: eventError } = await supabase.functions.invoke('create-calendar-event', {
+          body: calendarEvent,
+          headers: {
+            Authorization: authHeader
+          }
+        });
+
+        if (eventError) {
+          console.error('Calendar event creation error:', eventError);
+          calendarResult = { success: false, error: eventError.message };
+        } else {
+          console.log('✅ Calendar event created successfully');
+          calendarResult = { success: true, eventId: eventData?.eventId };
+        }
+      } catch (error) {
+        console.error('Error calling create-calendar-event function:', error);
+        calendarResult = { success: false, error: error.message };
+      }
+    }
+
     // Save conversation to history
     const { error: historyError } = await supabase
       .from('conversation_history')
@@ -303,6 +517,8 @@ User message: ${message}`;
         response: aiResponse,
         emailSent: emailResult,
         emailDetails: emailDetails,
+        calendarEventCreated: calendarResult,
+        calendarEventDetails: calendarEvent,
         context: includeContext ? context : null
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
