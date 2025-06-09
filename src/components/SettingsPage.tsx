@@ -198,120 +198,141 @@ const SettingsPage = () => {
           <h2 className="text-lg font-medium mb-4">Integrations</h2>
           <div className="space-y-3">
             {/* Gmail Integration */}
-            <div className="p-4 bg-gray-800 rounded-lg">
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center space-x-2">
-                  <Mail size={20} className="text-red-500" />
-                  <span className="font-medium">Gmail</span>
+            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
+                  <Mail size={24} className="text-red-500" />
                 </div>
-                <div className="flex items-center space-x-2">
-                  {isConnected('gmail') ? (
-                    <CheckCircle size={16} className="text-green-500" />
-                  ) : (
-                    <AlertCircle size={16} className="text-gray-400" />
-                  )}
-                  <span className="text-sm text-gray-400">
-                    {isConnected('gmail') ? 'Connected' : 'Not connected'}
-                  </span>
+                <div>
+                  <h3 className="font-medium text-white">Gmail</h3>
+                  <p className="text-sm text-gray-400">Get updates from your Gmail inbox</p>
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mb-3">Get updates from your Gmail inbox</p>
-              {isConnected('gmail') ? (
-                <Button 
-                  size="sm" 
-                  variant="destructive"
-                  onClick={() => handleDisconnect('gmail')}
-                  className="bg-red-600 hover:bg-red-700 text-white border-red-600 hover:border-red-700"
-                >
-                  Disconnect
-                </Button>
-              ) : (
-                <Button 
-                  size="sm" 
-                  onClick={() => handleConnect('gmail')}
-                  disabled={loading}
-                >
-                  Connect Gmail
-                </Button>
-              )}
+              <div className="flex items-center space-x-3">
+                {isConnected('gmail') ? (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle size={16} className="text-green-500" />
+                      <span className="text-sm text-gray-300">Connected</span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleDisconnect('gmail')}
+                      className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
+                    >
+                      Disconnect
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle size={16} className="text-gray-500" />
+                      <span className="text-sm text-gray-400">Not connected</span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleConnect('gmail')}
+                      disabled={loading}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Connect
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Calendar Integration */}
-            <div className="p-4 bg-gray-800 rounded-lg">
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center space-x-2">
-                  <Calendar size={20} className="text-blue-500" />
-                  <span className="font-medium">Calendar</span>
+            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
+                  <Calendar size={24} className="text-blue-500" />
                 </div>
-                <div className="flex items-center space-x-2">
-                  {isConnected('calendar') ? (
-                    <CheckCircle size={16} className="text-green-500" />
-                  ) : (
-                    <AlertCircle size={16} className="text-gray-400" />
-                  )}
-                  <span className="text-sm text-gray-400">
-                    {isConnected('calendar') ? 'Connected' : 'Not connected'}
-                  </span>
+                <div>
+                  <h3 className="font-medium text-white">Calendar</h3>
+                  <p className="text-sm text-gray-400">Stay updated with upcoming events</p>
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mb-3">Stay updated with upcoming events</p>
-              {isConnected('calendar') ? (
-                <Button 
-                  size="sm" 
-                  variant="destructive"
-                  onClick={() => handleDisconnect('calendar')}
-                  className="bg-red-600 hover:bg-red-700 text-white border-red-600 hover:border-red-700"
-                >
-                  Disconnect
-                </Button>
-              ) : (
-                <Button 
-                  size="sm" 
-                  onClick={() => handleConnect('calendar')}
-                  disabled={loading}
-                >
-                  Connect Calendar
-                </Button>
-              )}
+              <div className="flex items-center space-x-3">
+                {isConnected('calendar') ? (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle size={16} className="text-green-500" />
+                      <span className="text-sm text-gray-300">Connected</span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleDisconnect('calendar')}
+                      className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
+                    >
+                      Disconnect
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle size={16} className="text-gray-500" />
+                      <span className="text-sm text-gray-400">Not connected</span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleConnect('calendar')}
+                      disabled={loading}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Connect
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Slack Integration */}
-            <div className="p-4 bg-gray-800 rounded-lg">
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center space-x-2">
-                  <MessageSquare size={20} className="text-green-500" />
-                  <span className="font-medium">Slack</span>
+            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
+                  <MessageSquare size={24} className="text-green-500" />
                 </div>
-                <div className="flex items-center space-x-2">
-                  {isConnected('slack') ? (
-                    <CheckCircle size={16} className="text-green-500" />
-                  ) : (
-                    <AlertCircle size={16} className="text-gray-400" />
-                  )}
-                  <span className="text-sm text-gray-400">
-                    {isConnected('slack') ? 'Connected' : 'Not connected'}
-                  </span>
+                <div>
+                  <h3 className="font-medium text-white">Slack</h3>
+                  <p className="text-sm text-gray-400">Receive important Slack notifications</p>
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mb-3">Receive important Slack notifications</p>
-              {isConnected('slack') ? (
-                <Button 
-                  size="sm" 
-                  variant="destructive"
-                  onClick={() => handleDisconnect('slack')}
-                  className="bg-red-600 hover:bg-red-700 text-white border-red-600 hover:border-red-700"
-                >
-                  Disconnect
-                </Button>
-              ) : (
-                <Button 
-                  size="sm" 
-                  onClick={() => handleConnect('slack')}
-                  disabled={loading}
-                >
-                  Connect Slack
-                </Button>
-              )}
+              <div className="flex items-center space-x-3">
+                {isConnected('slack') ? (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle size={16} className="text-green-500" />
+                      <span className="text-sm text-gray-300">Connected</span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleDisconnect('slack')}
+                      className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
+                    >
+                      Disconnect
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle size={16} className="text-gray-500" />
+                      <span className="text-sm text-gray-400">Not connected</span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleConnect('slack')}
+                      disabled={loading}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Connect
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
