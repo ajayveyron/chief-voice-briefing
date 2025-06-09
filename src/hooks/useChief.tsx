@@ -94,24 +94,6 @@ export const useChief = () => {
       const { data: cronData, error: cronError } = await supabase.functions.invoke('setup-chief-cron');
       if (cronError) throw cronError;
 
-      // Setup task scheduler cron (every minute)
-      const { error: schedulerError } = await supabase.rpc('cron_schedule', {
-        job_name: 'task-scheduler',
-        schedule: '* * * * *', // Every minute
-        command: `
-          select
-            net.http_post(
-                url:='${Deno.env.get('SUPABASE_URL')}/functions/v1/task-scheduler',
-                headers:='{"Content-Type": "application/json", "Authorization": "Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}"}'::jsonb,
-                body:=concat('{"timestamp": "', now(), '"}')::jsonb
-            ) as request_id;
-        `
-      });
-
-      if (schedulerError) {
-        console.error('Error setting up task scheduler:', schedulerError);
-      }
-
       console.log('✅ Chief cron jobs setup completed');
       toast({
         title: "Success",

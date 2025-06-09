@@ -3,145 +3,84 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
-interface ActionItem {
-  id: string;
+interface CreateActionItemRequest {
   title: string;
   description?: string;
-  priority: number;
-  status: string;
+  priority?: number;
   due_date?: string;
-  created_at: string;
+  related_update_id?: string;
 }
 
-interface ScheduledTask {
-  id: string;
-  task_type: string;
-  title: string;
+interface UpdateActionItemRequest {
+  status?: string;
+  priority?: number;
+  due_date?: string;
   description?: string;
-  scheduled_for: string;
-  is_completed: boolean;
-  metadata: any;
 }
 
 export const useActionItems = () => {
   const [loading, setLoading] = useState(false);
-  const [actionItems, setActionItems] = useState<ActionItem[]>([]);
-  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
+  const [actionItems, setActionItems] = useState<any[]>([]);
   const { toast } = useToast();
 
-  const fetchActionItems = useCallback(async () => {
+  const fetchActionItems = useCallback(async (status?: string) => {
     try {
       setLoading(true);
       console.log('📋 Fetching action items...');
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('action_items')
         .select('*')
         .order('priority', { ascending: false })
         .order('created_at', { ascending: false });
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         throw error;
       }
 
       setActionItems(data || []);
-      console.log(`✅ Fetched ${data?.length || 0} action items`);
+      console.log('✅ Action items fetched successfully');
+      
+      return data;
     } catch (error) {
       console.error('❌ Error fetching action items:', error);
       toast({
         title: "Error",
-        description: 'Failed to fetch action items',
+        description: error instanceof Error ? error.message : 'Failed to fetch action items',
         variant: "destructive",
       });
+      throw error;
     } finally {
       setLoading(false);
     }
   }, [toast]);
 
-  const fetchScheduledTasks = useCallback(async () => {
+  const createActionItem = useCallback(async (item: CreateActionItemRequest) => {
     try {
       setLoading(true);
-      console.log('⏰ Fetching scheduled tasks...');
+      console.log('📝 Creating action item...');
 
-      const { data, error } = await supabase
-        .from('scheduled_tasks')
-        .select('*')
-        .eq('is_completed', false)
-        .order('scheduled_for', { ascending: true });
-
-      if (error) {
-        throw error;
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User not authenticated');
       }
-
-      setScheduledTasks(data || []);
-      console.log(`✅ Fetched ${data?.length || 0} scheduled tasks`);
-    } catch (error) {
-      console.error('❌ Error fetching scheduled tasks:', error);
-      toast({
-        title: "Error",
-        description: 'Failed to fetch scheduled tasks',
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  const updateActionItemStatus = useCallback(async (id: string, status: string) => {
-    try {
-      console.log(`📝 Updating action item status: ${id} -> ${status}`);
-
-      const { error } = await supabase
-        .from('action_items')
-        .update({ 
-          status, 
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', id);
-
-      if (error) {
-        throw error;
-      }
-
-      // Update local state
-      setActionItems(prev => 
-        prev.map(item => 
-          item.id === id ? { ...item, status } : item
-        )
-      );
-
-      toast({
-        title: "Success",
-        description: `Action item marked as ${status}`,
-      });
-
-      console.log('✅ Action item status updated');
-    } catch (error) {
-      console.error('❌ Error updating action item:', error);
-      toast({
-        title: "Error",
-        description: 'Failed to update action item',
-        variant: "destructive",
-      });
-    }
-  }, [toast]);
-
-  const createActionItem = useCallback(async (
-    title: string, 
-    description?: string, 
-    priority = 1, 
-    dueDate?: string
-  ) => {
-    try {
-      console.log('📝 Creating new action item...');
 
       const { data, error } = await supabase
         .from('action_items')
         .insert({
-          title,
-          description,
-          priority,
-          due_date: dueDate,
+          user_id: user.id,
+          title: item.title,
+          description: item.description,
+          priority: item.priority || 1,
+          due_date: item.due_date,
+          related_update_id: item.related_update_id,
           status: 'pending'
         })
         .select()
@@ -151,33 +90,122 @@ export const useActionItems = () => {
         throw error;
       }
 
-      setActionItems(prev => [data, ...prev]);
-      
+      console.log('✅ Action item created successfully');
       toast({
         title: "Success",
         description: "Action item created successfully",
       });
-
-      console.log('✅ Action item created');
+      
+      // Refresh the list
+      await fetchActionItems();
+      
       return data;
     } catch (error) {
       console.error('❌ Error creating action item:', error);
       toast({
         title: "Error",
-        description: 'Failed to create action item',
+        description: error instanceof Error ? error.message : 'Failed to create action item',
         variant: "destructive",
       });
       throw error;
+    } finally {
+      setLoading(false);
     }
-  }, [toast]);
+  }, [fetchActionItems, toast]);
+
+  const updateActionItem = useCallback(async (id: string, updates: UpdateActionItemRequest) => {
+    try {
+      setLoading(true);
+      console.log('🔄 Updating action item...');
+
+      const { data, error } = await supabase
+        .from('action_items')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('✅ Action item updated successfully');
+      toast({
+        title: "Success",
+        description: "Action item updated successfully",
+      });
+      
+      // Refresh the list
+      await fetchActionItems();
+      
+      return data;
+    } catch (error) {
+      console.error('❌ Error updating action item:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to update action item',
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchActionItems, toast]);
+
+  const deleteActionItem = useCallback(async (id: string) => {
+    try {
+      setLoading(true);
+      console.log('🗑️ Deleting action item...');
+
+      const { error } = await supabase
+        .from('action_items')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('✅ Action item deleted successfully');
+      toast({
+        title: "Success",
+        description: "Action item deleted successfully",
+      });
+      
+      // Refresh the list
+      await fetchActionItems();
+    } catch (error) {
+      console.error('❌ Error deleting action item:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to delete action item',
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchActionItems, toast]);
+
+  const completeActionItem = useCallback(async (id: string) => {
+    return updateActionItem(id, { status: 'completed' });
+  }, [updateActionItem]);
+
+  const dismissActionItem = useCallback(async (id: string) => {
+    return updateActionItem(id, { status: 'dismissed' });
+  }, [updateActionItem]);
 
   return {
     loading,
     actionItems,
-    scheduledTasks,
     fetchActionItems,
-    fetchScheduledTasks,
-    updateActionItemStatus,
-    createActionItem
+    createActionItem,
+    updateActionItem,
+    deleteActionItem,
+    completeActionItem,
+    dismissActionItem
   };
 };
