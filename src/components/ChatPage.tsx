@@ -1,11 +1,13 @@
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useUpdates } from "@/hooks/useUpdates";
 import { useUserDocuments } from "@/hooks/useUserDocuments";
 import { useIntegrationData } from "@/hooks/useIntegrationData";
 import { Button } from "@/components/ui/button";
-import { Send } from "lucide-react";
+import { Send, Paperclip } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Array<{
@@ -19,9 +21,75 @@ const ChatPage = () => {
   }]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const { user } = useAuth();
+  const { toast } = useToast();
   const { updates } = useUpdates();
-  const { documents } = useUserDocuments();
+  const { documents, refetch: refetchDocuments } = useUserDocuments();
   const { integrationData } = useIntegrationData();
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    setIsUploading(true);
+    
+    try {
+      // Read file content
+      const text = await file.text();
+      
+      // Upload to Supabase
+      const { data, error } = await supabase
+        .from('user_documents')
+        .insert({
+          user_id: user.id,
+          name: file.name,
+          content: text,
+          file_type: file.type || 'text/plain',
+          file_size: file.size
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add a message to chat indicating successful upload
+      const uploadMessage = {
+        id: Date.now().toString(),
+        text: `📎 Document "${file.name}" uploaded successfully and is now available for questions.`,
+        sender: 'assistant' as const
+      };
+      setMessages(prev => [...prev, uploadMessage]);
+
+      // Refresh documents list
+      refetchDocuments();
+
+      toast({
+        title: "Document uploaded",
+        description: `${file.name} has been uploaded and indexed.`,
+      });
+
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast({
+        title: "Upload failed",
+        description: "There was an error uploading your document. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleAttachmentClick = () => {
+    fileInputRef.current?.click();
+  };
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
@@ -137,10 +205,34 @@ const ChatPage = () => {
             disabled={isLoading}
             className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50"
           />
+          <Button 
+            onClick={handleAttachmentClick} 
+            size="sm" 
+            variant="outline"
+            disabled={isLoading || isUploading}
+            className="border-gray-600 hover:bg-gray-700"
+          >
+            <Paperclip size={16} />
+          </Button>
           <Button onClick={handleSendMessage} size="sm" disabled={isLoading}>
             <Send size={16} />
           </Button>
         </div>
+        
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileUpload}
+          accept=".txt,.md,.json,.csv,.pdf"
+          style={{ display: 'none' }}
+        />
+        
+        {isUploading && (
+          <div className="mt-2 text-sm text-gray-400">
+            Uploading document...
+          </div>
+        )}
       </div>
     </div>
   );
