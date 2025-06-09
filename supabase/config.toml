@@ -27,3 +27,12 @@ verify_jwt = false
 
 [functions.fetch-slack-messages]
 verify_jwt = false
+
+[functions.chief-data-collector]
+verify_jwt = false
+
+[functions.chief-summary]
+verify_jwt = true
+
+[functions.setup-chief-cron]
+verify_jwt = false

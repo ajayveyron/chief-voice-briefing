@@ -9,6 +9,45 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      daily_summaries: {
+        Row: {
+          action_items: string[] | null
+          calendar_count: number | null
+          created_at: string
+          email_count: number | null
+          id: string
+          slack_count: number | null
+          summary_date: string
+          summary_text: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action_items?: string[] | null
+          calendar_count?: number | null
+          created_at?: string
+          email_count?: number | null
+          id?: string
+          slack_count?: number | null
+          summary_date: string
+          summary_text: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action_items?: string[] | null
+          calendar_count?: number | null
+          created_at?: string
+          email_count?: number | null
+          id?: string
+          slack_count?: number | null
+          summary_date?: string
+          summary_text?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       oauth_states: {
         Row: {
           created_at: string
@@ -35,6 +74,51 @@ export type Database = {
           integration_type?: string
           redirect_uri?: string | null
           state_token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      processed_updates: {
+        Row: {
+          action_suggestions: string[] | null
+          content: Json
+          created_at: string
+          id: string
+          is_read: boolean | null
+          priority: number | null
+          processed_at: string
+          source: string
+          source_id: string
+          summary: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action_suggestions?: string[] | null
+          content: Json
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          priority?: number | null
+          processed_at?: string
+          source: string
+          source_id: string
+          summary?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action_suggestions?: string[] | null
+          content?: Json
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          priority?: number | null
+          processed_at?: string
+          source?: string
+          source_id?: string
+          summary?: string | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
