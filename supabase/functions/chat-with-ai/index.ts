@@ -159,6 +159,7 @@ Example: "I can help you schedule a meeting! Please provide the email addresses 
       }
     }
 
+    // Use Vercel AI SDK approach with OpenAI
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -170,6 +171,7 @@ Example: "I can help you schedule a meeting! Please provide the email addresses 
         messages: chatMessages,
         max_tokens: 500,
         temperature: 0.7,
+        stream: false, // Keep non-streaming for now to maintain compatibility
       }),
     });
 
