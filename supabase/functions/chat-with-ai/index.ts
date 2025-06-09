@@ -34,11 +34,22 @@ function analyzeUserIntent(message: string) {
   return intents;
 }
 
-// Function to fetch Gmail data
-async function fetchGmailData(supabase: any, userId: string) {
+// Function to fetch Gmail data with proper authentication
+async function fetchGmailData(supabase: any, authHeader: string) {
   try {
-    const { data, error } = await supabase.functions.invoke('fetch-gmail-emails');
-    if (error) throw error;
+    console.log('📧 Fetching Gmail data with authentication...');
+    const { data, error } = await supabase.functions.invoke('fetch-gmail-emails', {
+      headers: {
+        Authorization: authHeader
+      }
+    });
+    
+    if (error) {
+      console.error('Gmail API error:', error);
+      throw error;
+    }
+    
+    console.log('✅ Gmail data fetched successfully:', data);
     return data.emails || [];
   } catch (error) {
     console.error('Error fetching Gmail data:', error);
@@ -46,11 +57,22 @@ async function fetchGmailData(supabase: any, userId: string) {
   }
 }
 
-// Function to fetch Calendar data
-async function fetchCalendarData(supabase: any, userId: string) {
+// Function to fetch Calendar data with proper authentication
+async function fetchCalendarData(supabase: any, authHeader: string) {
   try {
-    const { data, error } = await supabase.functions.invoke('fetch-calendar-events');
-    if (error) throw error;
+    console.log('📅 Fetching Calendar data with authentication...');
+    const { data, error } = await supabase.functions.invoke('fetch-calendar-events', {
+      headers: {
+        Authorization: authHeader
+      }
+    });
+    
+    if (error) {
+      console.error('Calendar API error:', error);
+      throw error;
+    }
+    
+    console.log('✅ Calendar data fetched successfully:', data);
     return data.events || [];
   } catch (error) {
     console.error('Error fetching Calendar data:', error);
@@ -58,11 +80,22 @@ async function fetchCalendarData(supabase: any, userId: string) {
   }
 }
 
-// Function to fetch Slack data
-async function fetchSlackData(supabase: any, userId: string) {
+// Function to fetch Slack data with proper authentication
+async function fetchSlackData(supabase: any, authHeader: string) {
   try {
-    const { data, error } = await supabase.functions.invoke('fetch-slack-messages');
-    if (error) throw error;
+    console.log('💬 Fetching Slack data with authentication...');
+    const { data, error } = await supabase.functions.invoke('fetch-slack-messages', {
+      headers: {
+        Authorization: authHeader
+      }
+    });
+    
+    if (error) {
+      console.error('Slack API error:', error);
+      throw error;
+    }
+    
+    console.log('✅ Slack data fetched successfully:', data);
     return data.messages || [];
   } catch (error) {
     console.error('Error fetching Slack data:', error);
@@ -71,7 +104,7 @@ async function fetchSlackData(supabase: any, userId: string) {
 }
 
 // Function to intelligently gather relevant data
-async function gatherIntelligentContext(message: string, userId: string) {
+async function gatherIntelligentContext(message: string, authHeader: string) {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -86,9 +119,9 @@ async function gatherIntelligentContext(message: string, userId: string) {
     console.log('🔍 User wants general updates, fetching all data sources...');
     
     const [emails, events, slackMessages] = await Promise.all([
-      fetchGmailData(supabase, userId),
-      fetchCalendarData(supabase, userId),
-      fetchSlackData(supabase, userId)
+      fetchGmailData(supabase, authHeader),
+      fetchCalendarData(supabase, authHeader),
+      fetchSlackData(supabase, authHeader)
     ]);
 
     if (emails.length > 0) {
@@ -119,7 +152,7 @@ async function gatherIntelligentContext(message: string, userId: string) {
     // Fetch specific data based on detected intent
     if (intents.needsEmails) {
       console.log('📧 Fetching email data based on user intent...');
-      const emails = await fetchGmailData(supabase, userId);
+      const emails = await fetchGmailData(supabase, authHeader);
       if (emails.length > 0) {
         context += '\n\n📧 EMAIL INFORMATION:\n';
         emails.slice(0, 5).forEach((email: any) => {
@@ -131,7 +164,7 @@ async function gatherIntelligentContext(message: string, userId: string) {
 
     if (intents.needsCalendar) {
       console.log('📅 Fetching calendar data based on user intent...');
-      const events = await fetchCalendarData(supabase, userId);
+      const events = await fetchCalendarData(supabase, authHeader);
       if (events.length > 0) {
         context += '\n\n📅 CALENDAR INFORMATION:\n';
         events.slice(0, 5).forEach((event: any) => {
@@ -145,7 +178,7 @@ async function gatherIntelligentContext(message: string, userId: string) {
 
     if (intents.needsSlack) {
       console.log('💬 Fetching Slack data based on user intent...');
-      const slackMessages = await fetchSlackData(supabase, userId);
+      const slackMessages = await fetchSlackData(supabase, authHeader);
       if (slackMessages.length > 0) {
         context += '\n\n💬 SLACK INFORMATION:\n';
         slackMessages.slice(0, 5).forEach((msg: any) => {
@@ -176,13 +209,17 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
+    // Get the authorization header from the request
+    const authHeader = req.headers.get('Authorization') || '';
+    console.log('🔑 Using authorization header for data fetching...');
+
     console.log('🤖 Processing intelligent assistant request...');
 
     // Get user query for intent analysis
     const userQuery = prompt || (messages && messages.length > 0 ? messages[messages.length - 1].content : '');
     
-    // Intelligently gather relevant context based on user intent
-    const { context: intelligentContext, dataFetched, intents } = await gatherIntelligentContext(userQuery, 'user-id');
+    // Intelligently gather relevant context based on user intent with proper auth
+    const { context: intelligentContext, dataFetched, intents } = await gatherIntelligentContext(userQuery, authHeader);
 
     // Build enhanced system prompt
     let systemPrompt = `You are Chief, an advanced AI voice assistant that helps users manage their daily productivity through voice commands. You have access to their Gmail, Google Calendar, and Slack integrations.
