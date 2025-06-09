@@ -88,26 +88,42 @@ export const useChief = () => {
   const setupChiefCron = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('⚙️ Setting up Chief cron job...');
+      console.log('⚙️ Setting up Chief cron jobs...');
 
-      const { data, error } = await supabase.functions.invoke('setup-chief-cron');
+      // Setup data collector cron
+      const { data: cronData, error: cronError } = await supabase.functions.invoke('setup-chief-cron');
+      if (cronError) throw cronError;
 
-      if (error) {
-        throw error;
+      // Setup task scheduler cron (every minute)
+      const { error: schedulerError } = await supabase.rpc('cron_schedule', {
+        job_name: 'task-scheduler',
+        schedule: '* * * * *', // Every minute
+        command: `
+          select
+            net.http_post(
+                url:='${Deno.env.get('SUPABASE_URL')}/functions/v1/task-scheduler',
+                headers:='{"Content-Type": "application/json", "Authorization": "Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}"}'::jsonb,
+                body:=concat('{"timestamp": "', now(), '"}')::jsonb
+            ) as request_id;
+        `
+      });
+
+      if (schedulerError) {
+        console.error('Error setting up task scheduler:', schedulerError);
       }
 
-      console.log('✅ Chief cron job setup completed');
+      console.log('✅ Chief cron jobs setup completed');
       toast({
         title: "Success",
-        description: "Chief cron job has been set up to run every 5 minutes",
+        description: "Chief system fully activated with all cron jobs running",
       });
       
-      return data;
+      return cronData;
     } catch (error) {
-      console.error('❌ Error setting up Chief cron job:', error);
+      console.error('❌ Error setting up Chief cron jobs:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to setup cron job',
+        description: error instanceof Error ? error.message : 'Failed to setup cron jobs',
         variant: "destructive",
       });
       throw error;
@@ -150,12 +166,41 @@ export const useChief = () => {
     }
   }, [getChiefSummary, toast]);
 
+  const chatWithChief = useCallback(async (message: string, includeContext = true) => {
+    try {
+      setLoading(true);
+      console.log('🤖 Chatting with Chief...');
+
+      const { data, error } = await supabase.functions.invoke('chief-ai-chat', {
+        body: { message, includeContext }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('✅ Chief chat response received');
+      return data;
+    } catch (error) {
+      console.error('❌ Error chatting with Chief:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to chat with Chief',
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
   return {
     loading,
     summaryData,
     getChiefSummary,
     markUpdatesAsRead,
     setupChiefCron,
-    triggerDataCollection
+    triggerDataCollection,
+    chatWithChief
   };
 };

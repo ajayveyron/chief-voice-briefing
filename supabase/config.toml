@@ -36,3 +36,18 @@ verify_jwt = true
 
 [functions.setup-chief-cron]
 verify_jwt = false
+
+[functions.send-email]
+verify_jwt = true
+
+[functions.manage-calendar]
+verify_jwt = true
+
+[functions.send-slack-message]
+verify_jwt = true
+
+[functions.task-scheduler]
+verify_jwt = false
+
+[functions.chief-ai-chat]
+verify_jwt = true
