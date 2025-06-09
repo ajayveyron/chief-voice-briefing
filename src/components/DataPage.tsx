@@ -309,11 +309,7 @@ const DataPage = () => {
     ) : (
       <AlertCircle size={16} className="text-red-500 shrink-0" />
     )}
-    <div className="text-xs text-muted-foreground whitespace-nowrap">
-      {integration.connected
-        ? getSummaryText(integration.type)
-        : 'Connect to sync data'}
-    </div>
+    
   </div>
 </div>
                       </div>
@@ -326,7 +322,7 @@ const DataPage = () => {
                               {integration.loading ? 'Syncing...' : `Sync ${integration.label} Data`}
                             </Button>
                             
-                            {lastSync && <p className="text-xs text-white">
+                            {lastSync && <p className="text-xs text-muted-foreground">
                                 Last synced: {lastSync.toLocaleString()}
                               </p>}
                           </div>
