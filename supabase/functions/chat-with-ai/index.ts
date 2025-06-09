@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, messages, userUpdates, userDocuments } = await req.json();
+    const { prompt, messages, userUpdates, userDocuments, integrationData } = await req.json();
 
     if (!prompt && !messages) {
       throw new Error('Either prompt or messages is required');
@@ -43,6 +43,52 @@ serve(async (req) => {
       });
     }
 
+    // Add integration data context
+    if (integrationData && integrationData.length > 0) {
+      contextInfo += '\n\nConnected integrations data:\n';
+      
+      integrationData.forEach((integration: any) => {
+        switch (integration.source) {
+          case 'gmail':
+            if (integration.data && integration.data.length > 0) {
+              contextInfo += '\nRecent Gmail emails:\n';
+              integration.data.slice(0, 5).forEach((email: any) => {
+                contextInfo += `- From: ${email.from}\n  Subject: ${email.subject}\n  Date: ${email.date}\n  Snippet: ${email.snippet}\n\n`;
+              });
+            }
+            break;
+          
+          case 'calendar':
+            if (integration.data && integration.data.length > 0) {
+              contextInfo += '\nUpcoming calendar events:\n';
+              integration.data.slice(0, 5).forEach((event: any) => {
+                contextInfo += `- Event: ${event.summary}\n  Start: ${event.start}\n  End: ${event.end}\n  Location: ${event.location || 'No location'}\n\n`;
+              });
+            }
+            break;
+          
+          case 'slack':
+            if (integration.data) {
+              contextInfo += '\nSlack workspace information:\n';
+              if (integration.data.team) {
+                contextInfo += `- Team: ${integration.data.team.name}\n`;
+              }
+              if (integration.data.channels && integration.data.channels.length > 0) {
+                const memberChannels = integration.data.channels.filter((ch: any) => ch.is_member);
+                contextInfo += `- Member of ${memberChannels.length} channels\n`;
+              }
+              if (integration.data.messages && integration.data.messages.length > 0) {
+                contextInfo += '\nRecent Slack messages:\n';
+                integration.data.messages.slice(0, 5).forEach((msg: any) => {
+                  contextInfo += `- ${msg.channel}: ${msg.text.slice(0, 100)}${msg.text.length > 100 ? '...' : ''}\n`;
+                });
+              }
+            }
+            break;
+        }
+      });
+    }
+
     // Build messages array based on input
     let chatMessages;
     if (messages && Array.isArray(messages)) {
@@ -56,7 +102,7 @@ serve(async (req) => {
       chatMessages = [
         { 
           role: 'system', 
-          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}` 
+          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}` 
         },
         { role: 'user', content: prompt }
       ];
@@ -69,7 +115,7 @@ serve(async (req) => {
       chatMessages = [
         { 
           role: 'system', 
-          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}` 
+          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}` 
         },
         { role: 'user', content: 'Hello' }
       ];
@@ -81,7 +127,7 @@ serve(async (req) => {
         // Insert system message with context at the beginning
         chatMessages.unshift({
           role: 'system',
-          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}`
+          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}`
         });
       }
     }

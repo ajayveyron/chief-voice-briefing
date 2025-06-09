@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useUpdates } from "@/hooks/useUpdates";
 import { useUserDocuments } from "@/hooks/useUserDocuments";
+import { useIntegrationData } from "@/hooks/useIntegrationData";
 import { Button } from "@/components/ui/button";
 import { Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,13 +14,14 @@ const ChatPage = () => {
     sender: 'user' | 'assistant';
   }>>([{
     id: '1',
-    text: "Hi! I'm Chief, your AI assistant. I can help you stay updated with your notifications and answer questions about your uploaded documents. What would you like to know?",
+    text: "Hi! I'm Chief, your AI assistant. I can help you stay updated with your notifications, answer questions about your uploaded documents, and provide insights from your connected integrations (Gmail, Calendar, Slack). What would you like to know?",
     sender: 'assistant'
   }]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { updates } = useUpdates();
   const { documents } = useUserDocuments();
+  const { integrationData } = useIntegrationData();
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
@@ -53,6 +55,7 @@ const ChatPage = () => {
           messages: conversationMessages,
           userUpdates: updates,
           userDocuments: documents,
+          integrationData: integrationData,
           customInstructions: customInstructions
         }
       });
@@ -95,7 +98,7 @@ const ChatPage = () => {
       <div className="p-4 border-b border-gray-700 flex-shrink-0">
         <h1 className="text-xl font-semibold">Chat with Chief</h1>
         <p className="text-sm text-gray-400">
-          AI assistant with access to your notifications and uploaded documents
+          AI assistant with access to your notifications, documents, and connected integrations
         </p>
       </div>
 
@@ -130,7 +133,7 @@ const ChatPage = () => {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask about your notifications or uploaded documents..."
+            placeholder="Ask about your notifications, documents, or connected integrations..."
             disabled={isLoading}
             className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50"
           />
