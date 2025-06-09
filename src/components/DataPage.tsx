@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
@@ -274,16 +275,16 @@ const DataPage = () => {
   return (
     <div className="h-full overflow-y-auto">
       {/* Header */}
-      <div className="p-4 sm:p-6 border-b border-gray-700 flex-shrink-0">
-        <h1 className="text-xl sm:text-2xl font-semibold">Data Sources</h1>
-        <p className="text-xs sm:text-sm text-gray-400 mt-1">
+      <div className="p-4 sm:p-6 border-b border-border flex-shrink-0">
+        <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Data Sources</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Manage data that powers your AI assistant
         </p>
       </div>
 
       <div className="p-4 sm:p-6">
         <Tabs defaultValue="integrations" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-gray-700">
+          <TabsList className="grid w-full grid-cols-2 bg-muted">
             <TabsTrigger value="integrations" className="text-xs sm:text-sm">Integrations</TabsTrigger>
             <TabsTrigger value="custom" className="text-xs sm:text-sm">Custom Data</TabsTrigger>
           </TabsList>
@@ -294,23 +295,23 @@ const DataPage = () => {
                 const Icon = integration.icon;
                 const lastSync = lastSyncTimes[integration.type];
                 return (
-                  <AccordionItem key={integration.type} value={integration.type} className="border border-gray-700 rounded-lg bg-gray-800">
+                  <AccordionItem key={integration.type} value={integration.type} className="border border-border rounded-lg bg-card">
                     <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
-                        <div className="flex items-center space-x-3 min-w-0">
+                      <div className="flex items-center justify-between gap-4 w-full">
+                        <div className="flex items-center space-x-3 min-w-0 flex-1">
                           <Icon size={20} className={integration.color} />
-                          <div className="min-w-0 text-left">
-                            <div className="text-base sm:text-lg text-white truncate font-semibold">{integration.label}</div>
-                            <div className="text-gray-300 text-xs sm:text-sm">
+                          <div className="min-w-0 text-left flex-1">
+                            <div className="text-base sm:text-lg text-card-foreground font-semibold truncate">{integration.label}</div>
+                            <div className="text-muted-foreground text-xs sm:text-sm truncate">
                               {integration.description}
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 shrink-0">
-                          <Badge variant={integration.connected ? "default" : "secondary"} className="self-start sm:self-center">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 shrink-0">
+                          <Badge variant={integration.connected ? "default" : "secondary"} className="text-xs whitespace-nowrap">
                             {integration.connected ? "Connected" : "Not Connected"}
                           </Badge>
-                          <div className="text-xs text-gray-400 text-left sm:text-right">
+                          <div className="text-xs text-muted-foreground text-right">
                             {integration.connected ? getSummaryText(integration.type) : 'Connect to sync data'}
                           </div>
                         </div>
@@ -332,7 +333,7 @@ const DataPage = () => {
                             </Button>
                             
                             {lastSync && (
-                              <p className="text-xs text-gray-400">
+                              <p className="text-xs text-muted-foreground">
                                 Last synced: {lastSync.toLocaleString()}
                               </p>
                             )}
@@ -342,13 +343,13 @@ const DataPage = () => {
                             {/* Gmail Data Display */}
                             {integration.type === 'gmail' && integration.data.length > 0 && (
                               <div className="space-y-2">
-                                <p className="text-xs sm:text-sm font-medium text-white">Recent emails:</p>
+                                <p className="text-xs sm:text-sm font-medium text-card-foreground">Recent emails:</p>
                                 <div className="space-y-2 max-h-64 overflow-y-auto">
                                   {integration.data.map((item, index) => (
-                                    <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                      <div className="font-medium text-white text-sm break-words">{item.subject}</div>
-                                      <div className="text-gray-200 text-xs break-words">From: {item.from}</div>
-                                      <div className="text-gray-300 text-xs mt-1 break-words">{item.snippet}</div>
+                                    <div key={item.id || index} className="p-3 bg-muted rounded-lg border border-border">
+                                      <div className="font-medium text-card-foreground text-sm break-words">{item.subject}</div>
+                                      <div className="text-muted-foreground text-xs break-words">From: {item.from}</div>
+                                      <div className="text-muted-foreground text-xs mt-1 break-words">{item.snippet}</div>
                                     </div>
                                   ))}
                                 </div>
@@ -358,12 +359,12 @@ const DataPage = () => {
                             {/* Calendar Data Display */}
                             {integration.type === 'calendar' && integration.data.length > 0 && (
                               <div className="space-y-2">
-                                <p className="text-xs sm:text-sm font-medium text-white">Recent events:</p>
+                                <p className="text-xs sm:text-sm font-medium text-card-foreground">Recent events:</p>
                                 <div className="space-y-2 max-h-64 overflow-y-auto">
                                   {integration.data.map((item, index) => (
-                                    <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                      <div className="font-medium text-white text-sm break-words">{item.summary}</div>
-                                      <div className="text-gray-200 text-xs break-words">Start: {new Date(item.start).toLocaleString()}</div>
+                                    <div key={item.id || index} className="p-3 bg-muted rounded-lg border border-border">
+                                      <div className="font-medium text-card-foreground text-sm break-words">{item.summary}</div>
+                                      <div className="text-muted-foreground text-xs break-words">Start: {new Date(item.start).toLocaleString()}</div>
                                     </div>
                                   ))}
                                 </div>
@@ -375,13 +376,13 @@ const DataPage = () => {
                               <div className="space-y-3 overflow-hidden">
                                 {/* Team Info */}
                                 {integration.data.team && (
-                                  <div className="p-3 sm:p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                    <p className="text-xs sm:text-sm font-medium text-white mb-2">Team Info:</p>
+                                  <div className="p-3 sm:p-4 bg-muted rounded-lg border border-border">
+                                    <p className="text-xs sm:text-sm font-medium text-card-foreground mb-2">Team Info:</p>
                                     <div className="space-y-1">
-                                      <div className="font-medium text-white text-sm break-words">{integration.data.team.name}</div>
-                                      <div className="text-gray-200 text-xs break-words">{integration.data.team.domain}</div>
+                                      <div className="font-medium text-card-foreground text-sm break-words">{integration.data.team.name}</div>
+                                      <div className="text-muted-foreground text-xs break-words">{integration.data.team.domain}</div>
                                       {integration.data.team.url && (
-                                        <div className="text-blue-400 text-xs break-all">{integration.data.team.url}</div>
+                                        <div className="text-primary text-xs break-all">{integration.data.team.url}</div>
                                       )}
                                     </div>
                                   </div>
@@ -389,24 +390,24 @@ const DataPage = () => {
 
                                 {/* Summary */}
                                 {integration.data.summary && (
-                                  <div className="p-3 sm:p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                    <p className="text-xs sm:text-sm font-medium text-white mb-3">Data Summary:</p>
+                                  <div className="p-3 sm:p-4 bg-muted rounded-lg border border-border">
+                                    <p className="text-xs sm:text-sm font-medium text-card-foreground mb-3">Data Summary:</p>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                       <div className="flex items-center space-x-2">
-                                        <Hash size={12} className="text-gray-300 shrink-0" />
-                                        <span className="text-white text-xs truncate">{integration.data.summary.total_channels} channels</span>
+                                        <Hash size={12} className="text-muted-foreground shrink-0" />
+                                        <span className="text-card-foreground text-xs truncate">{integration.data.summary.total_channels} channels</span>
                                       </div>
                                       <div className="flex items-center space-x-2">
-                                        <Users size={12} className="text-gray-300 shrink-0" />
-                                        <span className="text-white text-xs truncate">{integration.data.summary.total_users} users</span>
+                                        <Users size={12} className="text-muted-foreground shrink-0" />
+                                        <span className="text-card-foreground text-xs truncate">{integration.data.summary.total_users} users</span>
                                       </div>
                                       <div className="flex items-center space-x-2">
-                                        <MessageSquare size={12} className="text-gray-300 shrink-0" />
-                                        <span className="text-white text-xs truncate">{integration.data.summary.total_messages} messages</span>
+                                        <MessageSquare size={12} className="text-muted-foreground shrink-0" />
+                                        <span className="text-card-foreground text-xs truncate">{integration.data.summary.total_messages} messages</span>
                                       </div>
                                       <div className="flex items-center space-x-2">
-                                        <Eye size={12} className="text-gray-300 shrink-0" />
-                                        <span className="text-white text-xs truncate">{integration.data.summary.accessible_channels} accessible</span>
+                                        <Eye size={12} className="text-muted-foreground shrink-0" />
+                                        <span className="text-card-foreground text-xs truncate">{integration.data.summary.accessible_channels} accessible</span>
                                       </div>
                                     </div>
                                   </div>
@@ -415,13 +416,13 @@ const DataPage = () => {
                                 {/* Recent Messages */}
                                 {integration.data.messages && integration.data.messages.length > 0 && (
                                   <div className="space-y-2">
-                                    <p className="text-xs sm:text-sm font-medium text-white">Recent messages:</p>
+                                    <p className="text-xs sm:text-sm font-medium text-card-foreground">Recent messages:</p>
                                     <div className="space-y-2 max-h-48 overflow-y-auto">
                                       {integration.data.messages.slice(0, 3).map((message, index) => (
-                                        <div key={message.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                          <div className="font-medium text-white text-xs break-words">{message.text}</div>
-                                          <div className="text-gray-200 text-xs mt-1 break-words">From: {message.user} in {message.channel}</div>
-                                          <div className="text-gray-400 text-xs break-words">{new Date(message.timestamp).toLocaleString()}</div>
+                                        <div key={message.id || index} className="p-3 bg-muted rounded-lg border border-border">
+                                          <div className="font-medium text-card-foreground text-xs break-words">{message.text}</div>
+                                          <div className="text-muted-foreground text-xs mt-1 break-words">From: {message.user} in {message.channel}</div>
+                                          <div className="text-muted-foreground text-xs break-words">{new Date(message.timestamp).toLocaleString()}</div>
                                         </div>
                                       ))}
                                     </div>
@@ -431,36 +432,36 @@ const DataPage = () => {
                                 {/* Channels */}
                                 {integration.data.channels && integration.data.channels.length > 0 && (
                                   <div className="space-y-2">
-                                    <p className="text-xs sm:text-sm font-medium text-white">All available channels ({integration.data.channels.length}) - click to view details:</p>
+                                    <p className="text-xs sm:text-sm font-medium text-card-foreground">All available channels ({integration.data.channels.length}) - click to view details:</p>
                                     <div className="max-h-60 overflow-y-auto space-y-2">
                                       {integration.data.channels.map((channel, index) => (
                                         <div 
                                           key={channel.id || index} 
-                                          className="p-3 bg-gray-900 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-800 transition-colors"
+                                          className="p-3 bg-muted rounded-lg border border-border cursor-pointer hover:bg-accent transition-colors"
                                           onClick={() => handleChannelClick(channel)}
                                         >
                                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
                                             <div className="flex items-center space-x-2 min-w-0">
-                                              {channel.is_private ? <Lock size={12} className="text-gray-400 shrink-0" /> : <Globe size={12} className="text-gray-400 shrink-0" />}
-                                              <span className="font-medium text-white text-xs truncate">#{channel.name}</span>
+                                              {channel.is_private ? <Lock size={12} className="text-muted-foreground shrink-0" /> : <Globe size={12} className="text-muted-foreground shrink-0" />}
+                                              <span className="font-medium text-card-foreground text-xs truncate">#{channel.name}</span>
                                             </div>
                                             <div className="flex items-center space-x-2 shrink-0">
                                               <Badge 
                                                 variant={channel.is_member ? "default" : "secondary"} 
-                                                className={`text-xs ${channel.is_member ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'}`}
+                                                className="text-xs"
                                               >
                                                 {channel.is_member ? "Member" : "Not Member"}
                                               </Badge>
                                               {channel.num_members && (
-                                                <span className="text-xs text-gray-400 whitespace-nowrap">{channel.num_members} members</span>
+                                                <span className="text-xs text-muted-foreground whitespace-nowrap">{channel.num_members} members</span>
                                               )}
                                             </div>
                                           </div>
                                           {channel.purpose && (
-                                            <div className="text-gray-200 text-xs mt-1 break-words line-clamp-2">{channel.purpose}</div>
+                                            <div className="text-muted-foreground text-xs mt-1 break-words line-clamp-2">{channel.purpose}</div>
                                           )}
                                           {channel.topic && (
-                                            <div className="text-gray-300 text-xs mt-1 break-words line-clamp-1">Topic: {channel.topic}</div>
+                                            <div className="text-muted-foreground text-xs mt-1 break-words line-clamp-1">Topic: {channel.topic}</div>
                                           )}
                                         </div>
                                       ))}
@@ -473,10 +474,10 @@ const DataPage = () => {
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <p className="text-xs sm:text-sm text-gray-400">
+                          <p className="text-xs sm:text-sm text-muted-foreground">
                             Connect this integration to start syncing data
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-muted-foreground">
                             Go to Settings → Integrations to connect
                           </p>
                         </div>
@@ -575,13 +576,13 @@ const DataPage = () => {
 
       {/* Channel Details Dialog */}
       <Dialog open={isChannelDialogOpen} onOpenChange={setIsChannelDialogOpen}>
-        <DialogContent className="bg-gray-800 border-gray-600 text-white max-w-xs sm:max-w-2xl max-h-[80vh] overflow-y-auto mx-4">
+        <DialogContent className="bg-card border-border text-card-foreground max-w-xs sm:max-w-2xl max-h-[80vh] overflow-y-auto mx-4">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2 text-sm sm:text-base">
-              {selectedChannel?.is_private ? <Lock size={16} className="text-gray-400" /> : <Globe size={16} className="text-gray-400" />}
+              {selectedChannel?.is_private ? <Lock size={16} className="text-muted-foreground" /> : <Globe size={16} className="text-muted-foreground" />}
               <span className="break-words">#{selectedChannel?.name}</span>
             </DialogTitle>
-            <DialogDescription className="text-gray-300 text-xs sm:text-sm">
+            <DialogDescription className="text-muted-foreground text-xs sm:text-sm">
               Complete channel information from Slack API
             </DialogDescription>
           </DialogHeader>
@@ -590,33 +591,33 @@ const DataPage = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <h4 className="font-medium text-white mb-2 text-sm">Basic Info</h4>
+                  <h4 className="font-medium text-card-foreground mb-2 text-sm">Basic Info</h4>
                   <div className="space-y-2 text-xs">
-                    <div><span className="text-gray-400">ID:</span> <span className="text-gray-200 break-all">{selectedChannel.id}</span></div>
-                    <div><span className="text-gray-400">Name:</span> <span className="text-gray-200 break-words">#{selectedChannel.name}</span></div>
-                    <div><span className="text-gray-400">Type:</span> <span className="text-gray-200">{selectedChannel.is_private ? 'Private' : 'Public'} Channel</span></div>
-                    <div><span className="text-gray-400">Members:</span> <span className="text-gray-200">{selectedChannel.num_members || 'Unknown'}</span></div>
+                    <div><span className="text-muted-foreground">ID:</span> <span className="text-card-foreground break-all">{selectedChannel.id}</span></div>
+                    <div><span className="text-muted-foreground">Name:</span> <span className="text-card-foreground break-words">#{selectedChannel.name}</span></div>
+                    <div><span className="text-muted-foreground">Type:</span> <span className="text-card-foreground">{selectedChannel.is_private ? 'Private' : 'Public'} Channel</span></div>
+                    <div><span className="text-muted-foreground">Members:</span> <span className="text-card-foreground">{selectedChannel.num_members || 'Unknown'}</span></div>
                   </div>
                 </div>
                 
                 <div>
-                  <h4 className="font-medium text-white mb-2 text-sm">Membership</h4>
+                  <h4 className="font-medium text-card-foreground mb-2 text-sm">Membership</h4>
                   <div className="space-y-2 text-xs">
                     <div>
-                      <span className="text-gray-400">Member Status:</span> 
-                      <Badge className={`ml-2 text-xs ${selectedChannel.is_member ? 'bg-green-600' : 'bg-red-600'}`}>
+                      <span className="text-muted-foreground">Member Status:</span> 
+                      <Badge className={`ml-2 text-xs ${selectedChannel.is_member ? 'bg-primary' : 'bg-destructive'}`}>
                         {selectedChannel.is_member ? 'Member' : 'Not Member'}
                       </Badge>
                     </div>
-                    <div><span className="text-gray-400">Is Channel:</span> <span className="text-gray-200">{selectedChannel.is_channel ? 'Yes' : 'No'}</span></div>
+                    <div><span className="text-muted-foreground">Is Channel:</span> <span className="text-card-foreground">{selectedChannel.is_channel ? 'Yes' : 'No'}</span></div>
                   </div>
                 </div>
               </div>
 
               {selectedChannel.purpose && (
                 <div>
-                  <h4 className="font-medium text-white mb-2 text-sm">Purpose</h4>
-                  <p className="text-gray-200 text-xs bg-gray-900 p-3 rounded border border-gray-600 break-words">
+                  <h4 className="font-medium text-card-foreground mb-2 text-sm">Purpose</h4>
+                  <p className="text-card-foreground text-xs bg-muted p-3 rounded border border-border break-words">
                     {selectedChannel.purpose}
                   </p>
                 </div>
@@ -624,16 +625,16 @@ const DataPage = () => {
 
               {selectedChannel.topic && (
                 <div>
-                  <h4 className="font-medium text-white mb-2 text-sm">Topic</h4>
-                  <p className="text-gray-200 text-xs bg-gray-900 p-3 rounded border border-gray-600 break-words">
+                  <h4 className="font-medium text-card-foreground mb-2 text-sm">Topic</h4>
+                  <p className="text-card-foreground text-xs bg-muted p-3 rounded border border-border break-words">
                     {selectedChannel.topic}
                   </p>
                 </div>
               )}
 
               <div>
-                <h4 className="font-medium text-white mb-2 text-sm">Raw Channel Data</h4>
-                <pre className="text-xs text-gray-300 bg-gray-900 p-3 rounded border border-gray-600 overflow-x-auto whitespace-pre-wrap break-words">
+                <h4 className="font-medium text-card-foreground mb-2 text-sm">Raw Channel Data</h4>
+                <pre className="text-xs text-muted-foreground bg-muted p-3 rounded border border-border overflow-x-auto whitespace-pre-wrap break-words">
                   {JSON.stringify(selectedChannel, null, 2)}
                 </pre>
               </div>
