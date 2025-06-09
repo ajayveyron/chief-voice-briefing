@@ -226,7 +226,7 @@ const SettingsPage = () => {
         className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700"
       >
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gray-700 rounded-md flex items-center justify-center">
+          <div className="w-10 h-10 rounded-md flex items-center justify-center">
             <img
               src={integration.logo}
               alt={integration.name}
