@@ -48,7 +48,7 @@ serve(async (req) => {
     }
 
     // Fetch emails from Gmail API
-    const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=3', {
+    const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=-category:{promotions updates forums social}&labelIds=INBOX', {
       headers: {
         'Authorization': `Bearer ${integration.access_token}`,
         'Content-Type': 'application/json'
