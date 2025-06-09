@@ -200,9 +200,13 @@ const SettingsPage = () => {
             {/* Gmail Integration */}
             <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
               <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
-                  <Mail size={24} className="text-red-500" />
-                </div>
+               <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
+  <img
+    src="https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg"
+    alt="Gmail"
+    className="w-6 h-6 object-contain"
+  />
+</div>
                 <div>
                   <h3 className="font-medium text-white">Gmail</h3>
                   <p className="text-sm text-gray-400">Get updates from your Gmail inbox</p>
@@ -247,8 +251,12 @@ const SettingsPage = () => {
             <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
-                  <Calendar size={24} className="text-blue-500" />
-                </div>
+  <img
+    src="https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg"
+    alt="Gmail"
+    className="w-6 h-6 object-contain"
+  />
+</div>
                 <div>
                   <h3 className="font-medium text-white">Calendar</h3>
                   <p className="text-sm text-gray-400">Stay updated with upcoming events</p>
@@ -293,8 +301,12 @@ const SettingsPage = () => {
             <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
-                  <MessageSquare size={24} className="text-green-500" />
-                </div>
+  <img
+    src="https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg"
+    alt="Gmail"
+    className="w-6 h-6 object-contain"
+  />
+</div>
                 <div>
                   <h3 className="font-medium text-white">Slack</h3>
                   <p className="text-sm text-gray-400">Receive important Slack notifications</p>
