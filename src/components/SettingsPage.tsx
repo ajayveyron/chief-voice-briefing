@@ -134,7 +134,7 @@ const SettingsPage = () => {
     }
   }, [toast, refetch]);
 
-  const integrations = [
+  const integrationsItems = [
   {
     id: 'gmail',
     name: 'Gmail',
@@ -220,7 +220,7 @@ const SettingsPage = () => {
 <div>
   <h2 className="text-lg font-medium mb-4 text-white">Integrations</h2>
   <div className="space-y-3">
-    {integrations.map((integration) => (
+    {integrationsItems.map((integration) => (
       <div
         key={integration.id}
         className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700"
