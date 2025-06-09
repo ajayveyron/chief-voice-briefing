@@ -88,16 +88,35 @@ export const useAIChat = () => {
 
       const customInstructions = localStorage.getItem('customInstructions') || '';
       
+      // Convert complex objects to simple serializable data
+      const contextData = {
+        userUpdates: updates?.map(update => ({
+          id: update.id,
+          title: update.title,
+          summary: update.summary,
+          priority: update.priority,
+          created_at: update.created_at
+        })) || [],
+        userDocuments: documents?.map(doc => ({
+          id: doc.id,
+          name: doc.name,
+          content: doc.content,
+          file_type: doc.file_type,
+          created_at: doc.created_at
+        })) || [],
+        integrationData: integrationData?.map(integration => ({
+          source: integration.source,
+          data: integration.data,
+          lastFetched: integration.lastFetched
+        })) || [],
+        customInstructions: customInstructions
+      };
+      
       // Use AI SDK's append with context data
       await append({
         role: 'user',
         content: inputText,
-        data: {
-          userUpdates: updates,
-          userDocuments: documents,
-          integrationData: integrationData,
-          customInstructions: customInstructions
-        }
+        data: contextData
       });
 
     } catch (error) {
