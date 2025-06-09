@@ -13,6 +13,111 @@ interface ChatRequest {
   includeContext?: boolean;
 }
 
+interface EmailRequest {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  body: string;
+  isHtml?: boolean;
+  scheduledFor?: string;
+}
+
+// Function to extract email details from AI response and user message
+function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequest | null {
+  const lowerMessage = userMessage.toLowerCase();
+  
+  // Check if this is an email sending request
+  if (!(lowerMessage.includes('send') && (lowerMessage.includes('email') || lowerMessage.includes('mail')))) {
+    return null;
+  }
+
+  // Extract recipient email - look for email patterns
+  const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+  const emails = userMessage.match(emailRegex) || [];
+  
+  // Extract recipient names (simple approach - look for common patterns)
+  const namePatterns = [
+    /email\s+([A-Z][a-z]+)/i,
+    /send\s+([A-Z][a-z]+)/i,
+    /to\s+([A-Z][a-z]+)/i
+  ];
+  
+  let recipientName = '';
+  for (const pattern of namePatterns) {
+    const match = userMessage.match(pattern);
+    if (match) {
+      recipientName = match[1];
+      break;
+    }
+  }
+
+  // If we have an email, use it; otherwise try to construct one from name
+  let recipients: string[] = [];
+  if (emails.length > 0) {
+    recipients = emails;
+  } else if (recipientName) {
+    // For demo purposes, you might want to maintain a contact list
+    // For now, we'll ask the AI to suggest an email format
+    recipients = [`${recipientName.toLowerCase()}@example.com`];
+  }
+
+  if (recipients.length === 0) {
+    return null;
+  }
+
+  // Extract subject and body from the message
+  let subject = '';
+  let body = '';
+  
+  // Look for subject indicators
+  if (lowerMessage.includes('subject')) {
+    const subjectMatch = userMessage.match(/subject[:\s]+([^.!?]+)/i);
+    if (subjectMatch) {
+      subject = subjectMatch[1].trim();
+    }
+  }
+  
+  // Generate subject and body based on the message content
+  if (!subject) {
+    if (lowerMessage.includes('reschedule') || lowerMessage.includes('rescheduling')) {
+      subject = 'Meeting Reschedule';
+    } else if (lowerMessage.includes('thank') || lowerMessage.includes('thanks')) {
+      subject = 'Thank you';
+    } else if (lowerMessage.includes('follow') && lowerMessage.includes('up')) {
+      subject = 'Follow-up';
+    } else {
+      subject = 'Quick message';
+    }
+  }
+
+  // Extract the main message content
+  const messagePatterns = [
+    /saying\s+(.+)$/i,
+    /that\s+(.+)$/i,
+    /about\s+(.+)$/i,
+  ];
+  
+  for (const pattern of messagePatterns) {
+    const match = userMessage.match(pattern);
+    if (match) {
+      body = match[1].trim();
+      break;
+    }
+  }
+  
+  if (!body) {
+    body = userMessage; // Use the full message as fallback
+  }
+
+  return {
+    to: recipients,
+    subject,
+    body,
+    isHtml: false
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -85,25 +190,6 @@ serve(async (req) => {
       };
     }
 
-    // Determine if this is a command that needs to execute an action
-    const lowerMessage = message.toLowerCase();
-    let functionToCall = null;
-    let functionParams = {};
-
-    // Email sending detection
-    if (lowerMessage.includes('send') && (lowerMessage.includes('email') || lowerMessage.includes('mail'))) {
-      functionToCall = 'send-email';
-      // You could implement NLP here to extract email details
-    }
-    // Calendar event detection
-    else if (lowerMessage.includes('schedule') || lowerMessage.includes('meeting') || lowerMessage.includes('calendar')) {
-      functionToCall = 'manage-calendar';
-    }
-    // Slack message detection
-    else if (lowerMessage.includes('slack') && lowerMessage.includes('send')) {
-      functionToCall = 'send-slack-message';
-    }
-
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
       throw new Error('OpenAI API key not configured');
@@ -116,6 +202,11 @@ serve(async (req) => {
 3. Send Slack messages to users and channels
 4. Remember conversations and provide context-aware responses
 5. Suggest actionable items based on user's data
+
+When the user asks you to send an email, you should:
+- Acknowledge that you'll send the email
+- Confirm the recipient, subject, and content
+- Be clear about what action you're taking
 
 Current context:
 ${includeContext ? `
@@ -133,7 +224,7 @@ Guidelines:
 - Be helpful, proactive, and concise
 - Reference past conversations when relevant
 - Suggest specific actions the user can take
-- If the user asks to send emails, schedule meetings, or send Slack messages, provide clear confirmation of what you'll do
+- If the user asks to send emails, confirm what you'll do and then actually do it
 - Format responses with emojis for better readability
 - Always be professional but friendly
 
@@ -163,6 +254,34 @@ User message: ${message}`;
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
 
+    // Check if this is an email sending request and extract details
+    const emailDetails = extractEmailDetails(message, aiResponse);
+    let emailResult = null;
+    
+    if (emailDetails) {
+      try {
+        console.log('📧 Sending email:', emailDetails);
+        
+        const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email', {
+          body: emailDetails,
+          headers: {
+            Authorization: authHeader
+          }
+        });
+
+        if (emailError) {
+          console.error('Email sending error:', emailError);
+          emailResult = { success: false, error: emailError.message };
+        } else {
+          console.log('✅ Email sent successfully');
+          emailResult = { success: true, messageId: emailData?.messageId };
+        }
+      } catch (error) {
+        console.error('Error calling send-email function:', error);
+        emailResult = { success: false, error: error.message };
+      }
+    }
+
     // Save conversation to history
     const { error: historyError } = await supabase
       .from('conversation_history')
@@ -182,8 +301,8 @@ User message: ${message}`;
     return new Response(
       JSON.stringify({
         response: aiResponse,
-        suggestedAction: functionToCall,
-        actionParams: functionParams,
+        emailSent: emailResult,
+        emailDetails: emailDetails,
         context: includeContext ? context : null
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

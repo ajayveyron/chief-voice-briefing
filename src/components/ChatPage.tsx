@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useUpdates } from "@/hooks/useUpdates";
 import { useUserDocuments } from "@/hooks/useUserDocuments";
 import { Button } from "@/components/ui/button";
-import { Send } from "lucide-react";
+import { Send, Mail, CheckCircle, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const ChatPage = () => {
@@ -11,9 +11,11 @@ const ChatPage = () => {
     id: string;
     text: string;
     sender: 'user' | 'assistant';
+    emailSent?: any;
+    emailDetails?: any;
   }>>([{
     id: '1',
-    text: "Hi! I'm Chief, your virtual assistant. I can help you stay updated with your notifications and answer questions about your uploaded documents. What would you like to know?",
+    text: "Hi! I'm Chief, your virtual assistant. I can help you stay updated with your notifications, answer questions about your uploaded documents, and take actions like sending emails. What would you like to do?",
     sender: 'assistant'
   }]);
   const [inputText, setInputText] = useState("");
@@ -34,26 +36,10 @@ const ChatPage = () => {
     setIsLoading(true);
 
     try {
-      const customInstructions = localStorage.getItem('customInstructions') || '';
-      
-      const conversationMessages = messages
-        .filter(msg => msg.text && msg.text.trim())
-        .map(msg => ({
-          role: msg.sender === 'user' ? 'user' : 'assistant',
-          content: msg.text
-        }));
-
-      conversationMessages.push({
-        role: 'user',
-        content: inputText
-      });
-
-      const { data, error } = await supabase.functions.invoke('chat-with-ai', {
+      const { data, error } = await supabase.functions.invoke('chief-ai-chat', {
         body: {
-          messages: conversationMessages,
-          userUpdates: updates,
-          userDocuments: documents,
-          customInstructions: customInstructions
+          message: inputText,
+          includeContext: true
         }
       });
 
@@ -61,16 +47,18 @@ const ChatPage = () => {
         throw error;
       }
 
-      if (data?.generatedText && data.generatedText.trim()) {
+      if (data?.response && data.response.trim()) {
         const assistantMessage = {
           id: (Date.now() + 1).toString(),
-          text: data.generatedText,
-          sender: 'assistant' as const
+          text: data.response,
+          sender: 'assistant' as const,
+          emailSent: data.emailSent,
+          emailDetails: data.emailDetails
         };
         setMessages(prev => [...prev, assistantMessage]);
       }
     } catch (error) {
-      console.error('Error calling AI:', error);
+      console.error('Error calling Chief AI:', error);
       const errorMessage = {
         id: (Date.now() + 1).toString(),
         text: "Sorry, I'm having trouble connecting right now. Please try again.",
@@ -94,7 +82,7 @@ const ChatPage = () => {
       {/* Header */}
       <div className="p-4 border-b border-gray-700 flex-shrink-0">
         <h1 className="text-xl font-semibold">Chat with Chief</h1>
-        
+        <p className="text-sm text-gray-400">Your AI assistant that can send emails, manage calendar, and more</p>
       </div>
 
       {/* Messages Container - takes up remaining space */}
@@ -102,7 +90,31 @@ const ChatPage = () => {
         {messages.map(message => (
           <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] p-3 rounded-lg ${message.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
-              {message.text}
+              <div>{message.text}</div>
+              
+              {/* Show email status if email was sent */}
+              {message.emailSent && (
+                <div className="mt-2 p-2 bg-gray-700 rounded text-sm">
+                  <div className="flex items-center gap-2">
+                    <Mail size={16} />
+                    <span>Email Action</span>
+                  </div>
+                  
+                  {message.emailDetails && (
+                    <div className="mt-1 text-xs text-gray-300">
+                      To: {message.emailDetails.to.join(', ')}<br/>
+                      Subject: {message.emailDetails.subject}
+                    </div>
+                  )}
+                  
+                  <div className={`flex items-center gap-1 mt-1 ${message.emailSent.success ? 'text-green-400' : 'text-red-400'}`}>
+                    {message.emailSent.success ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                    <span className="text-xs">
+                      {message.emailSent.success ? 'Email sent successfully!' : `Failed: ${message.emailSent.error}`}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -122,13 +134,18 @@ const ChatPage = () => {
 
       {/* Input Section - Fixed at bottom */}
       <div className="p-4 border-t border-gray-700 bg-black flex-shrink-0">
+        <div className="mb-2">
+          <p className="text-xs text-gray-500">
+            Try: "Send an email to john@example.com saying our meeting is rescheduled to 4PM"
+          </p>
+        </div>
         <div className="flex space-x-2">
           <input
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask about your notifications or uploaded documents..."
+            placeholder="Ask me to send emails, schedule meetings, or anything else..."
             disabled={isLoading}
             className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50"
           />
