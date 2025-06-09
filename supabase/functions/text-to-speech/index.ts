@@ -7,6 +7,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Function to convert ArrayBuffer to base64 in chunks to prevent stack overflow
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000; // 32KB chunks
+  let base64 = '';
+  
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    base64 += btoa(String.fromCharCode(...chunk));
+  }
+  
+  return base64;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -47,11 +61,9 @@ serve(async (req) => {
       throw new Error(`OpenAI TTS error: ${response.status}`);
     }
 
-    // Convert audio buffer to base64
+    // Convert audio buffer to base64 using chunked processing
     const arrayBuffer = await response.arrayBuffer();
-    const base64Audio = btoa(
-      String.fromCharCode(...new Uint8Array(arrayBuffer))
-    );
+    const base64Audio = arrayBufferToBase64(arrayBuffer);
 
     console.log('✅ Speech generation completed');
 
