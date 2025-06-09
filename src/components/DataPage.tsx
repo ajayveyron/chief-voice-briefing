@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash, Lock, Globe, Eye, ChevronDown } from "lucide-react";
+import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash, Lock, Globe, Eye } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -274,7 +275,7 @@ const DataPage = () => {
   return (
     <div className="h-full overflow-y-auto">
       {/* Header */}
-      <div className="p-4 sm:p-6 border-b border-gray-700">
+      <div className="p-4 sm:p-6 border-b border-gray-700 flex-shrink-0">
         <h1 className="text-xl sm:text-2xl font-semibold">Data Sources</h1>
         <p className="text-xs sm:text-sm text-gray-400 mt-1">
           Manage data that powers your AI assistant

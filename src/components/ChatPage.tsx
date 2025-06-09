@@ -34,18 +34,15 @@ const ChatPage = () => {
     setIsLoading(true);
 
     try {
-      // Get custom instructions from localStorage
       const customInstructions = localStorage.getItem('customInstructions') || '';
       
-      // Prepare conversation history for the API - only include messages with content
       const conversationMessages = messages
-        .filter(msg => msg.text && msg.text.trim()) // Filter out empty messages
+        .filter(msg => msg.text && msg.text.trim())
         .map(msg => ({
           role: msg.sender === 'user' ? 'user' : 'assistant',
           content: msg.text
         }));
 
-      // Add the new user message
       conversationMessages.push({
         role: 'user',
         content: inputText
@@ -64,7 +61,6 @@ const ChatPage = () => {
         throw error;
       }
 
-      // Only add assistant message if we have valid content
       if (data?.generatedText && data.generatedText.trim()) {
         const assistantMessage = {
           id: (Date.now() + 1).toString(),
@@ -94,7 +90,7 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-screen flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-700 flex-shrink-0">
         <h1 className="text-xl font-semibold">Chat with Chief</h1>
@@ -103,8 +99,8 @@ const ChatPage = () => {
         </p>
       </div>
 
-      {/* Messages - flex-1 to take remaining space */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Messages Container - takes up remaining space */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
         {messages.map(message => (
           <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] p-3 rounded-lg ${message.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
@@ -126,8 +122,8 @@ const ChatPage = () => {
         )}
       </div>
 
-      {/* Input - flex-shrink-0 to maintain size and stick to bottom */}
-      <div className="flex-shrink-0 p-4 border-t border-gray-700 bg-black">
+      {/* Input Section - Fixed at bottom */}
+      <div className="p-4 border-t border-gray-700 bg-black flex-shrink-0">
         <div className="flex space-x-2">
           <input
             type="text"

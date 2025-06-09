@@ -59,7 +59,6 @@ const SettingsPage = () => {
   };
 
   const handleSaveInstructions = () => {
-    // For now, just save to localStorage. In a real app, this would save to the database
     localStorage.setItem('customInstructions', customInstructions);
     toast({
       title: "Instructions saved",
@@ -68,14 +67,12 @@ const SettingsPage = () => {
   };
 
   useEffect(() => {
-    // Load saved instructions from localStorage
     const saved = localStorage.getItem('customInstructions');
     if (saved) {
       setCustomInstructions(saved);
     }
   }, []);
 
-  // Check for connection success or errors from URL params
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const connected = urlParams.get('connected');
@@ -224,7 +221,7 @@ const SettingsPage = () => {
                   size="sm" 
                   variant="destructive"
                   onClick={() => handleDisconnect('gmail')}
-                  className="bg-red-700 hover:bg-red-800 text-white"
+                  className="bg-red-600 hover:bg-red-700 text-white border-red-600 hover:border-red-700"
                 >
                   Disconnect
                 </Button>
@@ -263,7 +260,7 @@ const SettingsPage = () => {
                   size="sm" 
                   variant="destructive"
                   onClick={() => handleDisconnect('calendar')}
-                  className="bg-red-700 hover:bg-red-800 text-white"
+                  className="bg-red-600 hover:bg-red-700 text-white border-red-600 hover:border-red-700"
                 >
                   Disconnect
                 </Button>
@@ -302,7 +299,7 @@ const SettingsPage = () => {
                   size="sm" 
                   variant="destructive"
                   onClick={() => handleDisconnect('slack')}
-                  className="bg-red-700 hover:bg-red-800 text-white"
+                  className="bg-red-600 hover:bg-red-700 text-white border-red-600 hover:border-red-700"
                 >
                   Disconnect
                 </Button>
