@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserDocuments } from "@/hooks/useUserDocuments";
+import { CheckCircle, AlertTriangle } from 'lucide-react';
 const DataPage = () => {
   const {
     integrations,
@@ -291,33 +292,27 @@ const DataPage = () => {
               const Icon = integration.icon;
               const lastSync = lastSyncTimes[integration.type];
               return <AccordionItem key={integration.type} value={integration.type} className="rounded-lg bg-gray-900 px-px">
-                    <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline bg-gray-900 hover:bg-gray-800 w-full">
-  <div className="flex items-center justify-between w-full gap-4">
-    <div className="flex items-center space-x-3 min-w-0 flex-1">
-      <Icon size={20} className={integration.color} />
-      <div className="min-w-0 text-left flex-1">
-        <div className="text-base sm:text-lg text-white font-semibold truncate">{integration.label}</div>
-        <div className="text-gray-400 text-xs sm:text-sm truncate">{integration.description}</div>
-      </div>
-    </div>
-
-    <div className="flex flex-col items-end gap-1 shrink-0">
-      <div className="flex items-center space-x-2">
-        {integration.connected ? (
-          <CheckCircle size={14} className="text-green-500" />
-        ) : (
-          <AlertTriangle size={14} className="text-red-500" />
-        )}
-        <span className="text-sm text-white">
-          {integration.connected ? '' : ''}
-        </span>
-      </div>
-      <div className="text-xs text-gray-400 text-right">
-        {integration.connected ? getSummaryText(integration.type) : 'No data synced yet'}
-      </div>
-    </div>
-  </div>
-</AccordionTrigger>
+                    <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline bg-gray-900 hover:bg-gray-800 w-10 ">
+                      <div className="flex items-center justify-between gap-4 w-full">
+                        <div className="flex items-center space-x-3 min-w-0 flex-1">
+                          <Icon size={20} className={integration.color} />
+                          <div className="min-w-0 text-left flex-1">
+                            <div className="text-base sm:text-lg text-card-background font-semibold truncate ">{integration.label}</div>
+                            <div className="text-muted-foreground text-xs sm:text-sm truncate">
+                              {integration.description}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 shrink-0">
+                          <Badge variant={integration.connected ? "default" : "secondary"} className="text-xs whitespace-nowrap">
+                            {integration.connected ? "Connected" : "Not Connected"}
+                          </Badge>
+                          <div className="text-xs text-muted-foreground text-right">
+                            {integration.connected ? getSummaryText(integration.type) : 'Connect to sync data'}
+                          </div>
+                        </div>
+                      </div>
+                    </AccordionTrigger>
                     <AccordionContent className="px-4 sm:px-6 pb-4">
                       {integration.connected ? <div className="space-y-4">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
