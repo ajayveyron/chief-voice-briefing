@@ -33,6 +33,28 @@ export const useAIChat = () => {
     },
     onError: (error) => {
       console.error('Chat error:', error);
+    },
+    body: {
+      userUpdates: updates?.map(update => ({
+        id: update.id,
+        title: update.title,
+        summary: update.summary,
+        priority: update.priority,
+        created_at: update.created_at
+      })) || [],
+      userDocuments: documents?.map(doc => ({
+        id: doc.id,
+        name: doc.name,
+        content: doc.content,
+        file_type: doc.file_type,
+        created_at: doc.created_at
+      })) || [],
+      integrationData: integrationData?.map(integration => ({
+        source: integration.source,
+        data: integration.data,
+        lastFetched: integration.lastFetched
+      })) || [],
+      customInstructions: localStorage.getItem('customInstructions') || ''
     }
   });
 
@@ -86,38 +108,13 @@ export const useAIChat = () => {
         }
       }
 
-      const customInstructions = localStorage.getItem('customInstructions') || '';
+      // Use handleSubmit for regular messages which will include the body data
+      const syntheticEvent = {
+        preventDefault: () => {},
+        target: { value: inputText }
+      } as any;
       
-      // Convert complex objects to simple serializable data
-      const contextData = {
-        userUpdates: updates?.map(update => ({
-          id: update.id,
-          title: update.title,
-          summary: update.summary,
-          priority: update.priority,
-          created_at: update.created_at
-        })) || [],
-        userDocuments: documents?.map(doc => ({
-          id: doc.id,
-          name: doc.name,
-          content: doc.content,
-          file_type: doc.file_type,
-          created_at: doc.created_at
-        })) || [],
-        integrationData: integrationData?.map(integration => ({
-          source: integration.source,
-          data: integration.data,
-          lastFetched: integration.lastFetched
-        })) || [],
-        customInstructions: customInstructions
-      };
-      
-      // Use AI SDK's append with context data
-      await append({
-        role: 'user',
-        content: inputText,
-        data: contextData
-      });
+      await handleSubmit(syntheticEvent);
 
     } catch (error) {
       console.error('Error sending message:', error);

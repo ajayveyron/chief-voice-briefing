@@ -1,3 +1,4 @@
+
 import { useRef, useState } from "react";
 import { useUserDocuments } from "@/hooks/useUserDocuments";
 import { useAIChat } from "@/hooks/useAIChat";
@@ -18,9 +19,10 @@ const ChatPage = () => {
     input, 
     handleInputChange, 
     handleSubmit, 
-    isLoading, 
-    sendMessage 
+    isLoading
   } = useAIChat();
+
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -71,21 +73,14 @@ const ChatPage = () => {
     }
   };
 
-  const [isUploading, setIsUploading] = useState(false);
-
   const handleAttachmentClick = () => {
     fileInputRef.current?.click();
-  };
-
-  const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return;
-    await sendMessage(input);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      handleSubmit(e as any);
     }
   };
 

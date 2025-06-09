@@ -1,7 +1,6 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { OpenAIStream, StreamingTextResponse } from 'https://esm.sh/ai@4.3.16';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -147,12 +146,15 @@ ${customInstructions ? `\nCustom Instructions: ${customInstructions}` : ''}`
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    // Create a streaming response
-    const stream = OpenAIStream(response);
-
     console.log('✅ Chat response streaming started');
 
-    return new StreamingTextResponse(stream, { headers: corsHeaders });
+    // Return the streaming response with CORS headers
+    return new Response(response.body, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/plain; charset=utf-8',
+      },
+    });
   } catch (error) {
     console.error('❌ Error in chat-with-ai function:', error);
     return new Response(
