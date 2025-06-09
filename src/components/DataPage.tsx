@@ -274,7 +274,7 @@ const DataPage = () => {
       <div className="p-4 sm:p-6 border-b border-border flex-shrink-0">
         <h1 className="text-xl sm:text-2xl font-semibold text-zinc-50">Data Sources</h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-          Manage data that powers Chief
+          Manage data that powers your AI assistant
         </p>
       </div>
 
@@ -303,13 +303,19 @@ const DataPage = () => {
                           </div>
                         </div>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 shrink-0">
-                          <Badge variant={integration.connected ? "default" : "secondary"} className="text-xs whitespace-nowrap">
-                            {integration.connected ? "Connected" : "Not Connected"}
-                          </Badge>
-                          <div className="text-xs text-muted-foreground text-right">
-                            {integration.connected ? getSummaryText(integration.type) : 'Connect to sync data'}
-                          </div>
-                        </div>
+  <div className="flex items-center space-x-2">
+    {integration.connected ? (
+      <CheckCircle size={16} className="text-green-500 shrink-0" />
+    ) : (
+      <AlertCircle size={16} className="text-red-500 shrink-0" />
+    )}
+    <div className="text-xs text-muted-foreground whitespace-nowrap">
+      {integration.connected
+        ? getSummaryText(integration.type)
+        : 'Connect to sync data'}
+    </div>
+  </div>
+</div>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-4 sm:px-6 pb-4">
@@ -442,7 +448,7 @@ const DataPage = () => {
                   <span>Upload Custom Documents</span>
                 </CardTitle>
                 <CardDescription className="text-xs sm:text-sm">
-                  Add PDFs, images, text files, spreadsheets, or other documents for Chief to reference
+                  Add PDFs, images, text files, spreadsheets, or other documents for the AI to reference
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -468,7 +474,7 @@ const DataPage = () => {
                 <CardHeader>
                   <CardTitle className="text-base sm:text-lg text-zinc-50">Uploaded Documents</CardTitle>
                   <CardDescription className="text-xs sm:text-sm">
-                    {documents.length} document{documents.length > 1 ? 's' : ''} available for Chief's reference
+                    {documents.length} document{documents.length > 1 ? 's' : ''} available for AI reference
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
