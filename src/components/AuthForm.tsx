@@ -128,7 +128,7 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-4xl font-light mb-2">Chief</h1>
-          <p className="text-gray-400">Your AI assistant for staying updated</p>
+          <p className="text-gray-400">Your Virtual assistant for staying updated</p>
         </div>
 
         {/* Demo Mode Button */}

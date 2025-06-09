@@ -13,7 +13,7 @@ const ChatPage = () => {
     sender: 'user' | 'assistant';
   }>>([{
     id: '1',
-    text: "Hi! I'm Chief, your AI assistant. I can help you stay updated with your notifications and answer questions about your uploaded documents. What would you like to know?",
+    text: "Hi! I'm Chief, your virtual assistant. I can help you stay updated with your notifications and answer questions about your uploaded documents. What would you like to know?",
     sender: 'assistant'
   }]);
   const [inputText, setInputText] = useState("");
@@ -90,13 +90,11 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col pb-16">
       {/* Header */}
       <div className="p-4 border-b border-gray-700 flex-shrink-0">
         <h1 className="text-xl font-semibold">Chat with Chief</h1>
-        <p className="text-sm text-gray-400">
-          AI assistant with access to your notifications and uploaded documents
-        </p>
+        
       </div>
 
       {/* Messages Container - takes up remaining space */}
