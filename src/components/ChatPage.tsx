@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { useUpdates } from "@/hooks/useUpdates";
 import { useUserDocuments } from "@/hooks/useUserDocuments";
@@ -8,6 +7,7 @@ import { Send, Paperclip } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useMeetingCoordination } from "@/hooks/useMeetingCoordination";
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Array<{
@@ -29,6 +29,7 @@ const ChatPage = () => {
   const { updates } = useUpdates();
   const { documents, refetch: refetchDocuments } = useUserDocuments();
   const { integrationData } = useIntegrationData();
+  const { coordinateMeeting } = useMeetingCoordination();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -100,10 +101,59 @@ const ChatPage = () => {
       sender: 'user' as const
     };
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputText;
     setInputText("");
     setIsLoading(true);
 
     try {
+      // Check if this is a meeting coordination request
+      const isMeetingRequest = /schedule|meeting|coordinate|calendar|book|arrange.*meeting/i.test(currentInput);
+      
+      // Try to extract meeting details if it's a meeting request
+      if (isMeetingRequest && currentInput.includes('@')) {
+        const emailRegex = /[\w\.-]+@[\w\.-]+\.\w+/g;
+        const emails = currentInput.match(emailRegex);
+        
+        if (emails && emails.length > 0) {
+          // Extract other details
+          const durationMatch = currentInput.match(/(\d+)\s*(hour|hr|minute|min)/i);
+          const duration = durationMatch ? parseInt(durationMatch[1]) * (durationMatch[2].toLowerCase().includes('hour') ? 60 : 1) : 60;
+          
+          const subjectMatch = currentInput.match(/(?:subject|title|about|regarding):\s*"([^"]+)"/i) || 
+                               currentInput.match(/(?:subject|title|about|regarding):\s*([^\n,]+)/i);
+          const subject = subjectMatch ? subjectMatch[1].trim() : 'Team Meeting';
+
+          console.log('Attempting to coordinate meeting:', { emails, duration, subject });
+
+          try {
+            const result = await coordinateMeeting({
+              attendeeEmails: emails,
+              duration,
+              subject,
+              description: `Meeting coordinated by Chief AI Assistant based on request: "${currentInput}"`
+            });
+
+            if (result) {
+              const responseMessage = result.success 
+                ? `✅ Meeting scheduled successfully!\n\n📅 **${result.event.summary}**\n🕐 ${new Date(result.selectedSlot.start).toLocaleString()} - ${new Date(result.selectedSlot.end).toLocaleString()}\n👥 Attendees: ${emails.join(', ')}\n🔗 [Join Meeting](${result.event.hangoutLink || result.event.htmlLink})\n\nInvitations have been sent to all attendees.`
+                : `❌ ${result.message || 'Unable to find a suitable time for all attendees'}\n\nWould you like me to suggest alternative approaches or different time preferences?`;
+
+              const assistantMessage = {
+                id: (Date.now() + 1).toString(),
+                text: responseMessage,
+                sender: 'assistant' as const
+              };
+              setMessages(prev => [...prev, assistantMessage]);
+              setIsLoading(false);
+              return;
+            }
+          } catch (meetingError) {
+            console.error('Meeting coordination error:', meetingError);
+            // Fall through to regular AI chat if meeting coordination fails
+          }
+        }
+      }
+
       const customInstructions = localStorage.getItem('customInstructions') || '';
       
       const conversationMessages = messages
@@ -115,7 +165,7 @@ const ChatPage = () => {
 
       conversationMessages.push({
         role: 'user',
-        content: inputText
+        content: currentInput
       });
 
       const { data, error } = await supabase.functions.invoke('chat-with-ai', {

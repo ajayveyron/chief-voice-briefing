@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, messages, userUpdates, userDocuments, integrationData } = await req.json();
+    const { prompt, messages, userUpdates, userDocuments, integrationData, customInstructions } = await req.json();
 
     if (!prompt && !messages) {
       throw new Error('Either prompt or messages is required');
@@ -25,6 +25,10 @@ serve(async (req) => {
     }
 
     console.log('🤖 Processing chat request...');
+
+    // Check if this is a meeting coordination request
+    const lastMessage = messages?.[messages.length - 1]?.content || prompt || '';
+    const isMeetingRequest = /schedule|meeting|coordinate|calendar|book|arrange.*meeting/i.test(lastMessage);
 
     // Build context from user data
     let contextInfo = '';
@@ -89,6 +93,29 @@ serve(async (req) => {
       });
     }
 
+    // Add meeting coordination instructions to system prompt
+    const meetingInstructions = isMeetingRequest ? `
+
+MEETING COORDINATION CAPABILITIES:
+You can help coordinate meetings by finding suitable time slots and creating calendar events. When users ask to schedule meetings:
+
+1. Ask for required details:
+   - Attendee email addresses
+   - Meeting duration (default: 60 minutes)
+   - Subject/title for the meeting
+   - Optional: description
+
+2. Use the coordinate-meeting function to:
+   - Check availability across all attendees' calendars
+   - Find suitable time slots during business hours (9 AM - 6 PM UTC, weekdays)
+   - Create the meeting event with Google Meet link
+   - Send invitations to all attendees
+
+3. If no suitable slots are found, suggest alternative times or ask users to provide preferred time ranges.
+
+Example: "I can help you schedule a meeting! Please provide the email addresses of attendees, meeting duration, and subject."
+` : '';
+
     // Build messages array based on input
     let chatMessages;
     if (messages && Array.isArray(messages)) {
@@ -102,7 +129,7 @@ serve(async (req) => {
       chatMessages = [
         { 
           role: 'system', 
-          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}` 
+          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${meetingInstructions}${contextInfo}` 
         },
         { role: 'user', content: prompt }
       ];
@@ -115,19 +142,19 @@ serve(async (req) => {
       chatMessages = [
         { 
           role: 'system', 
-          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}` 
+          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${meetingInstructions}${contextInfo}` 
         },
         { role: 'user', content: 'Hello' }
       ];
     } else {
       // Add context to the system message if we have one
-      if (chatMessages[0]?.role === 'system' && contextInfo) {
-        chatMessages[0].content += contextInfo;
-      } else if (contextInfo) {
+      if (chatMessages[0]?.role === 'system' && (contextInfo || meetingInstructions)) {
+        chatMessages[0].content += meetingInstructions + contextInfo;
+      } else if (contextInfo || meetingInstructions) {
         // Insert system message with context at the beginning
         chatMessages.unshift({
           role: 'system',
-          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${contextInfo}`
+          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${meetingInstructions}${contextInfo}`
         });
       }
     }
