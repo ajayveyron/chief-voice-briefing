@@ -321,7 +321,7 @@ const DataPage = () => {
                     <AccordionContent className="px-4 sm:px-6 pb-4">
                       {integration.connected ? <div className="space-y-4">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <Button size="sm" variant="outline" onClick={integration.fetchFunction} disabled={integration.loading} className="w-full sm:w-auto text-xs sm:text-sm">
+                            <Button size="sm" variant="default" onClick={integration.fetchFunction} disabled={integration.loading} className="w-full sm:w-auto text-xs sm:text-sm text-card-background">
                               {integration.loading ? <RefreshCw className="animate-spin h-3 w-3 sm:h-4 sm:w-4 mr-2" /> : <Icon className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />}
                               {integration.loading ? 'Syncing...' : `Sync ${integration.label} Data`}
                             </Button>
@@ -334,7 +334,7 @@ const DataPage = () => {
                           <div className="overflow-hidden">
                             {/* Gmail Data Display */}
                             {integration.type === 'gmail' && integration.data.length > 0 && <div className="space-y-2">
-                                <p className="text-xs sm:text-sm font-medium text-card-foreground">Recent emails:</p>
+                                <p className="text-xs sm:text-sm font-medium text-card-background">Recent emails:</p>
                                 <div className="space-y-2 max-h-64 overflow-y-auto">
                                   {integration.data.map((item, index) => <div key={item.id || index} className="p-3 bg-muted rounded-lg border border-border">
                                       <div className="font-medium text-card-foreground text-sm break-words">{item.subject}</div>
