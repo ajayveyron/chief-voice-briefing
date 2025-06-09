@@ -1,4 +1,3 @@
-
 import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
@@ -135,25 +134,28 @@ const SettingsPage = () => {
   }, [toast, refetch]);
 
   const integrationsItems = [
-  {
-    id: 'gmail',
-    name: 'Gmail',
-    description: 'Get updates from your Gmail inbox',
-    logo: 'https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg',
-  },
-  {
-    id: 'calendar',
-    name: 'Calendar',
-    description: 'Stay updated with upcoming events',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Google_Calendar_icon_%282020%29.svg/1024px-Google_Calendar_icon_%282020%29.svg.png',
-  },
-  {
-    id: 'slack',
-    name: 'Slack',
-    description: 'Receive important Slack notifications',
-    logo: 'https://companieslogo.com/img/orig/WORK-d00db09e.png?t=1720244494',
-  },
-];
+    {
+      id: 'gmail',
+      name: 'Gmail',
+      description: 'Get updates from your Gmail inbox',
+      icon: Mail,
+      color: 'text-red-500',
+    },
+    {
+      id: 'calendar',
+      name: 'Calendar',
+      description: 'Stay updated with upcoming events',
+      icon: Calendar,
+      color: 'text-blue-500',
+    },
+    {
+      id: 'slack',
+      name: 'Slack',
+      description: 'Receive important Slack notifications',
+      icon: MessageSquare,
+      color: 'text-green-500',
+    },
+  ];
 
   return (
     <div className="h-full overflow-y-auto">
@@ -186,63 +188,58 @@ const SettingsPage = () => {
 
         <Separator className="bg-gray-700" />
 
-        
-
         {/* Integrations Section */}
-        
-
-<div>
-  <h2 className="text-lg font-medium mb-4 text-white">Integrations</h2>
-  <div className="space-y-3">
-    {integrationsItems.map((integration) => (
-      <div
-        key={integration.id}
-        className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700"
-      >
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-md flex items-center justify-center">
-            <img
-              src={integration.logo}
-              alt={integration.name}
-              className="w-5 h-5 object-contain"
-            />
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-white">{integration.name}</h3>
-            <p className="text-xs text-gray-400">{integration.description}</p>
+        <div>
+          <h2 className="text-lg font-medium mb-4 text-white">Integrations</h2>
+          <div className="space-y-3">
+            {integrationsItems.map((integration) => {
+              const Icon = integration.icon;
+              return (
+                <div
+                  key={integration.id}
+                  className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-md bg-gray-700 flex items-center justify-center">
+                      <Icon size={20} className={integration.color} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-white">{integration.name}</h3>
+                      <p className="text-xs text-gray-400">{integration.description}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    {isConnected(integration.id) ? (
+                      <>
+                        <CheckCircle size={16} className="text-green-500" />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDisconnect(integration.id)}
+                          className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
+                        >
+                          Disconnect
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle size={16} className="text-red-500" />
+                        <Button
+                          size="sm"
+                          onClick={() => handleConnect(integration.id as 'gmail' | 'calendar' | 'slack')}
+                          disabled={loading}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          Connect
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          {isConnected(integration.id) ? (
-            <>
-              <CheckCircle size={16} className="text-green-500" />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleDisconnect(integration.id)}
-                className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
-              >
-                Disconnect
-              </Button>
-            </>
-          ) : (
-            <>
-              <AlertCircle size={16} className="text-red-500" />
-              <Button
-                size="sm"
-                onClick={() => handleConnect(integrationsItems.id)}
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Connect
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-    ))}
-  </div>
-</div>
 
         <Separator className="bg-gray-700" />
 
