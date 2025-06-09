@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash, Lock, Globe, Eye } from "lucide-react";
+import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash, Lock, Globe, Eye, CheckCircle, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
