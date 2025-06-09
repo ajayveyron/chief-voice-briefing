@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Phone, PhoneOff, Mic, MicOff, Speaker } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, Speaker, Volume2 } from "lucide-react";
 import { useState, useEffect } from "react";
 
 const HomePage = () => {
@@ -41,9 +41,9 @@ const HomePage = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleCallStart = () => {
+  const handleCallStart = async () => {
     setIsCallConnected(true);
-    startRecording();
+    await startRecording();
   };
 
   const handleCallEnd = () => {
@@ -57,10 +57,27 @@ const HomePage = () => {
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
+    // In a real implementation, this would mute the microphone
   };
 
   const toggleSpeaker = () => {
     setIsSpeakerOn(!isSpeakerOn);
+    // In a real implementation, this would toggle speaker output
+  };
+
+  const getVoiceStateText = () => {
+    switch (voiceState) {
+      case 'recording':
+        return 'Listening to you...';
+      case 'processing':
+        return 'Processing your request...';
+      case 'speaking':
+        return 'Chief is responding...';
+      case 'idle':
+        return isCallConnected ? 'Ready to listen' : 'Tap to start conversation';
+      default:
+        return 'Ready';
+    }
   };
 
   return (
@@ -71,24 +88,28 @@ const HomePage = () => {
         <div className="flex flex-col items-center space-y-4">
           <Avatar className="w-32 h-32">
             <AvatarImage src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400" />
-            <AvatarFallback className="text-2xl bg-muted text-foreground">Chief</AvatarFallback>
+            <AvatarFallback className="text-2xl bg-gray-800 text-white border-2 border-gray-600">Chief</AvatarFallback>
           </Avatar>
           
           <div className="text-center">
             <h1 className="text-2xl font-semibold text-white">Chief</h1>
-            <p className="text-sm text-gray-400">Virtual Assistant</p>
+            <p className="text-sm text-gray-400">AI Voice Assistant</p>
           </div>
         </div>
 
-        {/* Call Status */}
+        {/* Call Status and Voice State */}
         <div className="text-center space-y-2">
           {isCallConnected ? (
             <>
               <p className="text-sm text-gray-400">Call in progress</p>
               <p className="text-lg font-mono text-white">{formatDuration(callDuration)}</p>
+              <p className="text-xs text-gray-300">{getVoiceStateText()}</p>
             </>
           ) : (
-            <p className="text-sm text-gray-400">Tap to start voice conversation</p>
+            <>
+              <p className="text-sm text-gray-400">{getVoiceStateText()}</p>
+              <p className="text-xs text-gray-500">Voice-powered AI assistant</p>
+            </>
           )}
         </div>
 
@@ -100,6 +121,7 @@ const HomePage = () => {
               onClick={handleCallStart}
               className="w-20 h-20 rounded-full bg-green-500 hover:bg-green-600 text-white"
               size="icon"
+              disabled={voiceState === 'processing'}
             >
               <Phone size={32} />
             </Button>
@@ -132,25 +154,30 @@ const HomePage = () => {
                 className={`w-14 h-14 rounded-full ${isSpeakerOn ? 'bg-white text-black' : 'border-gray-600 text-white hover:bg-gray-800'}`}
                 size="icon"
               >
-                <Speaker size={24} />
+                {isSpeakerOn ? <Volume2 size={24} /> : <Speaker size={24} />}
               </Button>
             </div>
           )}
         </div>
 
-        {/* Voice State Indicator */}
-        {isCallConnected && (
-          <div className="text-center">
-            <p className="text-xs text-gray-400">
-              {voiceState === 'recording' && 'Listening...'}
-              {voiceState === 'processing' && 'Processing...'}
-              {voiceState === 'speaking' && 'Chief is speaking...'}
-              {voiceState === 'idle' && 'Ready to listen'}
-            </p>
+        {/* Voice Activity Indicator */}
+        {isCallConnected && voiceState !== 'idle' && (
+          <div className="flex items-center space-x-2">
+            <div className={`w-3 h-3 rounded-full ${
+              voiceState === 'recording' ? 'bg-red-500 animate-pulse' :
+              voiceState === 'processing' ? 'bg-yellow-500 animate-pulse' :
+              voiceState === 'speaking' ? 'bg-blue-500 animate-pulse' :
+              'bg-green-500'
+            }`}></div>
+            <span className="text-xs text-gray-400">
+              {voiceState === 'recording' && 'Recording...'}
+              {voiceState === 'processing' && 'Thinking...'}
+              {voiceState === 'speaking' && 'Speaking...'}
+            </span>
           </div>
         )}
 
-        {/* Hidden audio element for playback */}
+        {/* Hidden audio element for TTS playback */}
         <audio ref={audioRef} style={{ display: 'none' }} />
       </div>
     </div>

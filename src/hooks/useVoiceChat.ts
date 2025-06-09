@@ -2,6 +2,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { useUpdates } from '@/hooks/useUpdates';
+import { useUserDocuments } from '@/hooks/useUserDocuments';
 
 type VoiceState = 'idle' | 'recording' | 'processing' | 'speaking';
 
@@ -16,11 +18,14 @@ export const useVoiceChat = () => {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [messages, setMessages] = useState<VoiceChatMessage[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<Array<{role: string, content: string}>>([]);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
+  const { updates } = useUpdates();
+  const { documents } = useUserDocuments();
 
   const addMessage = useCallback((text: string, type: 'user' | 'assistant') => {
     const message: VoiceChatMessage = {
@@ -30,6 +35,12 @@ export const useVoiceChat = () => {
       timestamp: new Date()
     };
     setMessages(prev => [...prev, message]);
+    
+    // Update conversation history
+    setConversationHistory(prev => [
+      ...prev,
+      { role: type === 'user' ? 'user' : 'assistant', content: text }
+    ]);
   }, []);
 
   const startRecording = useCallback(async () => {
@@ -43,7 +54,8 @@ export const useVoiceChat = () => {
           sampleRate: 16000,
           channelCount: 1,
           echoCancellation: true,
-          noiseSuppression: true
+          noiseSuppression: true,
+          autoGainControl: true
         }
       });
 
@@ -72,6 +84,14 @@ export const useVoiceChat = () => {
       mediaRecorderRef.current.start();
       console.log('✅ Recording started');
 
+      // Auto-stop recording after 30 seconds to prevent overly long recordings
+      setTimeout(() => {
+        if (isRecording && mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          console.log('⏰ Auto-stopping recording after 30 seconds');
+          stopRecording();
+        }
+      }, 30000);
+
     } catch (error) {
       console.error('❌ Error starting recording:', error);
       setVoiceState('idle');
@@ -82,7 +102,7 @@ export const useVoiceChat = () => {
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [isRecording, toast]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -106,7 +126,7 @@ export const useVoiceChat = () => {
 
       console.log('📤 Sending audio for transcription...');
       
-      // Step 1: Transcribe audio
+      // Step 1: Transcribe audio using Whisper
       const transcriptionResponse = await supabase.functions.invoke('voice-to-text', {
         body: { audio: audioBase64 }
       });
@@ -129,11 +149,21 @@ export const useVoiceChat = () => {
 
       addMessage(userText, 'user');
 
-      // Step 2: Get AI response
-      console.log('🤖 Getting AI response...');
+      // Step 2: Get AI response with enhanced context
+      console.log('🤖 Getting AI response with context...');
+      
+      // Build conversation history for context
+      const conversationMessages = conversationHistory.length > 0 
+        ? [...conversationHistory, { role: 'user', content: userText }]
+        : undefined;
+
       const chatResponse = await supabase.functions.invoke('chat-with-ai', {
         body: { 
-          prompt: `You are Chief, an AI assistant that helps users manage their notifications and updates. Be helpful, conversational, and keep responses concise for voice conversation. User said: "${userText}"` 
+          prompt: conversationMessages ? undefined : userText,
+          messages: conversationMessages,
+          userUpdates: updates,
+          userDocuments: documents,
+          customInstructions: localStorage.getItem('customInstructions') || ''
         }
       });
 
@@ -177,8 +207,15 @@ export const useVoiceChat = () => {
         audioRef.current.onended = () => {
           setVoiceState('idle');
           URL.revokeObjectURL(audioUrl);
+          console.log('🎵 Audio playback completed');
+        };
+        audioRef.current.onerror = () => {
+          console.error('❌ Audio playback error');
+          setVoiceState('idle');
+          URL.revokeObjectURL(audioUrl);
         };
         await audioRef.current.play();
+        console.log('🎵 Audio playback started');
       }
 
     } catch (error) {
@@ -190,16 +227,24 @@ export const useVoiceChat = () => {
         variant: "destructive",
       });
     }
-  }, [addMessage, toast]);
+  }, [addMessage, toast, conversationHistory, updates, documents]);
 
   const sendTextMessage = useCallback(async (text: string) => {
     try {
       setVoiceState('processing');
       addMessage(text, 'user');
 
+      const conversationMessages = conversationHistory.length > 0 
+        ? [...conversationHistory, { role: 'user', content: text }]
+        : undefined;
+
       const chatResponse = await supabase.functions.invoke('chat-with-ai', {
         body: { 
-          prompt: `You are Chief, an AI assistant that helps users manage their notifications and updates. Be helpful, conversational, and keep responses concise. User said: "${text}"` 
+          prompt: conversationMessages ? undefined : text,
+          messages: conversationMessages,
+          userUpdates: updates,
+          userDocuments: documents,
+          customInstructions: localStorage.getItem('customInstructions') || ''
         }
       });
 
@@ -220,7 +265,14 @@ export const useVoiceChat = () => {
         variant: "destructive",
       });
     }
-  }, [addMessage, toast]);
+  }, [addMessage, toast, conversationHistory, updates, documents]);
+
+  const resetConversation = useCallback(() => {
+    setMessages([]);
+    setConversationHistory([]);
+    setVoiceState('idle');
+    console.log('🔄 Conversation reset');
+  }, []);
 
   return {
     voiceState,
@@ -229,6 +281,7 @@ export const useVoiceChat = () => {
     startRecording,
     stopRecording,
     sendTextMessage,
+    resetConversation,
     audioRef
   };
 };
