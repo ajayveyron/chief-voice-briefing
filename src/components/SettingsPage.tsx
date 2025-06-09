@@ -2,15 +2,17 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Mail, Calendar, CheckCircle, AlertCircle, MessageSquare } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const SettingsPage = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const { integrations, loading, connectIntegration, disconnectIntegration, isConnected, refetch } = useIntegrations();
+  const [customInstructions, setCustomInstructions] = useState("");
 
   const handleSignOut = async () => {
     try {
@@ -56,6 +58,23 @@ const SettingsPage = () => {
     }
   };
 
+  const handleSaveInstructions = () => {
+    // For now, just save to localStorage. In a real app, this would save to the database
+    localStorage.setItem('customInstructions', customInstructions);
+    toast({
+      title: "Instructions saved",
+      description: "Your custom instructions have been saved and will be used by the AI assistant.",
+    });
+  };
+
+  useEffect(() => {
+    // Load saved instructions from localStorage
+    const saved = localStorage.getItem('customInstructions');
+    if (saved) {
+      setCustomInstructions(saved);
+    }
+  }, []);
+
   // Check for connection success or errors from URL params
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -68,7 +87,6 @@ const SettingsPage = () => {
         description: `${connected} has been connected successfully.`,
       });
       refetch();
-      // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
     } else if (error) {
       let errorMessage = 'An error occurred during connection.';
@@ -115,7 +133,6 @@ const SettingsPage = () => {
         variant: "destructive",
       });
       
-      // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [toast, refetch]);
@@ -151,6 +168,34 @@ const SettingsPage = () => {
 
         <Separator className="bg-gray-700" />
 
+        {/* Custom Instructions Section */}
+        <div>
+          <h2 className="text-lg font-medium mb-4">AI Assistant Instructions</h2>
+          <div className="space-y-3">
+            <div className="p-4 bg-gray-800 rounded-lg">
+              <p className="text-sm font-medium mb-2">Custom Instructions</p>
+              <p className="text-xs text-gray-400 mb-3">
+                Provide specific instructions to customize how the AI assistant responds to you. For example, mention your role, preferences, or specific contexts you want the AI to consider.
+              </p>
+              <Textarea
+                placeholder="Enter your custom instructions here... For example: 'I'm a software engineer working on web applications. Please provide technical responses and focus on best practices. I prefer concise explanations with code examples.'"
+                value={customInstructions}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                className="min-h-[100px] bg-gray-900 border-gray-600 text-white placeholder-gray-400"
+              />
+              <Button 
+                onClick={handleSaveInstructions}
+                className="mt-3"
+                size="sm"
+              >
+                Save Instructions
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <Separator className="bg-gray-700" />
+
         {/* Integrations Section */}
         <div>
           <h2 className="text-lg font-medium mb-4">Integrations</h2>
@@ -177,8 +222,9 @@ const SettingsPage = () => {
               {isConnected('gmail') ? (
                 <Button 
                   size="sm" 
-                  variant="outline"
+                  variant="destructive"
                   onClick={() => handleDisconnect('gmail')}
+                  className="bg-red-700 hover:bg-red-800 text-white"
                 >
                   Disconnect
                 </Button>
@@ -215,8 +261,9 @@ const SettingsPage = () => {
               {isConnected('calendar') ? (
                 <Button 
                   size="sm" 
-                  variant="outline"
+                  variant="destructive"
                   onClick={() => handleDisconnect('calendar')}
+                  className="bg-red-700 hover:bg-red-800 text-white"
                 >
                   Disconnect
                 </Button>
@@ -253,8 +300,9 @@ const SettingsPage = () => {
               {isConnected('slack') ? (
                 <Button 
                   size="sm" 
-                  variant="outline"
+                  variant="destructive"
                   onClick={() => handleDisconnect('slack')}
+                  className="bg-red-700 hover:bg-red-800 text-white"
                 >
                   Disconnect
                 </Button>

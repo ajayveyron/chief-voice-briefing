@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash, Lock, Globe, Eye } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Mail, Calendar, MessageSquare, FileText, Upload, Trash2, File, Image, FileSpreadsheet, RefreshCw, Users, Hash, Lock, Globe, Eye, ChevronDown } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +27,7 @@ const DataPage = () => {
   const [loadingSlack, setLoadingSlack] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<any>(null);
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
+  const [lastSyncTimes, setLastSyncTimes] = useState<Record<string, Date>>({});
 
   const getFileIcon = (type: string) => {
     if (type.startsWith('image/')) return Image;
@@ -48,14 +49,15 @@ const DataPage = () => {
 
       if (error) throw error;
       setGmailEmails(data.emails || []);
+      setLastSyncTimes(prev => ({ ...prev, gmail: new Date() }));
       toast({
-        title: "Gmail emails fetched",
+        title: "Gmail synced successfully",
         description: `Retrieved ${data.emails?.length || 0} recent emails`
       });
     } catch (error) {
-      console.error('Error fetching Gmail emails:', error);
+      console.error('Error syncing Gmail emails:', error);
       toast({
-        title: "Failed to fetch emails",
+        title: "Failed to sync emails",
         description: error.message,
         variant: "destructive"
       });
@@ -79,14 +81,15 @@ const DataPage = () => {
       if (error) throw error;
 
       setCalendarEvents(data.events || []);
+      setLastSyncTimes(prev => ({ ...prev, calendar: new Date() }));
       toast({
-        title: "Calendar events fetched",
+        title: "Calendar synced successfully",
         description: `Retrieved ${data.events?.length || 0} recent events`
       });
     } catch (error: any) {
-      console.error('Error fetching Calendar events:', error);
+      console.error('Error syncing Calendar events:', error);
       toast({
-        title: "Failed to fetch calendar events",
+        title: "Failed to sync calendar events",
         description: error.message || "Calendar integration failed",
         variant: "destructive"
       });
@@ -110,14 +113,15 @@ const DataPage = () => {
       if (error) throw error;
 
       setSlackData(data);
+      setLastSyncTimes(prev => ({ ...prev, slack: new Date() }));
       toast({
-        title: "Slack data fetched",
+        title: "Slack synced successfully",
         description: `Retrieved comprehensive data: ${data.summary?.total_channels || 0} channels, ${data.summary?.total_messages || 0} messages, ${data.summary?.total_users || 0} users`
       });
     } catch (error: any) {
-      console.error('Error fetching Slack data:', error);
+      console.error('Error syncing Slack data:', error);
       toast({
-        title: "Failed to fetch slack data",
+        title: "Failed to sync slack data",
         description: error.message || "Slack integration failed",
         variant: "destructive"
       });
@@ -134,9 +138,7 @@ const DataPage = () => {
     try {
       let content = '';
       
-      // Handle different file types
       if (file.type.startsWith('text/') || file.type === 'application/json' || file.name.endsWith('.csv')) {
-        // Text-based files
         const reader = new FileReader();
         content = await new Promise((resolve, reject) => {
           reader.onload = (e) => resolve(e.target?.result as string);
@@ -144,16 +146,13 @@ const DataPage = () => {
           reader.readAsText(file);
         });
       } else if (file.type === 'application/pdf') {
-        // For PDFs, we'll store metadata and note that content extraction needs implementation
         content = `PDF file: ${file.name} (${file.size} bytes). Content extraction not yet implemented - please convert to text format for now.`;
       } else if (file.type.startsWith('image/')) {
-        // For images, we'll store metadata
         content = `Image file: ${file.name} (${file.size} bytes). Image analysis not yet implemented.`;
       } else {
         content = `File: ${file.name} (${file.size} bytes, ${file.type}). Content extraction not supported for this file type.`;
       }
 
-      // Store in Supabase
       const { data, error } = await supabase
         .from('user_documents')
         .insert([
@@ -184,7 +183,6 @@ const DataPage = () => {
       });
     } finally {
       setIsUploading(false);
-      // Reset the input
       event.target.value = '';
     }
   };
@@ -219,6 +217,19 @@ const DataPage = () => {
   const handleChannelClick = (channel: any) => {
     setSelectedChannel(channel);
     setIsChannelDialogOpen(true);
+  };
+
+  const getSummaryText = (type: string) => {
+    switch (type) {
+      case 'gmail':
+        return gmailEmails.length > 0 ? `${gmailEmails.length} emails synced` : 'No data synced yet';
+      case 'calendar':
+        return calendarEvents.length > 0 ? `${calendarEvents.length} events synced` : 'No data synced yet';
+      case 'slack':
+        return slackData ? `${slackData.summary?.total_channels || 0} channels, ${slackData.summary?.total_messages || 0} messages` : 'No data synced yet';
+      default:
+        return 'No data synced yet';
+    }
   };
 
   const integrationData = [
@@ -278,35 +289,37 @@ const DataPage = () => {
           </TabsList>
 
           <TabsContent value="integrations" className="space-y-4 mt-4">
-            <div className="space-y-4">
+            <Accordion type="single" collapsible className="w-full space-y-4">
               {integrationData.map(integration => {
                 const Icon = integration.icon;
+                const lastSync = lastSyncTimes[integration.type];
                 return (
-                  <Card key={integration.type} className="bg-gray-800 border-gray-700">
-                    <CardHeader className="pb-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <AccordionItem key={integration.type} value={integration.type} className="border border-gray-700 rounded-lg bg-gray-800">
+                    <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
                         <div className="flex items-center space-x-3 min-w-0">
                           <Icon size={20} className={integration.color} />
-                          <div className="min-w-0">
-                            <CardTitle className="text-base sm:text-lg text-white truncate">{integration.label}</CardTitle>
-                            <CardDescription className="text-gray-300 text-xs sm:text-sm">
+                          <div className="min-w-0 text-left">
+                            <div className="text-base sm:text-lg text-white truncate font-semibold">{integration.label}</div>
+                            <div className="text-gray-300 text-xs sm:text-sm">
                               {integration.description}
-                            </CardDescription>
+                            </div>
                           </div>
                         </div>
-                        <Badge variant={integration.connected ? "default" : "secondary"} className="self-start sm:self-center shrink-0">
-                          {integration.connected ? "Connected" : "Not Connected"}
-                        </Badge>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 shrink-0">
+                          <Badge variant={integration.connected ? "default" : "secondary"} className="self-start sm:self-center">
+                            {integration.connected ? "Connected" : "Not Connected"}
+                          </Badge>
+                          <div className="text-xs text-gray-400 text-left sm:text-right">
+                            {integration.connected ? getSummaryText(integration.type) : 'Connect to sync data'}
+                          </div>
+                        </div>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
+                    </AccordionTrigger>
+                    <AccordionContent className="px-4 sm:px-6 pb-4">
                       {integration.connected ? (
-                        <div className="space-y-3">
-                          <p className="text-xs sm:text-sm text-green-400">
-                            ✓ Data is being synced from this integration
-                          </p>
-                          
-                          <div className="space-y-3">
+                        <div className="space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <Button 
                               size="sm" 
                               variant="outline"
@@ -315,220 +328,164 @@ const DataPage = () => {
                               className="w-full sm:w-auto text-xs sm:text-sm"
                             >
                               {integration.loading ? <RefreshCw className="animate-spin h-3 w-3 sm:h-4 sm:w-4 mr-2" /> : <Icon className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />}
-                              {integration.loading ? 'Loading...' : `Fetch Recent ${integration.label} Data`}
+                              {integration.loading ? 'Syncing...' : `Sync ${integration.label} Data`}
                             </Button>
                             
-                            <div className="overflow-hidden">
-                              {/* Gmail Data Display */}
-                              {integration.type === 'gmail' && integration.data.length > 0 && (
-                                <div className="space-y-2">
-                                  <p className="text-xs sm:text-sm font-medium text-white">Recent emails:</p>
-                                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                                    {integration.data.map((item, index) => (
-                                      <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                        <div className="font-medium text-white text-sm break-words">{item.subject}</div>
-                                        <div className="text-gray-200 text-xs break-words">From: {item.from}</div>
-                                        <div className="text-gray-300 text-xs mt-1 break-words">{item.snippet}</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Calendar Data Display */}
-                              {integration.type === 'calendar' && integration.data.length > 0 && (
-                                <div className="space-y-2">
-                                  <p className="text-xs sm:text-sm font-medium text-white">Recent events:</p>
-                                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                                    {integration.data.map((item, index) => (
-                                      <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                        <div className="font-medium text-white text-sm break-words">{item.summary}</div>
-                                        <div className="text-gray-200 text-xs break-words">Start: {new Date(item.start).toLocaleString()}</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Slack Data Display */}
-                              {integration.type === 'slack' && integration.data && (
-                                <div className="space-y-3 overflow-hidden">
-                                  {/* Team Info */}
-                                  {integration.data.team && (
-                                    <div className="p-3 sm:p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                      <p className="text-xs sm:text-sm font-medium text-white mb-2">Team Info:</p>
-                                      <div className="space-y-1">
-                                        <div className="font-medium text-white text-sm break-words">{integration.data.team.name}</div>
-                                        <div className="text-gray-200 text-xs break-words">{integration.data.team.domain}</div>
-                                        {integration.data.team.url && (
-                                          <div className="text-blue-400 text-xs break-all">{integration.data.team.url}</div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* User Profile */}
-                                  {integration.data.user_profile && (
-                                    <div className="p-3 sm:p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                      <p className="text-xs sm:text-sm font-medium text-white mb-2">Your Profile:</p>
-                                      <div className="flex items-center space-x-3">
-                                        {integration.data.user_profile.profile_image && (
-                                          <img 
-                                            src={integration.data.user_profile.profile_image} 
-                                            alt="Profile" 
-                                            className="w-6 h-6 sm:w-8 sm:h-8 rounded-full shrink-0"
-                                          />
-                                        )}
-                                        <div className="min-w-0">
-                                          <div className="font-medium text-white text-sm break-words">
-                                            {integration.data.user_profile.display_name || integration.data.user_profile.real_name || integration.data.user_profile.name}
-                                          </div>
-                                          {integration.data.user_profile.title && (
-                                            <div className="text-gray-200 text-xs break-words">{integration.data.user_profile.title}</div>
-                                          )}
-                                          {integration.data.user_profile.status_text && (
-                                            <div className="text-gray-300 text-xs break-words">
-                                              {integration.data.user_profile.status_emoji} {integration.data.user_profile.status_text}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Summary */}
-                                  {integration.data.summary && (
-                                    <div className="p-3 sm:p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                      <p className="text-xs sm:text-sm font-medium text-white mb-3">Data Summary:</p>
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <div className="flex items-center space-x-2">
-                                          <Hash size={12} className="text-gray-300 shrink-0" />
-                                          <span className="text-white text-xs truncate">{integration.data.summary.total_channels} channels</span>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                          <Users size={12} className="text-gray-300 shrink-0" />
-                                          <span className="text-white text-xs truncate">{integration.data.summary.total_users} users</span>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                          <MessageSquare size={12} className="text-gray-300 shrink-0" />
-                                          <span className="text-white text-xs truncate">{integration.data.summary.total_messages} messages</span>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                          <Eye size={12} className="text-gray-300 shrink-0" />
-                                          <span className="text-white text-xs truncate">{integration.data.summary.accessible_channels} accessible</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Recent Messages */}
-                                  {integration.data.messages && integration.data.messages.length > 0 && (
-                                    <div className="space-y-2">
-                                      <p className="text-xs sm:text-sm font-medium text-white">Recent messages:</p>
-                                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                                        {integration.data.messages.slice(0, 3).map((message, index) => (
-                                          <div key={message.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                            <div className="font-medium text-white text-xs break-words">{message.text}</div>
-                                            <div className="text-gray-200 text-xs mt-1 break-words">From: {message.user} in {message.channel}</div>
-                                            <div className="text-gray-400 text-xs break-words">{new Date(message.timestamp).toLocaleString()}</div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Channels */}
-                                  {integration.data.channels && integration.data.channels.length > 0 && (
-                                    <div className="space-y-2">
-                                      <p className="text-xs sm:text-sm font-medium text-white">All available channels ({integration.data.channels.length}) - click to view details:</p>
-                                      <div className="max-h-60 overflow-y-auto space-y-2">
-                                        {integration.data.channels.map((channel, index) => (
-                                          <div 
-                                            key={channel.id || index} 
-                                            className="p-3 bg-gray-900 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-800 transition-colors"
-                                            onClick={() => handleChannelClick(channel)}
-                                          >
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
-                                              <div className="flex items-center space-x-2 min-w-0">
-                                                {channel.is_private ? <Lock size={12} className="text-gray-400 shrink-0" /> : <Globe size={12} className="text-gray-400 shrink-0" />}
-                                                <span className="font-medium text-white text-xs truncate">#{channel.name}</span>
-                                              </div>
-                                              <div className="flex items-center space-x-2 shrink-0">
-                                                <Badge 
-                                                  variant={channel.is_member ? "default" : "secondary"} 
-                                                  className={`text-xs ${channel.is_member ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'}`}
-                                                >
-                                                  {channel.is_member ? "Member" : "Not Member"}
-                                                </Badge>
-                                                {channel.num_members && (
-                                                  <span className="text-xs text-gray-400 whitespace-nowrap">{channel.num_members} members</span>
-                                                )}
-                                              </div>
-                                            </div>
-                                            {channel.purpose && (
-                                              <div className="text-gray-200 text-xs mt-1 break-words line-clamp-2">{channel.purpose}</div>
-                                            )}
-                                            {channel.topic && (
-                                              <div className="text-gray-300 text-xs mt-1 break-words line-clamp-1">Topic: {channel.topic}</div>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Users */}
-                                  {integration.data.users && integration.data.users.length > 0 && (
-                                    <div className="space-y-2">
-                                      <p className="text-xs sm:text-sm font-medium text-white">Team members:</p>
-                                      <div className="max-h-32 overflow-y-auto space-y-2">
-                                        {integration.data.users.map((slackUser, index) => (
-                                          <div key={slackUser.id || index} className="flex items-center space-x-3 p-2 bg-gray-900 rounded border border-gray-600">
-                                            {slackUser.profile_image && (
-                                              <img src={slackUser.profile_image} alt="User" className="w-5 h-5 sm:w-6 sm:h-6 rounded-full shrink-0" />
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                              <div className="text-white text-xs break-words">
-                                                {slackUser.display_name || slackUser.real_name || slackUser.name}
-                                              </div>
-                                              <div className="flex flex-wrap gap-1 mt-1">
-                                                {slackUser.is_admin && (
-                                                  <Badge variant="outline" className="text-xs text-blue-400 border-blue-400">Admin</Badge>
-                                                )}
-                                                {slackUser.is_bot && (
-                                                  <Badge variant="outline" className="text-xs text-purple-400 border-purple-400">Bot</Badge>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                            {lastSync && (
+                              <p className="text-xs text-gray-400">
+                                Last synced: {lastSync.toLocaleString()}
+                              </p>
+                            )}
                           </div>
                           
-                          <p className="text-xs text-gray-400">
-                            Last sync: Real-time updates enabled
-                          </p>
+                          <div className="overflow-hidden">
+                            {/* Gmail Data Display */}
+                            {integration.type === 'gmail' && integration.data.length > 0 && (
+                              <div className="space-y-2">
+                                <p className="text-xs sm:text-sm font-medium text-white">Recent emails:</p>
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                  {integration.data.map((item, index) => (
+                                    <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                      <div className="font-medium text-white text-sm break-words">{item.subject}</div>
+                                      <div className="text-gray-200 text-xs break-words">From: {item.from}</div>
+                                      <div className="text-gray-300 text-xs mt-1 break-words">{item.snippet}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Calendar Data Display */}
+                            {integration.type === 'calendar' && integration.data.length > 0 && (
+                              <div className="space-y-2">
+                                <p className="text-xs sm:text-sm font-medium text-white">Recent events:</p>
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                  {integration.data.map((item, index) => (
+                                    <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                      <div className="font-medium text-white text-sm break-words">{item.summary}</div>
+                                      <div className="text-gray-200 text-xs break-words">Start: {new Date(item.start).toLocaleString()}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            )}
+
+                            {/* Slack Data Display */}
+                            {integration.type === 'slack' && integration.data && (
+                              <div className="space-y-3 overflow-hidden">
+                                {/* Team Info */}
+                                {integration.data.team && (
+                                  <div className="p-3 sm:p-4 bg-gray-900 rounded-lg border border-gray-600">
+                                    <p className="text-xs sm:text-sm font-medium text-white mb-2">Team Info:</p>
+                                    <div className="space-y-1">
+                                      <div className="font-medium text-white text-sm break-words">{integration.data.team.name}</div>
+                                      <div className="text-gray-200 text-xs break-words">{integration.data.team.domain}</div>
+                                      {integration.data.team.url && (
+                                        <div className="text-blue-400 text-xs break-all">{integration.data.team.url}</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Summary */}
+                                {integration.data.summary && (
+                                  <div className="p-3 sm:p-4 bg-gray-900 rounded-lg border border-gray-600">
+                                    <p className="text-xs sm:text-sm font-medium text-white mb-3">Data Summary:</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                      <div className="flex items-center space-x-2">
+                                        <Hash size={12} className="text-gray-300 shrink-0" />
+                                        <span className="text-white text-xs truncate">{integration.data.summary.total_channels} channels</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Users size={12} className="text-gray-300 shrink-0" />
+                                        <span className="text-white text-xs truncate">{integration.data.summary.total_users} users</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <MessageSquare size={12} className="text-gray-300 shrink-0" />
+                                        <span className="text-white text-xs truncate">{integration.data.summary.total_messages} messages</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Eye size={12} className="text-gray-300 shrink-0" />
+                                        <span className="text-white text-xs truncate">{integration.data.summary.accessible_channels} accessible</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Recent Messages */}
+                                {integration.data.messages && integration.data.messages.length > 0 && (
+                                  <div className="space-y-2">
+                                    <p className="text-xs sm:text-sm font-medium text-white">Recent messages:</p>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                                      {integration.data.messages.slice(0, 3).map((message, index) => (
+                                        <div key={message.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                          <div className="font-medium text-white text-xs break-words">{message.text}</div>
+                                          <div className="text-gray-200 text-xs mt-1 break-words">From: {message.user} in {message.channel}</div>
+                                          <div className="text-gray-400 text-xs break-words">{new Date(message.timestamp).toLocaleString()}</div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Channels */}
+                                {integration.data.channels && integration.data.channels.length > 0 && (
+                                  <div className="space-y-2">
+                                    <p className="text-xs sm:text-sm font-medium text-white">All available channels ({integration.data.channels.length}) - click to view details:</p>
+                                    <div className="max-h-60 overflow-y-auto space-y-2">
+                                      {integration.data.channels.map((channel, index) => (
+                                        <div 
+                                          key={channel.id || index} 
+                                          className="p-3 bg-gray-900 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-800 transition-colors"
+                                          onClick={() => handleChannelClick(channel)}
+                                        >
+                                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
+                                            <div className="flex items-center space-x-2 min-w-0">
+                                              {channel.is_private ? <Lock size={12} className="text-gray-400 shrink-0" /> : <Globe size={12} className="text-gray-400 shrink-0" />}
+                                              <span className="font-medium text-white text-xs truncate">#{channel.name}</span>
+                                            </div>
+                                            <div className="flex items-center space-x-2 shrink-0">
+                                              <Badge 
+                                                variant={channel.is_member ? "default" : "secondary"} 
+                                                className={`text-xs ${channel.is_member ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'}`}
+                                              >
+                                                {channel.is_member ? "Member" : "Not Member"}
+                                              </Badge>
+                                              {channel.num_members && (
+                                                <span className="text-xs text-gray-400 whitespace-nowrap">{channel.num_members} members</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {channel.purpose && (
+                                            <div className="text-gray-200 text-xs mt-1 break-words line-clamp-2">{channel.purpose}</div>
+                                          )}
+                                          {channel.topic && (
+                                            <div className="text-gray-300 text-xs mt-1 break-words line-clamp-1">Topic: {channel.topic}</div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div className="space-y-2">
                           <p className="text-xs sm:text-sm text-gray-400">
-                            Connect this integration to start collecting data
+                            Connect this integration to start syncing data
                           </p>
                           <p className="text-xs text-gray-500">
                             Go to Settings → Integrations to connect
                           </p>
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
+                    </AccordionContent>
+                  </AccordionItem>
                 );
               })}
-            </div>
+            </Accordion>
           </TabsContent>
 
           <TabsContent value="custom" className="space-y-4 mt-4">

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useUpdates } from "@/hooks/useUpdates";
 import { useUserDocuments } from "@/hooks/useUserDocuments";
@@ -33,6 +34,9 @@ const ChatPage = () => {
     setIsLoading(true);
 
     try {
+      // Get custom instructions from localStorage
+      const customInstructions = localStorage.getItem('customInstructions') || '';
+      
       // Prepare conversation history for the API - only include messages with content
       const conversationMessages = messages
         .filter(msg => msg.text && msg.text.trim()) // Filter out empty messages
@@ -51,7 +55,8 @@ const ChatPage = () => {
         body: {
           messages: conversationMessages,
           userUpdates: updates,
-          userDocuments: documents
+          userDocuments: documents,
+          customInstructions: customInstructions
         }
       });
 
@@ -89,7 +94,7 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="h-full flex flex-col relative">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-700 flex-shrink-0">
         <h1 className="text-xl font-semibold">Chat with Chief</h1>
@@ -98,8 +103,8 @@ const ChatPage = () => {
         </p>
       </div>
 
-      {/* Messages - takes remaining space and scrolls, with bottom padding for input */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-20">
+      {/* Messages - flex-1 to take remaining space */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map(message => (
           <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] p-3 rounded-lg ${message.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
@@ -121,8 +126,8 @@ const ChatPage = () => {
         )}
       </div>
 
-      {/* Input - absolutely positioned at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700 bg-black">
+      {/* Input - flex-shrink-0 to maintain size and stick to bottom */}
+      <div className="flex-shrink-0 p-4 border-t border-gray-700 bg-black">
         <div className="flex space-x-2">
           <input
             type="text"
