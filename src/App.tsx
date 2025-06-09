@@ -1,45 +1,12 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
-
-// Configure the AI SDK to use Supabase functions
-const SUPABASE_URL = "https://xxccvppbxnhowncdhvdi.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4Y2N2cHBieG5ob3duY2RodmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxMzQ2NjcsImV4cCI6MjA2NDcxMDY2N30.2oUeqsJA5_do6jsqzZfuzDv4fj9tr1Cl3cFvAXPOc_Q";
-const chatApiEndpoint = `${SUPABASE_URL}/functions/v1/chat`;
-
-// Set the global fetch to include auth headers for AI SDK
-const originalFetch = globalThis.fetch;
-globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-  // Only intercept requests to our chat API
-  if (typeof input === 'string' && input.includes('/api/chat')) {
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token;
-    
-    const headers = {
-      ...init?.headers,
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${token || SUPABASE_ANON_KEY}`,
-    };
-
-    // Replace /api/chat with our Supabase function URL
-    const url = input.replace('/api/chat', chatApiEndpoint);
-    
-    return originalFetch(url, {
-      ...init,
-      headers,
-    });
-  }
-  
-  return originalFetch(input, init);
-};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
