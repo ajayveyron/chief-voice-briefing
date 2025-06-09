@@ -145,13 +145,13 @@ const SettingsPage = () => {
     id: 'calendar',
     name: 'Calendar',
     description: 'Stay updated with upcoming events',
-    logo: 'https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Google_Calendar_icon_%282020%29.svg/1024px-Google_Calendar_icon_%282020%29.svg.png',
   },
   {
     id: 'slack',
     name: 'Slack',
     description: 'Receive important Slack notifications',
-    logo: 'https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg',
+    logo: 'https://companieslogo.com/img/orig/WORK-d00db09e.png?t=1720244494',
   },
 ];
 
