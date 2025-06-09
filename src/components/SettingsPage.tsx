@@ -134,6 +134,27 @@ const SettingsPage = () => {
     }
   }, [toast, refetch]);
 
+  const integrations = [
+  {
+    id: 'gmail',
+    name: 'Gmail',
+    description: 'Get updates from your Gmail inbox',
+    logo: 'https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg',
+  },
+  {
+    id: 'calendar',
+    name: 'Calendar',
+    description: 'Stay updated with upcoming events',
+    logo: 'https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg',
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    description: 'Receive important Slack notifications',
+    logo: 'https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg',
+  },
+];
+
   return (
     <div className="h-full overflow-y-auto">
       {/* Header */}
@@ -194,160 +215,62 @@ const SettingsPage = () => {
         <Separator className="bg-gray-700" />
 
         {/* Integrations Section */}
-        <div>
-          <h2 className="text-lg font-medium mb-4">Integrations</h2>
-          <div className="space-y-3">
-            {/* Gmail Integration */}
-            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
-              <div className="flex items-center space-x-4">
-               <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
-  <img
-    src="https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg"
-    alt="Gmail"
-    className="w-6 h-6 object-contain"
-  />
-</div>
-                <div>
-                  <h3 className="font-medium text-white">Gmail</h3>
-                  <p className="text-sm text-gray-400">Get updates from your Gmail inbox</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                {isConnected('gmail') ? (
-                  <>
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle size={16} className="text-green-500" />
-                      <span className="text-sm text-gray-300">Connected</span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleDisconnect('gmail')}
-                      className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
-                    >
-                      Disconnect
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center space-x-2">
-                      <AlertCircle size={16} className="text-gray-500" />
-                      <span className="text-sm text-gray-400">Not connected</span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      onClick={() => handleConnect('gmail')}
-                      disabled={loading}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Connect
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
+        
 
-            {/* Calendar Integration */}
-            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
-  <img
-    src="https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg"
-    alt="Gmail"
-    className="w-6 h-6 object-contain"
-  />
-</div>
-                <div>
-                  <h3 className="font-medium text-white">Calendar</h3>
-                  <p className="text-sm text-gray-400">Stay updated with upcoming events</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                {isConnected('calendar') ? (
-                  <>
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle size={16} className="text-green-500" />
-                      <span className="text-sm text-gray-300">Connected</span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleDisconnect('calendar')}
-                      className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
-                    >
-                      Disconnect
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center space-x-2">
-                      <AlertCircle size={16} className="text-gray-500" />
-                      <span className="text-sm text-gray-400">Not connected</span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      onClick={() => handleConnect('calendar')}
-                      disabled={loading}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Connect
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Slack Integration */}
-            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
-  <img
-    src="https://static.dezeen.com/uploads/2020/10/gmail-google-logo-rebrand-workspace-design_dezeen_2364_sq.jpg"
-    alt="Gmail"
-    className="w-6 h-6 object-contain"
-  />
-</div>
-                <div>
-                  <h3 className="font-medium text-white">Slack</h3>
-                  <p className="text-sm text-gray-400">Receive important Slack notifications</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                {isConnected('slack') ? (
-                  <>
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle size={16} className="text-green-500" />
-                      <span className="text-sm text-gray-300">Connected</span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleDisconnect('slack')}
-                      className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
-                    >
-                      Disconnect
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center space-x-2">
-                      <AlertCircle size={16} className="text-gray-500" />
-                      <span className="text-sm text-gray-400">Not connected</span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      onClick={() => handleConnect('slack')}
-                      disabled={loading}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Connect
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
+<div>
+  <h2 className="text-lg font-medium mb-4 text-white">Integrations</h2>
+  <div className="space-y-3">
+    {integrations.map((integration) => (
+      <div
+        key={integration.id}
+        className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700"
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-gray-700 rounded-md flex items-center justify-center">
+            <img
+              src={integration.logo}
+              alt={integration.name}
+              className="w-5 h-5 object-contain"
+            />
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-white">{integration.name}</h3>
+            <p className="text-xs text-gray-400">{integration.description}</p>
           </div>
         </div>
+        <div className="flex items-center space-x-3">
+          {isConnected(integration.id) ? (
+            <>
+              <CheckCircle size={16} className="text-green-500" />
+              <span className="text-sm text-gray-300">Connected</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleDisconnect(integration.id)}
+                className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
+              >
+                Disconnect
+              </Button>
+            </>
+          ) : (
+            <>
+              <AlertCircle size={16} className="text-gray-500" />
+              <span className="text-sm text-gray-400">Not connected</span>
+              <Button
+                size="sm"
+                onClick={() => handleConnect(integration.id)}
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Connect
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
 
         <Separator className="bg-gray-700" />
 
