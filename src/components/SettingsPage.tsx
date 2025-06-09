@@ -186,33 +186,7 @@ const SettingsPage = () => {
 
         <Separator className="bg-gray-700" />
 
-        {/* Custom Instructions Section */}
-        <div>
-          <h2 className="text-lg font-medium mb-4">AI Assistant Instructions</h2>
-          <div className="space-y-3">
-            <div className="p-4 bg-gray-800 rounded-lg">
-              <p className="text-sm font-medium mb-2">Custom Instructions</p>
-              <p className="text-xs text-gray-400 mb-3">
-                Provide specific instructions to customize how the AI assistant responds to you. For example, mention your role, preferences, or specific contexts you want the AI to consider.
-              </p>
-              <Textarea
-                placeholder="Enter your custom instructions here... For example: 'I'm a software engineer working on web applications. Please provide technical responses and focus on best practices. I prefer concise explanations with code examples.'"
-                value={customInstructions}
-                onChange={(e) => setCustomInstructions(e.target.value)}
-                className="min-h-[100px] bg-gray-900 border-gray-600 text-white placeholder-gray-400"
-              />
-              <Button 
-                onClick={handleSaveInstructions}
-                className="mt-3"
-                size="sm"
-              >
-                Save Instructions
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <Separator className="bg-gray-700" />
+        
 
         {/* Integrations Section */}
         
@@ -269,6 +243,34 @@ const SettingsPage = () => {
     ))}
   </div>
 </div>
+
+        <Separator className="bg-gray-700" />
+
+        {/* Custom Instructions Section */}
+        <div>
+          <h2 className="text-lg font-medium mb-4">AI Assistant Instructions</h2>
+          <div className="space-y-3">
+            <div className="p-4 bg-gray-800 rounded-lg">
+              <p className="text-sm font-medium mb-2">Custom Instructions</p>
+              <p className="text-xs text-gray-400 mb-3">
+                Provide specific instructions to customize how the AI assistant responds to you. For example, mention your role, preferences, or specific contexts you want the AI to consider.
+              </p>
+              <Textarea
+                placeholder="Enter your custom instructions here... For example: 'I'm a software engineer working on web applications. Please provide technical responses and focus on best practices. I prefer concise explanations with code examples.'"
+                value={customInstructions}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                className="min-h-[100px] bg-gray-900 border-gray-600 text-white placeholder-gray-400"
+              />
+              <Button 
+                onClick={handleSaveInstructions}
+                className="mt-3"
+                size="sm"
+              >
+                Save Instructions
+              </Button>
+            </div>
+          </div>
+        </div>
 
         <Separator className="bg-gray-700" />
 
