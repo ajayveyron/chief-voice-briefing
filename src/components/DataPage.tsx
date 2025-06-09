@@ -274,7 +274,7 @@ const DataPage = () => {
       <div className="p-4 sm:p-6 border-b border-border flex-shrink-0">
         <h1 className="text-xl sm:text-2xl font-semibold text-zinc-50">Data Sources</h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-          Manage data that powers your AI assistant
+          Manage data that powers Chief
         </p>
       </div>
 
@@ -442,7 +442,7 @@ const DataPage = () => {
                   <span>Upload Custom Documents</span>
                 </CardTitle>
                 <CardDescription className="text-xs sm:text-sm">
-                  Add PDFs, images, text files, spreadsheets, or other documents for the AI to reference
+                  Add PDFs, images, text files, spreadsheets, or other documents for Chief to reference
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -468,7 +468,7 @@ const DataPage = () => {
                 <CardHeader>
                   <CardTitle className="text-base sm:text-lg text-zinc-50">Uploaded Documents</CardTitle>
                   <CardDescription className="text-xs sm:text-sm">
-                    {documents.length} document{documents.length > 1 ? 's' : ''} available for AI reference
+                    {documents.length} document{documents.length > 1 ? 's' : ''} available for Chief's reference
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

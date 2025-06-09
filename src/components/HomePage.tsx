@@ -76,7 +76,7 @@ const HomePage = () => {
           
           <div className="text-center">
             <h1 className="text-2xl font-semibold text-white">Chief</h1>
-            <p className="text-sm text-gray-400">AI Assistant</p>
+            <p className="text-sm text-gray-400">Virtual Assistant</p>
           </div>
         </div>
 

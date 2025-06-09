@@ -245,14 +245,11 @@ const SettingsPage = () => {
 
         {/* Custom Instructions Section */}
         <div>
-          <h2 className="text-lg font-medium mb-4">AI Assistant Instructions</h2>
-          <div className="space-y-3">
-            <div className="p-4 bg-gray-800 rounded-lg">
-              <p className="text-sm font-medium mb-2">Custom Instructions</p>
-              <p className="text-xs text-gray-400 mb-3">
-                Provide specific instructions to customize how the AI assistant responds to you. For example, mention your role, preferences, or specific contexts you want the AI to consider.
+          <h2 className="text-lg font-medium mb-4">Chief's Instructions</h2>
+          <p className="text-xs text-gray-400 mb-3">
+                Provide specific instructions to customize how Chief responds to you. For example, mention your role, preferences, or specific contexts you want Chief to consider.
               </p>
-              <Textarea
+          <Textarea
                 placeholder="Enter your custom instructions here... For example: 'I'm a software engineer working on web applications. Please provide technical responses and focus on best practices. I prefer concise explanations with code examples.'"
                 value={customInstructions}
                 onChange={(e) => setCustomInstructions(e.target.value)}
@@ -265,8 +262,7 @@ const SettingsPage = () => {
               >
                 Save Instructions
               </Button>
-            </div>
-          </div>
+          
         </div>
 
         <Separator className="bg-gray-700" />
