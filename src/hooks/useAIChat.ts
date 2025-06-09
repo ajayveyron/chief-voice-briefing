@@ -1,40 +1,43 @@
 
 import { useState } from 'react';
+import { useChat } from 'ai/react';
 import { supabase } from '@/integrations/supabase/client';
 import { useUpdates } from '@/hooks/useUpdates';
 import { useUserDocuments } from '@/hooks/useUserDocuments';
 import { useIntegrationData } from '@/hooks/useIntegrationData';
 import { useMeetingCoordination } from '@/hooks/useMeetingCoordination';
 
-interface ChatMessage {
-  id: string;
-  text: string;
-  sender: 'user' | 'assistant';
-}
-
 export const useAIChat = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([{
-    id: '1',
-    text: "Hi! I'm Chief, your AI assistant. I can help you stay updated with your notifications, answer questions about your uploaded documents, and provide insights from your connected integrations (Gmail, Calendar, Slack). What would you like to know?",
-    sender: 'assistant'
-  }]);
-  const [isLoading, setIsLoading] = useState(false);
-
   const { updates } = useUpdates();
   const { documents } = useUserDocuments();
   const { integrationData } = useIntegrationData();
   const { coordinateMeeting } = useMeetingCoordination();
 
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    isLoading,
+    append,
+    setMessages
+  } = useChat({
+    api: '/api/chat',
+    initialMessages: [{
+      id: '1',
+      content: "Hi! I'm Chief, your AI assistant. I can help you stay updated with your notifications, answer questions about your uploaded documents, and provide insights from your connected integrations (Gmail, Calendar, Slack). What would you like to know?",
+      role: 'assistant'
+    }],
+    onFinish: (message) => {
+      console.log('Message finished:', message);
+    },
+    onError: (error) => {
+      console.error('Chat error:', error);
+    }
+  });
+
   const sendMessage = async (inputText: string) => {
     if (!inputText.trim() || isLoading) return;
-
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      text: inputText,
-      sender: 'user'
-    };
-    setMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
 
     try {
       // Check if this is a meeting coordination request
@@ -69,13 +72,11 @@ export const useAIChat = () => {
                 ? `✅ Meeting scheduled successfully!\n\n📅 **${result.event.summary}**\n🕐 ${new Date(result.selectedSlot.start).toLocaleString()} - ${new Date(result.selectedSlot.end).toLocaleString()}\n👥 Attendees: ${emails.join(', ')}\n🔗 [Join Meeting](${result.event.hangoutLink || result.event.htmlLink})\n\nInvitations have been sent to all attendees.`
                 : `❌ ${result.message || 'Unable to find a suitable time for all attendees'}\n\nWould you like me to suggest alternative approaches or different time preferences?`;
 
-              const assistantMessage: ChatMessage = {
-                id: (Date.now() + 1).toString(),
-                text: responseMessage,
-                sender: 'assistant'
-              };
-              setMessages(prev => [...prev, assistantMessage]);
-              setIsLoading(false);
+              // Add the meeting coordination response as an assistant message
+              await append({
+                role: 'assistant',
+                content: responseMessage
+              });
               return;
             }
           } catch (meetingError) {
@@ -87,21 +88,11 @@ export const useAIChat = () => {
 
       const customInstructions = localStorage.getItem('customInstructions') || '';
       
-      const conversationMessages = messages
-        .filter(msg => msg.text && msg.text.trim())
-        .map(msg => ({
-          role: msg.sender === 'user' ? 'user' : 'assistant',
-          content: msg.text
-        }));
-
-      conversationMessages.push({
+      // Use AI SDK's append with context data
+      await append({
         role: 'user',
-        content: inputText
-      });
-
-      const { data, error } = await supabase.functions.invoke('chat-with-ai', {
-        body: {
-          messages: conversationMessages,
+        content: inputText,
+        data: {
           userUpdates: updates,
           userDocuments: documents,
           integrationData: integrationData,
@@ -109,34 +100,22 @@ export const useAIChat = () => {
         }
       });
 
-      if (error) {
-        throw error;
-      }
-
-      if (data?.generatedText && data.generatedText.trim()) {
-        const assistantMessage: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          text: data.generatedText,
-          sender: 'assistant'
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-      }
     } catch (error) {
-      console.error('Error calling AI:', error);
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        text: "Sorry, I'm having trouble connecting right now. Please try again.",
-        sender: 'assistant'
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
+      console.error('Error sending message:', error);
+      await append({
+        role: 'assistant',
+        content: "Sorry, I'm having trouble connecting right now. Please try again."
+      });
     }
   };
 
   return {
     messages,
+    input,
+    handleInputChange,
+    handleSubmit,
     isLoading,
-    sendMessage
+    sendMessage,
+    setMessages
   };
 };

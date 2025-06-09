@@ -1,5 +1,4 @@
-
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import { useUserDocuments } from "@/hooks/useUserDocuments";
 import { useAIChat } from "@/hooks/useAIChat";
 import { Button } from "@/components/ui/button";
@@ -9,14 +8,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
 const ChatPage = () => {
-  const [inputText, setInputText] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { user } = useAuth();
   const { toast } = useToast();
   const { refetch: refetchDocuments } = useUserDocuments();
-  const { messages, isLoading, sendMessage } = useAIChat();
+  const { 
+    messages, 
+    input, 
+    handleInputChange, 
+    handleSubmit, 
+    isLoading, 
+    sendMessage 
+  } = useAIChat();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -67,16 +71,15 @@ const ChatPage = () => {
     }
   };
 
+  const [isUploading, setIsUploading] = useState(false);
+
   const handleAttachmentClick = () => {
     fileInputRef.current?.click();
   };
 
   const handleSendMessage = async () => {
-    if (!inputText.trim() || isLoading) return;
-
-    const currentInput = inputText;
-    setInputText("");
-    await sendMessage(currentInput);
+    if (!input.trim() || isLoading) return;
+    await sendMessage(input);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -99,9 +102,9 @@ const ChatPage = () => {
       {/* Messages Container - takes up remaining space */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
         {messages.map(message => (
-          <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] p-3 rounded-lg ${message.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
-              {message.text}
+          <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[80%] p-3 rounded-lg whitespace-pre-wrap ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200'}`}>
+              {message.content}
             </div>
           </div>
         ))}
@@ -121,11 +124,11 @@ const ChatPage = () => {
 
       {/* Input Section - Fixed at bottom */}
       <div className="p-4 border-t border-gray-700 bg-black flex-shrink-0">
-        <div className="flex space-x-2">
+        <form onSubmit={handleSubmit} className="flex space-x-2">
           <input
             type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            value={input}
+            onChange={handleInputChange}
             onKeyPress={handleKeyPress}
             placeholder="Ask about your notifications, documents, or connected integrations..."
             disabled={isLoading}
@@ -137,13 +140,14 @@ const ChatPage = () => {
             variant="outline"
             disabled={isLoading || isUploading}
             className="border-gray-600 hover:bg-gray-700"
+            type="button"
           >
             <Paperclip size={16} />
           </Button>
-          <Button onClick={handleSendMessage} size="sm" disabled={isLoading}>
+          <Button type="submit" size="sm" disabled={isLoading}>
             <Send size={16} />
           </Button>
-        </div>
+        </form>
         
         {/* Hidden file input */}
         <input

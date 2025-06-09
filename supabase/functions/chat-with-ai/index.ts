@@ -1,6 +1,7 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { OpenAIStream, StreamingTextResponse } from 'ai';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,10 +14,10 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, messages, userUpdates, userDocuments, integrationData, customInstructions } = await req.json();
+    const { messages, data } = await req.json();
 
-    if (!prompt && !messages) {
-      throw new Error('Either prompt or messages is required');
+    if (!messages) {
+      throw new Error('Messages are required');
     }
 
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -26,9 +27,9 @@ serve(async (req) => {
 
     console.log('🤖 Processing chat request...');
 
-    // Check if this is a meeting coordination request
-    const lastMessage = messages?.[messages.length - 1]?.content || prompt || '';
-    const isMeetingRequest = /schedule|meeting|coordinate|calendar|book|arrange.*meeting/i.test(lastMessage);
+    // Extract context data from the last message's data field
+    const lastMessageData = data || {};
+    const { userUpdates, userDocuments, integrationData, customInstructions } = lastMessageData;
 
     // Build context from user data
     let contextInfo = '';
@@ -93,8 +94,10 @@ serve(async (req) => {
       });
     }
 
-    // Add meeting coordination instructions to system prompt
-    const meetingInstructions = isMeetingRequest ? `
+    // Prepare messages with system context
+    const systemMessage = {
+      role: 'system',
+      content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.
 
 MEETING COORDINATION CAPABILITIES:
 You can help coordinate meetings by finding suitable time slots and creating calendar events. When users ask to schedule meetings:
@@ -114,52 +117,15 @@ You can help coordinate meetings by finding suitable time slots and creating cal
 3. If no suitable slots are found, suggest alternative times or ask users to provide preferred time ranges.
 
 Example: "I can help you schedule a meeting! Please provide the email addresses of attendees, meeting duration, and subject."
-` : '';
 
-    // Build messages array based on input
-    let chatMessages;
-    if (messages && Array.isArray(messages)) {
-      // Filter out any messages with null or empty content
-      chatMessages = messages.filter(msg => 
-        msg.content && 
-        typeof msg.content === 'string' && 
-        msg.content.trim()
-      );
-    } else if (prompt) {
-      chatMessages = [
-        { 
-          role: 'system', 
-          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${meetingInstructions}${contextInfo}` 
-        },
-        { role: 'user', content: prompt }
-      ];
-    } else {
-      throw new Error('Invalid request format');
-    }
+${contextInfo}
 
-    // Ensure we have at least one message
-    if (chatMessages.length === 0) {
-      chatMessages = [
-        { 
-          role: 'system', 
-          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${meetingInstructions}${contextInfo}` 
-        },
-        { role: 'user', content: 'Hello' }
-      ];
-    } else {
-      // Add context to the system message if we have one
-      if (chatMessages[0]?.role === 'system' && (contextInfo || meetingInstructions)) {
-        chatMessages[0].content += meetingInstructions + contextInfo;
-      } else if (contextInfo || meetingInstructions) {
-        // Insert system message with context at the beginning
-        chatMessages.unshift({
-          role: 'system',
-          content: `You are Chief, an AI assistant that helps users manage their notifications and updates. You also have access to their uploaded documents and connected integrations (Gmail, Calendar, Slack) and can answer questions about them. Be helpful, conversational, and keep responses concise for voice conversation.${meetingInstructions}${contextInfo}`
-        });
-      }
-    }
+${customInstructions ? `\nCustom Instructions: ${customInstructions}` : ''}`
+    };
 
-    // Use Vercel AI SDK approach with OpenAI
+    const chatMessages = [systemMessage, ...messages];
+
+    // Use OpenAI with streaming
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -171,7 +137,7 @@ Example: "I can help you schedule a meeting! Please provide the email addresses 
         messages: chatMessages,
         max_tokens: 500,
         temperature: 0.7,
-        stream: false, // Keep non-streaming for now to maintain compatibility
+        stream: true,
       }),
     });
 
@@ -181,17 +147,12 @@ Example: "I can help you schedule a meeting! Please provide the email addresses 
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    const data = await response.json();
-    const generatedText = data.choices[0].message.content;
+    // Create a streaming response
+    const stream = OpenAIStream(response);
 
-    console.log('✅ Chat response generated');
+    console.log('✅ Chat response streaming started');
 
-    return new Response(
-      JSON.stringify({ generatedText }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    );
+    return new StreamingTextResponse(stream, { headers: corsHeaders });
   } catch (error) {
     console.error('❌ Error in chat-with-ai function:', error);
     return new Response(
