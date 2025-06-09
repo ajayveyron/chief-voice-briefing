@@ -1,94 +1,152 @@
 
 import { useAuth } from "@/hooks/useAuth";
-import { useUpdates } from "@/hooks/useUpdates";
 import { useVoiceChat } from "@/hooks/useVoiceChat";
-import SimpleVoiceInterface from "./SimpleVoiceInterface";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Phone, PhoneOff, Mic, MicOff, Speaker } from "lucide-react";
+import { useState, useEffect } from "react";
 
 const HomePage = () => {
   const { user } = useAuth();
-  const { updates, loading } = useUpdates();
   const {
     voiceState,
-    messages,
     isRecording,
     startRecording,
     stopRecording,
-    sendTextMessage,
     audioRef
   } = useVoiceChat();
+  
+  const [isCallConnected, setIsCallConnected] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading your updates...</p>
-        </div>
-      </div>
-    );
-  }
+  // Timer for call duration
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isCallConnected) {
+      interval = setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      setCallDuration(0);
+    }
+    return () => clearInterval(interval);
+  }, [isCallConnected]);
+
+  // Format duration as MM:SS
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleCallStart = () => {
+    setIsCallConnected(true);
+    startRecording();
+  };
+
+  const handleCallEnd = () => {
+    setIsCallConnected(false);
+    setCallDuration(0);
+    setIsMuted(false);
+    if (isRecording) {
+      stopRecording();
+    }
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+  };
+
+  const toggleSpeaker = () => {
+    setIsSpeakerOn(!isSpeakerOn);
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-8">
-      <div className="flex flex-col items-center space-y-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-light mb-2">Chief</h1>
-          <p className="text-gray-400 text-sm">
-            AI Voice Assistant • {updates.length} updates available
-          </p>
+    <div className="flex flex-col items-center justify-center h-full p-8 bg-background">
+      <div className="flex flex-col items-center space-y-8 max-w-sm w-full">
+        
+        {/* Avatar and Name */}
+        <div className="flex flex-col items-center space-y-4">
+          <Avatar className="w-32 h-32">
+            <AvatarImage src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400" />
+            <AvatarFallback className="text-2xl bg-muted">Chief</AvatarFallback>
+          </Avatar>
+          
+          <div className="text-center">
+            <h1 className="text-2xl font-semibold text-foreground">Chief</h1>
+            <p className="text-sm text-muted-foreground">AI Assistant</p>
+          </div>
         </div>
 
-        {/* Voice Interface */}
-        <SimpleVoiceInterface
-          voiceState={voiceState}
-          isRecording={isRecording}
-          onStartRecording={startRecording}
-          onStopRecording={stopRecording}
-          onSendText={sendTextMessage}
-        />
+        {/* Call Status */}
+        <div className="text-center space-y-2">
+          {isCallConnected ? (
+            <>
+              <p className="text-sm text-muted-foreground">Call in progress</p>
+              <p className="text-lg font-mono text-foreground">{formatDuration(callDuration)}</p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Tap to start voice conversation</p>
+          )}
+        </div>
 
-        {/* Recent conversation */}
-        {messages.length > 0 && (
-          <div className="max-w-md w-full mt-8">
-            <h3 className="text-sm text-gray-400 mb-3">Recent Conversation:</h3>
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {messages.slice(-3).map((message) => (
-                <div 
-                  key={message.id} 
-                  className={`text-xs p-2 rounded ${
-                    message.type === 'user' 
-                      ? 'bg-blue-900/30 text-blue-200 ml-4' 
-                      : 'bg-gray-800/50 text-gray-300 mr-4'
-                  }`}
-                >
-                  <span className="font-medium">
-                    {message.type === 'user' ? 'You' : 'Chief'}:
-                  </span> {message.text}
-                </div>
-              ))}
+        {/* Call Controls */}
+        <div className="flex flex-col items-center space-y-6">
+          {!isCallConnected ? (
+            /* Call Button - Not Connected */
+            <Button
+              onClick={handleCallStart}
+              className="w-20 h-20 rounded-full bg-green-500 hover:bg-green-600 text-white"
+              size="icon"
+            >
+              <Phone size={32} />
+            </Button>
+          ) : (
+            /* Call Controls - Connected */
+            <div className="flex items-center space-x-6">
+              {/* Mute Button */}
+              <Button
+                onClick={toggleMute}
+                variant={isMuted ? "destructive" : "outline"}
+                className="w-14 h-14 rounded-full"
+                size="icon"
+              >
+                {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
+              </Button>
+
+              {/* End Call Button */}
+              <Button
+                onClick={handleCallEnd}
+                className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 text-white"
+                size="icon"
+              >
+                <PhoneOff size={32} />
+              </Button>
+
+              {/* Speaker Button */}
+              <Button
+                onClick={toggleSpeaker}
+                variant={isSpeakerOn ? "default" : "outline"}
+                className="w-14 h-14 rounded-full"
+                size="icon"
+              >
+                <Speaker size={24} />
+              </Button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Updates preview when idle */}
-        {voiceState === 'idle' && updates.length > 0 && (
-          <div className="mt-8 max-w-md">
-            <h3 className="text-sm text-gray-400 mb-3">Recent Updates:</h3>
-            <div className="space-y-2">
-              {updates.slice(0, 3).map((update) => (
-                <div key={update.id} className="text-xs text-gray-500 border-l-2 border-gray-700 pl-3">
-                  <span className="text-gray-400">{update.integration_type}</span> • {update.title}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Voice commands help */}
-        {voiceState === 'idle' && (
-          <div className="text-center mt-6 text-sm text-gray-500">
-            Try saying: "What updates do I have?" or "Tell me about my notifications"
+        {/* Voice State Indicator */}
+        {isCallConnected && (
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">
+              {voiceState === 'recording' && 'Listening...'}
+              {voiceState === 'processing' && 'Processing...'}
+              {voiceState === 'speaking' && 'Chief is speaking...'}
+              {voiceState === 'idle' && 'Ready to listen'}
+            </p>
           </div>
         )}
 
