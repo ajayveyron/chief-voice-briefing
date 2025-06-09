@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { Button } from "@/components/ui/button";
@@ -262,46 +263,46 @@ const DataPage = () => {
   return (
     <div className="h-full overflow-y-auto">
       {/* Header */}
-      <div className="p-6 border-b border-gray-700">
-        <h1 className="text-2xl font-semibold">Data Sources</h1>
-        <p className="text-sm text-gray-400 mt-1">
+      <div className="p-4 sm:p-6 border-b border-gray-700">
+        <h1 className="text-xl sm:text-2xl font-semibold">Data Sources</h1>
+        <p className="text-xs sm:text-sm text-gray-400 mt-1">
           Manage data that powers your AI assistant
         </p>
       </div>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Tabs defaultValue="integrations" className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-gray-700">
-            <TabsTrigger value="integrations">Integrations</TabsTrigger>
-            <TabsTrigger value="custom">Custom Data</TabsTrigger>
+            <TabsTrigger value="integrations" className="text-xs sm:text-sm">Integrations</TabsTrigger>
+            <TabsTrigger value="custom" className="text-xs sm:text-sm">Custom Data</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="integrations" className="space-y-4">
-            <div className="grid gap-4">
+          <TabsContent value="integrations" className="space-y-4 mt-4">
+            <div className="space-y-4">
               {integrationData.map(integration => {
                 const Icon = integration.icon;
                 return (
                   <Card key={integration.type} className="bg-gray-800 border-gray-700">
                     <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Icon size={24} className={integration.color} />
-                          <div>
-                            <CardTitle className="text-lg text-white">{integration.label}</CardTitle>
-                            <CardDescription className="text-gray-300">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <Icon size={20} className={integration.color} />
+                          <div className="min-w-0">
+                            <CardTitle className="text-base sm:text-lg text-white truncate">{integration.label}</CardTitle>
+                            <CardDescription className="text-gray-300 text-xs sm:text-sm">
                               {integration.description}
                             </CardDescription>
                           </div>
                         </div>
-                        <Badge variant={integration.connected ? "default" : "secondary"} className="px-0 mx-0">
+                        <Badge variant={integration.connected ? "default" : "secondary"} className="self-start sm:self-center shrink-0">
                           {integration.connected ? "Connected" : "Not Connected"}
                         </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-3">
                       {integration.connected ? (
                         <div className="space-y-3">
-                          <p className="text-sm text-green-400">
+                          <p className="text-xs sm:text-sm text-green-400">
                             ✓ Data is being synced from this integration
                           </p>
                           
@@ -311,200 +312,211 @@ const DataPage = () => {
                               variant="outline"
                               onClick={integration.fetchFunction}
                               disabled={integration.loading}
+                              className="w-full sm:w-auto text-xs sm:text-sm"
                             >
-                              {integration.loading ? <RefreshCw className="animate-spin h-4 w-4 mr-2" /> : <Icon className="h-4 w-4 mr-2" />}
+                              {integration.loading ? <RefreshCw className="animate-spin h-3 w-3 sm:h-4 sm:w-4 mr-2" /> : <Icon className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />}
                               {integration.loading ? 'Loading...' : `Fetch Recent ${integration.label} Data`}
                             </Button>
                             
-                            {/* Gmail Data Display */}
-                            {integration.type === 'gmail' && integration.data.length > 0 && (
-                              <div className="mt-3 space-y-2">
-                                <p className="text-sm font-medium text-white">Recent emails:</p>
-                                {integration.data.map((item, index) => (
-                                  <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                    <div className="font-medium text-white">{item.subject}</div>
-                                    <div className="text-gray-200 text-sm">From: {item.from}</div>
-                                    <div className="text-gray-300 text-sm mt-1">{item.snippet}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Calendar Data Display */}
-                            {integration.type === 'calendar' && integration.data.length > 0 && (
-                              <div className="mt-3 space-y-2">
-                                <p className="text-sm font-medium text-white">Recent events:</p>
-                                {integration.data.map((item, index) => (
-                                  <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                    <div className="font-medium text-white">{item.summary}</div>
-                                    <div className="text-gray-200 text-sm">Start: {new Date(item.start).toLocaleString()}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Slack Data Display */}
-                            {integration.type === 'slack' && integration.data && (
-                              <div className="mt-3 space-y-3">
-                                {/* Team Info */}
-                                {integration.data.team && (
-                                  <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                    <p className="text-sm font-medium text-white mb-2">Team Info:</p>
-                                    <div className="space-y-1">
-                                      <div className="font-medium text-white">{integration.data.team.name}</div>
-                                      <div className="text-gray-200 text-sm">{integration.data.team.domain}</div>
-                                      {integration.data.team.url && (
-                                        <div className="text-blue-400 text-sm">{integration.data.team.url}</div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* User Profile */}
-                                {integration.data.user_profile && (
-                                  <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                    <p className="text-sm font-medium text-white mb-2">Your Profile:</p>
-                                    <div className="flex items-center space-x-3">
-                                      {integration.data.user_profile.profile_image && (
-                                        <img 
-                                          src={integration.data.user_profile.profile_image} 
-                                          alt="Profile" 
-                                          className="w-8 h-8 rounded-full"
-                                        />
-                                      )}
-                                      <div>
-                                        <div className="font-medium text-white">
-                                          {integration.data.user_profile.display_name || integration.data.user_profile.real_name || integration.data.user_profile.name}
-                                        </div>
-                                        {integration.data.user_profile.title && (
-                                          <div className="text-gray-200 text-sm">{integration.data.user_profile.title}</div>
-                                        )}
-                                        {integration.data.user_profile.status_text && (
-                                          <div className="text-gray-300 text-sm">
-                                            {integration.data.user_profile.status_emoji} {integration.data.user_profile.status_text}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Summary */}
-                                {integration.data.summary && (
-                                  <div className="p-4 bg-gray-900 rounded-lg border border-gray-600">
-                                    <p className="text-sm font-medium text-white mb-3">Data Summary:</p>
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <div className="flex items-center space-x-2">
-                                        <Hash size={14} className="text-gray-300" />
-                                        <span className="text-white text-sm">{integration.data.summary.total_channels} channels</span>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <Users size={14} className="text-gray-300" />
-                                        <span className="text-white text-sm">{integration.data.summary.total_users} users</span>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <MessageSquare size={14} className="text-gray-300" />
-                                        <span className="text-white text-sm">{integration.data.summary.total_messages} messages</span>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <Eye size={14} className="text-gray-300" />
-                                        <span className="text-white text-sm">{integration.data.summary.accessible_channels} accessible</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Recent Messages */}
-                                {integration.data.messages && integration.data.messages.length > 0 && (
-                                  <div className="space-y-2">
-                                    <p className="text-sm font-medium text-white">Recent messages:</p>
-                                    {integration.data.messages.slice(0, 3).map((message, index) => (
-                                      <div key={message.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
-                                        <div className="font-medium text-white text-sm">{message.text}</div>
-                                        <div className="text-gray-200 text-xs mt-1">From: {message.user} in {message.channel}</div>
-                                        <div className="text-gray-400 text-xs">{new Date(message.timestamp).toLocaleString()}</div>
+                            <div className="overflow-hidden">
+                              {/* Gmail Data Display */}
+                              {integration.type === 'gmail' && integration.data.length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs sm:text-sm font-medium text-white">Recent emails:</p>
+                                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {integration.data.map((item, index) => (
+                                      <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                        <div className="font-medium text-white text-sm break-words">{item.subject}</div>
+                                        <div className="text-gray-200 text-xs break-words">From: {item.from}</div>
+                                        <div className="text-gray-300 text-xs mt-1 break-words">{item.snippet}</div>
                                       </div>
                                     ))}
                                   </div>
-                                )}
+                                </div>
+                              )}
 
-                                {/* Channels - Now shows ALL channels */}
-                                {integration.data.channels && integration.data.channels.length > 0 && (
-                                  <div className="space-y-2">
-                                    <p className="text-sm font-medium text-white">All available channels ({integration.data.channels.length}) - click to view details:</p>
-                                    <div className="max-h-60 overflow-y-auto space-y-2">
-                                      {integration.data.channels.map((channel, index) => (
-                                        <div 
-                                          key={channel.id || index} 
-                                          className="p-3 bg-gray-900 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-800 transition-colors"
-                                          onClick={() => handleChannelClick(channel)}
-                                        >
-                                          <div className="flex items-center justify-between mb-1">
-                                            <div className="flex items-center space-x-2">
-                                              {channel.is_private ? <Lock size={14} className="text-gray-400" /> : <Globe size={14} className="text-gray-400" />}
-                                              <span className="font-medium text-white text-sm">#{channel.name}</span>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                              <Badge 
-                                                variant={channel.is_member ? "default" : "secondary"} 
-                                                className={`text-xs ${channel.is_member ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'}`}
-                                              >
-                                                {channel.is_member ? "Member" : "Not Member"}
-                                              </Badge>
-                                              {channel.num_members && (
-                                                <span className="text-xs text-gray-400">{channel.num_members} members</span>
-                                              )}
-                                            </div>
+                              {/* Calendar Data Display */}
+                              {integration.type === 'calendar' && integration.data.length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs sm:text-sm font-medium text-white">Recent events:</p>
+                                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {integration.data.map((item, index) => (
+                                      <div key={item.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                        <div className="font-medium text-white text-sm break-words">{item.summary}</div>
+                                        <div className="text-gray-200 text-xs break-words">Start: {new Date(item.start).toLocaleString()}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Slack Data Display */}
+                              {integration.type === 'slack' && integration.data && (
+                                <div className="space-y-3 overflow-hidden">
+                                  {/* Team Info */}
+                                  {integration.data.team && (
+                                    <div className="p-3 sm:p-4 bg-gray-900 rounded-lg border border-gray-600">
+                                      <p className="text-xs sm:text-sm font-medium text-white mb-2">Team Info:</p>
+                                      <div className="space-y-1">
+                                        <div className="font-medium text-white text-sm break-words">{integration.data.team.name}</div>
+                                        <div className="text-gray-200 text-xs break-words">{integration.data.team.domain}</div>
+                                        {integration.data.team.url && (
+                                          <div className="text-blue-400 text-xs break-all">{integration.data.team.url}</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* User Profile */}
+                                  {integration.data.user_profile && (
+                                    <div className="p-3 sm:p-4 bg-gray-900 rounded-lg border border-gray-600">
+                                      <p className="text-xs sm:text-sm font-medium text-white mb-2">Your Profile:</p>
+                                      <div className="flex items-center space-x-3">
+                                        {integration.data.user_profile.profile_image && (
+                                          <img 
+                                            src={integration.data.user_profile.profile_image} 
+                                            alt="Profile" 
+                                            className="w-6 h-6 sm:w-8 sm:h-8 rounded-full shrink-0"
+                                          />
+                                        )}
+                                        <div className="min-w-0">
+                                          <div className="font-medium text-white text-sm break-words">
+                                            {integration.data.user_profile.display_name || integration.data.user_profile.real_name || integration.data.user_profile.name}
                                           </div>
-                                          {channel.purpose && (
-                                            <div className="text-gray-200 text-xs mt-1">{channel.purpose}</div>
+                                          {integration.data.user_profile.title && (
+                                            <div className="text-gray-200 text-xs break-words">{integration.data.user_profile.title}</div>
                                           )}
-                                          {channel.topic && (
-                                            <div className="text-gray-300 text-xs mt-1">Topic: {channel.topic}</div>
+                                          {integration.data.user_profile.status_text && (
+                                            <div className="text-gray-300 text-xs break-words">
+                                              {integration.data.user_profile.status_emoji} {integration.data.user_profile.status_text}
+                                            </div>
                                           )}
                                         </div>
-                                      ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  )}
 
-                                {/* Users */}
-                                {integration.data.users && integration.data.users.length > 0 && (
-                                  <div className="space-y-2">
-                                    <p className="text-sm font-medium text-white">Team members:</p>
-                                    <div className="max-h-32 overflow-y-auto space-y-2">
-                                      {integration.data.users.map((slackUser, index) => (
-                                        <div key={slackUser.id || index} className="flex items-center space-x-3 p-2 bg-gray-900 rounded border border-gray-600">
-                                          {slackUser.profile_image && (
-                                            <img src={slackUser.profile_image} alt="User" className="w-6 h-6 rounded-full" />
-                                          )}
-                                          <div className="flex-1">
-                                            <div className="text-white text-sm">
-                                              {slackUser.display_name || slackUser.real_name || slackUser.name}
+                                  {/* Summary */}
+                                  {integration.data.summary && (
+                                    <div className="p-3 sm:p-4 bg-gray-900 rounded-lg border border-gray-600">
+                                      <p className="text-xs sm:text-sm font-medium text-white mb-3">Data Summary:</p>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="flex items-center space-x-2">
+                                          <Hash size={12} className="text-gray-300 shrink-0" />
+                                          <span className="text-white text-xs truncate">{integration.data.summary.total_channels} channels</span>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                          <Users size={12} className="text-gray-300 shrink-0" />
+                                          <span className="text-white text-xs truncate">{integration.data.summary.total_users} users</span>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                          <MessageSquare size={12} className="text-gray-300 shrink-0" />
+                                          <span className="text-white text-xs truncate">{integration.data.summary.total_messages} messages</span>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                          <Eye size={12} className="text-gray-300 shrink-0" />
+                                          <span className="text-white text-xs truncate">{integration.data.summary.accessible_channels} accessible</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Recent Messages */}
+                                  {integration.data.messages && integration.data.messages.length > 0 && (
+                                    <div className="space-y-2">
+                                      <p className="text-xs sm:text-sm font-medium text-white">Recent messages:</p>
+                                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                                        {integration.data.messages.slice(0, 3).map((message, index) => (
+                                          <div key={message.id || index} className="p-3 bg-gray-900 rounded-lg border border-gray-600">
+                                            <div className="font-medium text-white text-xs break-words">{message.text}</div>
+                                            <div className="text-gray-200 text-xs mt-1 break-words">From: {message.user} in {message.channel}</div>
+                                            <div className="text-gray-400 text-xs break-words">{new Date(message.timestamp).toLocaleString()}</div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Channels */}
+                                  {integration.data.channels && integration.data.channels.length > 0 && (
+                                    <div className="space-y-2">
+                                      <p className="text-xs sm:text-sm font-medium text-white">All available channels ({integration.data.channels.length}) - click to view details:</p>
+                                      <div className="max-h-60 overflow-y-auto space-y-2">
+                                        {integration.data.channels.map((channel, index) => (
+                                          <div 
+                                            key={channel.id || index} 
+                                            className="p-3 bg-gray-900 rounded-lg border border-gray-600 cursor-pointer hover:bg-gray-800 transition-colors"
+                                            onClick={() => handleChannelClick(channel)}
+                                          >
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
+                                              <div className="flex items-center space-x-2 min-w-0">
+                                                {channel.is_private ? <Lock size={12} className="text-gray-400 shrink-0" /> : <Globe size={12} className="text-gray-400 shrink-0" />}
+                                                <span className="font-medium text-white text-xs truncate">#{channel.name}</span>
+                                              </div>
+                                              <div className="flex items-center space-x-2 shrink-0">
+                                                <Badge 
+                                                  variant={channel.is_member ? "default" : "secondary"} 
+                                                  className={`text-xs ${channel.is_member ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-200'}`}
+                                                >
+                                                  {channel.is_member ? "Member" : "Not Member"}
+                                                </Badge>
+                                                {channel.num_members && (
+                                                  <span className="text-xs text-gray-400 whitespace-nowrap">{channel.num_members} members</span>
+                                                )}
+                                              </div>
                                             </div>
-                                            {slackUser.is_admin && (
-                                              <Badge variant="outline" className="text-xs text-blue-400 border-blue-400">Admin</Badge>
+                                            {channel.purpose && (
+                                              <div className="text-gray-200 text-xs mt-1 break-words line-clamp-2">{channel.purpose}</div>
                                             )}
-                                            {slackUser.is_bot && (
-                                              <Badge variant="outline" className="text-xs text-purple-400 border-purple-400">Bot</Badge>
+                                            {channel.topic && (
+                                              <div className="text-gray-300 text-xs mt-1 break-words line-clamp-1">Topic: {channel.topic}</div>
                                             )}
                                           </div>
-                                        </div>
-                                      ))}
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                                  )}
+
+                                  {/* Users */}
+                                  {integration.data.users && integration.data.users.length > 0 && (
+                                    <div className="space-y-2">
+                                      <p className="text-xs sm:text-sm font-medium text-white">Team members:</p>
+                                      <div className="max-h-32 overflow-y-auto space-y-2">
+                                        {integration.data.users.map((slackUser, index) => (
+                                          <div key={slackUser.id || index} className="flex items-center space-x-3 p-2 bg-gray-900 rounded border border-gray-600">
+                                            {slackUser.profile_image && (
+                                              <img src={slackUser.profile_image} alt="User" className="w-5 h-5 sm:w-6 sm:h-6 rounded-full shrink-0" />
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                              <div className="text-white text-xs break-words">
+                                                {slackUser.display_name || slackUser.real_name || slackUser.name}
+                                              </div>
+                                              <div className="flex flex-wrap gap-1 mt-1">
+                                                {slackUser.is_admin && (
+                                                  <Badge variant="outline" className="text-xs text-blue-400 border-blue-400">Admin</Badge>
+                                                )}
+                                                {slackUser.is_bot && (
+                                                  <Badge variant="outline" className="text-xs text-purple-400 border-purple-400">Bot</Badge>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           
-                          <p className="text-sm text-gray-400">
+                          <p className="text-xs text-gray-400">
                             Last sync: Real-time updates enabled
                           </p>
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <p className="text-sm text-gray-400">
+                          <p className="text-xs sm:text-sm text-gray-400">
                             Connect this integration to start collecting data
                           </p>
                           <p className="text-xs text-gray-500">
@@ -519,29 +531,29 @@ const DataPage = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="custom" className="space-y-4">
+          <TabsContent value="custom" className="space-y-4 mt-4">
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2 text-zinc-50">
-                  <Upload size={20} />
+                <CardTitle className="flex items-center space-x-2 text-zinc-50 text-base sm:text-lg">
+                  <Upload size={18} />
                   <span>Upload Custom Documents</span>
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-xs sm:text-sm">
                   Add PDFs, images, text files, spreadsheets, or other documents for the AI to reference
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center">
-                    <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 sm:p-6 text-center">
+                    <FileText className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-gray-400 mb-4" />
                     <div className="space-y-2">
-                      <p className="text-sm font-medium text-zinc-50">Upload a document</p>
+                      <p className="text-xs sm:text-sm font-medium text-zinc-50">Upload a document</p>
                       <p className="text-xs text-gray-400">
                         Supports .txt, .md, .csv, .pdf, .json, images, and more
                       </p>
                     </div>
                     <Button 
-                      className="mt-4" 
+                      className="mt-4 w-full sm:w-auto text-xs sm:text-sm" 
                       onClick={() => document.getElementById('file-upload')?.click()}
                       disabled={isUploading}
                     >
@@ -562,22 +574,22 @@ const DataPage = () => {
             {documents.length > 0 && (
               <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
-                  <CardTitle>Uploaded Documents</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-base sm:text-lg">Uploaded Documents</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">
                     {documents.length} document{documents.length > 1 ? 's' : ''} available for AI reference
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
                     {documents.map((doc, index) => {
                       const FileIcon = getFileIcon(doc.file_type);
                       return (
                         <div key={doc.id}>
-                          <div className="flex items-center justify-between p-3 bg-gray-900 rounded-lg">
-                            <div className="flex items-center space-x-3">
-                              <FileIcon size={16} className="text-blue-400" />
-                              <div>
-                                <p className="text-sm font-medium">{doc.name}</p>
+                          <div className="flex items-center justify-between p-3 bg-gray-900 rounded-lg gap-3">
+                            <div className="flex items-center space-x-3 min-w-0">
+                              <FileIcon size={14} className="text-blue-400 shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-xs sm:text-sm font-medium break-words">{doc.name}</p>
                                 <p className="text-xs text-gray-400">
                                   Uploaded {new Date(doc.created_at).toLocaleDateString()} • {doc.file_type}
                                 </p>
@@ -587,9 +599,9 @@ const DataPage = () => {
                               size="sm" 
                               variant="ghost" 
                               onClick={() => removeCustomDoc(doc.id)} 
-                              className="text-red-400 hover:text-red-300"
+                              className="text-red-400 hover:text-red-300 shrink-0"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={14} />
                             </Button>
                           </div>
                           {index < documents.length - 1 && <Separator className="bg-gray-700" />}
@@ -606,36 +618,36 @@ const DataPage = () => {
 
       {/* Channel Details Dialog */}
       <Dialog open={isChannelDialogOpen} onOpenChange={setIsChannelDialogOpen}>
-        <DialogContent className="bg-gray-800 border-gray-600 text-white max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="bg-gray-800 border-gray-600 text-white max-w-xs sm:max-w-2xl max-h-[80vh] overflow-y-auto mx-4">
           <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              {selectedChannel?.is_private ? <Lock size={20} className="text-gray-400" /> : <Globe size={20} className="text-gray-400" />}
-              <span>#{selectedChannel?.name}</span>
+            <DialogTitle className="flex items-center space-x-2 text-sm sm:text-base">
+              {selectedChannel?.is_private ? <Lock size={16} className="text-gray-400" /> : <Globe size={16} className="text-gray-400" />}
+              <span className="break-words">#{selectedChannel?.name}</span>
             </DialogTitle>
-            <DialogDescription className="text-gray-300">
+            <DialogDescription className="text-gray-300 text-xs sm:text-sm">
               Complete channel information from Slack API
             </DialogDescription>
           </DialogHeader>
           
           {selectedChannel && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <h4 className="font-medium text-white mb-2">Basic Info</h4>
-                  <div className="space-y-2 text-sm">
-                    <div><span className="text-gray-400">ID:</span> <span className="text-gray-200">{selectedChannel.id}</span></div>
-                    <div><span className="text-gray-400">Name:</span> <span className="text-gray-200">#{selectedChannel.name}</span></div>
+                  <h4 className="font-medium text-white mb-2 text-sm">Basic Info</h4>
+                  <div className="space-y-2 text-xs">
+                    <div><span className="text-gray-400">ID:</span> <span className="text-gray-200 break-all">{selectedChannel.id}</span></div>
+                    <div><span className="text-gray-400">Name:</span> <span className="text-gray-200 break-words">#{selectedChannel.name}</span></div>
                     <div><span className="text-gray-400">Type:</span> <span className="text-gray-200">{selectedChannel.is_private ? 'Private' : 'Public'} Channel</span></div>
                     <div><span className="text-gray-400">Members:</span> <span className="text-gray-200">{selectedChannel.num_members || 'Unknown'}</span></div>
                   </div>
                 </div>
                 
                 <div>
-                  <h4 className="font-medium text-white mb-2">Membership</h4>
-                  <div className="space-y-2 text-sm">
+                  <h4 className="font-medium text-white mb-2 text-sm">Membership</h4>
+                  <div className="space-y-2 text-xs">
                     <div>
                       <span className="text-gray-400">Member Status:</span> 
-                      <Badge className={`ml-2 ${selectedChannel.is_member ? 'bg-green-600' : 'bg-red-600'}`}>
+                      <Badge className={`ml-2 text-xs ${selectedChannel.is_member ? 'bg-green-600' : 'bg-red-600'}`}>
                         {selectedChannel.is_member ? 'Member' : 'Not Member'}
                       </Badge>
                     </div>
@@ -646,8 +658,8 @@ const DataPage = () => {
 
               {selectedChannel.purpose && (
                 <div>
-                  <h4 className="font-medium text-white mb-2">Purpose</h4>
-                  <p className="text-gray-200 text-sm bg-gray-900 p-3 rounded border border-gray-600">
+                  <h4 className="font-medium text-white mb-2 text-sm">Purpose</h4>
+                  <p className="text-gray-200 text-xs bg-gray-900 p-3 rounded border border-gray-600 break-words">
                     {selectedChannel.purpose}
                   </p>
                 </div>
@@ -655,16 +667,16 @@ const DataPage = () => {
 
               {selectedChannel.topic && (
                 <div>
-                  <h4 className="font-medium text-white mb-2">Topic</h4>
-                  <p className="text-gray-200 text-sm bg-gray-900 p-3 rounded border border-gray-600">
+                  <h4 className="font-medium text-white mb-2 text-sm">Topic</h4>
+                  <p className="text-gray-200 text-xs bg-gray-900 p-3 rounded border border-gray-600 break-words">
                     {selectedChannel.topic}
                   </p>
                 </div>
               )}
 
               <div>
-                <h4 className="font-medium text-white mb-2">Raw Channel Data</h4>
-                <pre className="text-xs text-gray-300 bg-gray-900 p-3 rounded border border-gray-600 overflow-x-auto">
+                <h4 className="font-medium text-white mb-2 text-sm">Raw Channel Data</h4>
+                <pre className="text-xs text-gray-300 bg-gray-900 p-3 rounded border border-gray-600 overflow-x-auto whitespace-pre-wrap break-words">
                   {JSON.stringify(selectedChannel, null, 2)}
                 </pre>
               </div>
