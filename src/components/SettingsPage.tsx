@@ -158,22 +158,22 @@ const SettingsPage = () => {
   ];
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto bg-background">
       {/* Header */}
-      <div className="p-6 border-b border-gray-700">
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-gray-400 mt-1">Manage your account and integrations</p>
+      <div className="p-6 border-b border-border bg-card">
+        <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-1">Manage your account and integrations</p>
       </div>
 
       <div className="p-6 space-y-6">
         {/* Account Section */}
         <div>
-          <h2 className="text-lg font-medium mb-4">Account</h2>
+          <h2 className="text-lg font-medium mb-4 text-foreground">Account</h2>
           <div className="space-y-3">
-            <div className="flex justify-between items-center p-3 bg-gray-800 rounded-lg">
+            <div className="flex justify-between items-center p-3 bg-card rounded-lg border border-border">
               <div>
-                <p className="text-sm font-medium">Email</p>
-                <p className="text-sm text-gray-400">{user?.email}</p>
+                <p className="text-sm font-medium text-foreground">Email</p>
+                <p className="text-sm text-muted-foreground">{user?.email}</p>
               </div>
             </div>
             <Button 
@@ -186,26 +186,26 @@ const SettingsPage = () => {
           </div>
         </div>
 
-        <Separator className="bg-gray-700" />
+        <Separator />
 
         {/* Integrations Section */}
         <div>
-          <h2 className="text-lg font-medium mb-4 text-white">Integrations</h2>
+          <h2 className="text-lg font-medium mb-4 text-foreground">Integrations</h2>
           <div className="space-y-3">
             {integrationsItems.map((integration) => {
               const Icon = integration.icon;
               return (
                 <div
                   key={integration.id}
-                  className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700"
+                  className="flex items-center justify-between p-4 bg-card rounded-lg border border-border"
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-md bg-gray-700 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center">
                       <Icon size={20} className={integration.color} />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-white">{integration.name}</h3>
-                      <p className="text-xs text-gray-400">{integration.description}</p>
+                      <h3 className="text-sm font-medium text-foreground">{integration.name}</h3>
+                      <p className="text-xs text-muted-foreground">{integration.description}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
@@ -216,7 +216,6 @@ const SettingsPage = () => {
                           size="sm"
                           variant="outline"
                           onClick={() => handleDisconnect(integration.id)}
-                          className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white"
                         >
                           Disconnect
                         </Button>
@@ -228,7 +227,6 @@ const SettingsPage = () => {
                           size="sm"
                           onClick={() => handleConnect(integration.id as 'gmail' | 'calendar' | 'slack')}
                           disabled={loading}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           Connect
                         </Button>
@@ -241,19 +239,19 @@ const SettingsPage = () => {
           </div>
         </div>
 
-        <Separator className="bg-gray-700" />
+        <Separator />
 
         {/* Custom Instructions Section */}
         <div>
-          <h2 className="text-lg font-medium mb-4">Chief's Instructions</h2>
-          <p className="text-xs text-gray-400 mb-3">
+          <h2 className="text-lg font-medium mb-4 text-foreground">Chief's Instructions</h2>
+          <p className="text-xs text-muted-foreground mb-3">
                 Provide specific instructions to customize how Chief responds to you. For example, mention your role, preferences, or specific contexts you want Chief to consider.
               </p>
           <Textarea
                 placeholder="Enter your custom instructions here... For example: 'I'm a software engineer working on web applications. Please provide technical responses and focus on best practices. I prefer concise explanations with code examples.'"
                 value={customInstructions}
                 onChange={(e) => setCustomInstructions(e.target.value)}
-                className="min-h-[100px] bg-gray-900 border-gray-600 text-white placeholder-gray-400"
+                className="min-h-[100px] bg-background border-border text-foreground placeholder-muted-foreground"
               />
               <Button 
                 onClick={handleSaveInstructions}
@@ -265,19 +263,19 @@ const SettingsPage = () => {
           
         </div>
 
-        <Separator className="bg-gray-700" />
+        <Separator />
 
         {/* Voice Settings */}
         <div>
-          <h2 className="text-lg font-medium mb-4">Voice Settings</h2>
+          <h2 className="text-lg font-medium mb-4 text-foreground">Voice Settings</h2>
           <div className="space-y-3">
-            <div className="p-4 bg-gray-800 rounded-lg">
-              <p className="font-medium mb-2">Voice Speed</p>
-              <p className="text-sm text-gray-500">Coming soon...</p>
+            <div className="p-4 bg-card rounded-lg border border-border">
+              <p className="font-medium mb-2 text-foreground">Voice Speed</p>
+              <p className="text-sm text-muted-foreground">Coming soon...</p>
             </div>
-            <div className="p-4 bg-gray-800 rounded-lg">
-              <p className="font-medium mb-2">Auto-play Updates</p>
-              <p className="text-sm text-gray-500">Coming soon...</p>
+            <div className="p-4 bg-card rounded-lg border border-border">
+              <p className="font-medium mb-2 text-foreground">Auto-play Updates</p>
+              <p className="text-sm text-muted-foreground">Coming soon...</p>
             </div>
           </div>
         </div>
