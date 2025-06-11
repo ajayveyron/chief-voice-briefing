@@ -14,8 +14,8 @@ const Index = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
       </div>
     );
   }
@@ -40,7 +40,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col max-w-md mx-auto">
+    <div className="min-h-screen bg-black text-white flex flex-col max-w-md mx-auto">
       {/* Main content area */}
       <div className="flex-1 pb-16">
         {renderActiveTab()}
