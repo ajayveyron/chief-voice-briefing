@@ -43,7 +43,7 @@ function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequ
   const lowerMessage = userMessage.toLowerCase();
   
   // Check if this is an email sending request
-  const emailKeywords = ['send email', 'compose email', 'write email', 'mail to'];
+  const emailKeywords = ['send email', 'compose email', 'write email', 'mail to', 'email to'];
   if (!emailKeywords.some(keyword => lowerMessage.includes(keyword))) {
     return null;
   }
@@ -159,19 +159,30 @@ function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequ
 function extractCalendarEvent(userMessage: string): CalendarEvent | null {
   const lowerMessage = userMessage.toLowerCase();
   
-  // Check if this is a calendar-related request
-  const calendarKeywords = ['schedule meeting', 'create event', 'add to calendar', 'set up meeting', 'book meeting', 'schedule call', 'arrange meeting'];
+  // Check if this is a calendar-related request with improved patterns
+  const calendarKeywords = [
+    'schedule meeting', 'create event', 'add to calendar', 'set up meeting', 
+    'book meeting', 'schedule call', 'arrange meeting', 'schedule a meeting',
+    'create a meeting', 'plan a meeting', 'set a meeting', 'book a call',
+    'schedule an event', 'create an event', 'add event', 'new meeting',
+    'meeting at', 'call at', 'event at'
+  ];
+  
   if (!calendarKeywords.some(keyword => lowerMessage.includes(keyword))) {
     return null;
   }
 
-  // Extract event title
+  console.log('📅 Calendar event detected in message:', userMessage);
+
+  // Extract event title/subject with improved patterns
   let summary = '';
   const titlePatterns = [
-    /(?:meeting|event|call)\s+(?:about|for|with|titled)\s+["']?([^"'\n,]+)["']?/i,
-    /called\s+["']?([^"'\n,]+)["']?/i,
-    /titled\s+["']?([^"'\n,]+)["']?/i,
-    /meeting\s+["']?([^"'\n,]+)["']?/i
+    /subject\s+([^,\n]+)/i,
+    /title\s+([^,\n]+)/i,
+    /meeting\s+(?:about|for|on)\s+([^,\n]+)/i,
+    /(?:meeting|event|call)\s+titled?\s+([^,\n]+)/i,
+    /(?:meeting|event|call)\s+called\s+([^,\n]+)/i,
+    /(?:schedule|create)\s+(?:a\s+)?(?:meeting|event|call)\s+([^,\n]+?)(?:\s+(?:at|on|for))/i
   ];
   
   for (const pattern of titlePatterns) {
@@ -182,94 +193,96 @@ function extractCalendarEvent(userMessage: string): CalendarEvent | null {
     }
   }
   
+  // If no specific title found, look for common meeting patterns
   if (!summary) {
-    if (lowerMessage.includes('sync')) {
-      summary = 'Team Sync Meeting';
-    } else if (lowerMessage.includes('call')) {
-      summary = 'Phone Call';
+    if (lowerMessage.includes('catchup') || lowerMessage.includes('catch up')) {
+      summary = userMessage.match(/([^,\n]*(?:catchup|catch up)[^,\n]*)/i)?.[1]?.trim() || 'Catchup Meeting';
+    } else if (lowerMessage.includes('sync')) {
+      summary = 'Sync Meeting';
     } else if (lowerMessage.includes('standup')) {
-      summary = 'Daily Standup';
+      summary = 'Standup Meeting';
+    } else if (lowerMessage.includes('review')) {
+      summary = 'Review Meeting';
+    } else if (lowerMessage.includes('call')) {
+      summary = 'Call';
     } else {
       summary = 'Meeting';
     }
   }
 
-  // Extract date and time with better parsing
+  console.log('📝 Extracted meeting title:', summary);
+
+  // Parse date and time with better handling
   let startDate = new Date();
-  let endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Default 1 hour duration
   
-  // Look for time patterns
+  // Handle "today" explicitly
+  if (lowerMessage.includes('today')) {
+    startDate = new Date();
+  } else if (lowerMessage.includes('tomorrow')) {
+    startDate = new Date();
+    startDate.setDate(startDate.getDate() + 1);
+  } else if (lowerMessage.includes('monday')) {
+    startDate = getNextWeekday(1);
+  } else if (lowerMessage.includes('tuesday')) {
+    startDate = getNextWeekday(2);
+  } else if (lowerMessage.includes('wednesday')) {
+    startDate = getNextWeekday(3);
+  } else if (lowerMessage.includes('thursday')) {
+    startDate = getNextWeekday(4);
+  } else if (lowerMessage.includes('friday')) {
+    startDate = getNextWeekday(5);
+  }
+
+  // Extract time with improved patterns
   const timePatterns = [
-    /at\s+(\d+(?::\d+)?\s*(?:am|pm))/i,
-    /(\d+(?::\d+)?\s*(?:am|pm))/i
-  ];
-  
-  // Look for date patterns
-  const datePatterns = [
-    /(?:on\s+)?(\w+day)/i, // Monday, Tuesday, etc.
-    /(?:on\s+)?(\w+\s+\d+)/i, // January 15, etc.
-    /(today|tomorrow|next\s+week)/i,
-    /(this\s+\w+day)/i // this Monday, etc.
+    /(\d{1,2})\s*(?::|\.)\s*(\d{2})\s*(am|pm)/i,
+    /(\d{1,2})\s*(am|pm)/i,
+    /(\d{1,2})\s*(?::|\.)\s*(\d{2})/i,
+    /at\s+(\d{1,2})\s*(am|pm)/i
   ];
 
-  let timeMatch = null;
-  let dateMatch = null;
+  let hours = 14; // Default to 2 PM
+  let minutes = 0;
 
-  // Extract time
   for (const pattern of timePatterns) {
     const match = userMessage.match(pattern);
     if (match) {
-      timeMatch = match[1];
+      if (match[3] || match[2]) { // AM/PM format
+        hours = parseInt(match[1]);
+        minutes = match[2] && match[2] !== 'am' && match[2] !== 'pm' ? parseInt(match[2]) : 0;
+        const ampm = match[3] || match[2];
+        if (ampm.toLowerCase() === 'pm' && hours !== 12) {
+          hours += 12;
+        } else if (ampm.toLowerCase() === 'am' && hours === 12) {
+          hours = 0;
+        }
+      } else { // 24-hour format
+        hours = parseInt(match[1]);
+        minutes = match[2] ? parseInt(match[2]) : 0;
+      }
       break;
     }
   }
 
-  // Extract date
-  for (const pattern of datePatterns) {
-    const match = userMessage.match(pattern);
-    if (match) {
-      dateMatch = match[1];
-      break;
-    }
+  // Set the time
+  startDate.setHours(hours, minutes, 0, 0);
+  
+  console.log('⏰ Extracted meeting time:', startDate);
+
+  // If the time is in the past today, move to tomorrow
+  if (startDate < new Date() && lowerMessage.includes('today')) {
+    startDate.setDate(startDate.getDate() + 1);
   }
 
-  // Parse the extracted date and time
-  try {
-    if (dateMatch && timeMatch) {
-      // Combine date and time
-      const dateTimeStr = `${dateMatch} ${timeMatch}`;
-      startDate = new Date(dateTimeStr);
-    } else if (timeMatch) {
-      // Just time, assume today
-      const today = new Date();
-      const timeStr = `${today.toDateString()} ${timeMatch}`;
-      startDate = new Date(timeStr);
-    } else if (dateMatch) {
-      // Just date, assume a default time (e.g., 2 PM)
-      const dateTimeStr = `${dateMatch} 2:00 PM`;
-      startDate = new Date(dateTimeStr);
-    }
-    
-    // If the parsed date is in the past, move it to tomorrow
-    if (startDate < new Date()) {
-      startDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
-    }
-    
-    endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hour duration
-  } catch (e) {
-    console.error('Error parsing date/time:', e);
-    // Fallback to default times
-    startDate = new Date();
-    startDate.setHours(startDate.getHours() + 1); // 1 hour from now
-    endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-  }
+  // End time is 1 hour later by default
+  const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
 
-  // Extract attendees
-  const attendeePattern = /with\s+([^,]+?(?:\s+and\s+[^,]+)*)/i;
+  // Extract attendees (optional)
+  const attendeePattern = /with\s+([^,\n]+)/i;
   const attendeesMatch = userMessage.match(attendeePattern);
   let attendees: Array<{ email: string; displayName?: string }> = [];
   
-  if (attendeesMatch) {
+  if (attendeesMatch && !lowerMessage.includes('only me') && !lowerMessage.includes('just me')) {
     const names = attendeesMatch[1].split(/\s+(?:and|,)\s+/);
     attendees = names.map(name => ({
       email: `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
@@ -277,29 +290,34 @@ function extractCalendarEvent(userMessage: string): CalendarEvent | null {
     }));
   }
 
-  // Extract location
-  let location = '';
-  const locationPattern = /(?:at|in)\s+([^,\n]+)/i;
-  const locationMatch = userMessage.match(locationPattern);
-  if (locationMatch) {
-    location = locationMatch[1].trim();
-  }
-
-  return {
-    action: 'create',
+  const event = {
+    action: 'create' as const,
     summary,
-    description: `Meeting scheduled via Chief AI: ${userMessage}`,
+    description: `Meeting created via Chief AI assistant`,
     start: {
       dateTime: startDate.toISOString(),
-      timeZone: 'America/New_York' // Default timezone, could be made configurable
+      timeZone: 'Asia/Kolkata' // IST timezone
     },
     end: {
       dateTime: endDate.toISOString(),
-      timeZone: 'America/New_York'
+      timeZone: 'Asia/Kolkata'
     },
     attendees: attendees.length > 0 ? attendees : undefined,
-    location: location || undefined
+    location: undefined
   };
+
+  console.log('📅 Final calendar event object:', event);
+  return event;
+}
+
+// Helper function to get next weekday
+function getNextWeekday(targetDay: number): Date {
+  const today = new Date();
+  const currentDay = today.getDay();
+  const daysUntilTarget = (targetDay - currentDay + 7) % 7;
+  const targetDate = new Date(today);
+  targetDate.setDate(today.getDate() + (daysUntilTarget === 0 ? 7 : daysUntilTarget));
+  return targetDate;
 }
 
 // Function to fetch emails from the database
@@ -367,7 +385,35 @@ serve(async (req) => {
     }
 
     const { message, includeContext = true }: ChatRequest = await req.json();
-    console.log(`🤖 Chief AI chat for user: ${user.id}`);
+    console.log(`🤖 Chief AI chat for user: ${user.id}, message: ${message}`);
+
+    // Extract calendar event BEFORE calling OpenAI
+    const calendarEvent = extractCalendarEvent(message);
+    let calendarResult = null;
+    
+    if (calendarEvent) {
+      try {
+        console.log('📅 Creating calendar event:', calendarEvent);
+        
+        const { data: eventData, error: eventError } = await supabase.functions.invoke('manage-calendar', {
+          body: calendarEvent,
+          headers: {
+            Authorization: authHeader
+          }
+        });
+
+        if (eventError) {
+          console.error('Calendar event creation error:', eventError);
+          calendarResult = { success: false, error: eventError.message };
+        } else {
+          console.log('✅ Calendar event created successfully:', eventData);
+          calendarResult = { success: true, eventId: eventData?.data?.id };
+        }
+      } catch (error) {
+        console.error('Error calling manage-calendar function:', error);
+        calendarResult = { success: false, error: error.message };
+      }
+    }
 
     let context = {};
     let conversationHistory = '';
@@ -416,7 +462,8 @@ serve(async (req) => {
         recentUpdates: recentUpdates || [],
         pendingActions: actionItems || [],
         recentEmails,
-        upcomingEvents
+        upcomingEvents,
+        calendarEventCreated: calendarResult?.success ? 'Successfully created calendar event' : null
       };
     }
 
@@ -425,10 +472,11 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    const systemPrompt = `You are Chief, a highly capable personal assistant. You have access to the user's emails, calendar, and Slack messages. You can:
+    // Modify system prompt based on whether calendar event was created
+    let systemPrompt = `You are Chief, a highly capable personal assistant. You have access to the user's emails, calendar, and Slack messages. You can:
 
 1. Send emails with attachments and scheduling
-2. Create, update, and delete calendar events
+2. Create, update, and delete calendar events  
 3. Send Slack messages to users and channels
 4. Remember conversations and provide context-aware responses
 5. Suggest actionable items based on user's data
@@ -439,9 +487,15 @@ When the user asks you to:
 - Check emails: Provide a summary of recent emails
 - Check calendar: List upcoming events
 
-Always be helpful, proactive, and concise. When asked to schedule meetings or send emails, provide clear confirmations of what you're doing.
+Always be helpful, proactive, and concise.`;
 
-User message: ${message}`;
+    if (calendarResult?.success) {
+      systemPrompt += `\n\nIMPORTANT: You have successfully created a calendar event for the user. Confirm this in your response and provide details about the scheduled meeting.`;
+    } else if (calendarResult && !calendarResult.success) {
+      systemPrompt += `\n\nNote: There was an issue creating the calendar event: ${calendarResult.error}. Let the user know about this.`;
+    }
+
+    systemPrompt += `\n\nUser message: ${message}`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -492,34 +546,6 @@ User message: ${message}`;
       } catch (error) {
         console.error('Error calling send-email function:', error);
         emailResult = { success: false, error: error.message };
-      }
-    }
-
-    // Check if this is a calendar event request and extract details
-    const calendarEvent = extractCalendarEvent(message);
-    let calendarResult = null;
-    
-    if (calendarEvent) {
-      try {
-        console.log('📅 Creating calendar event:', calendarEvent);
-        
-        const { data: eventData, error: eventError } = await supabase.functions.invoke('manage-calendar', {
-          body: calendarEvent,
-          headers: {
-            Authorization: authHeader
-          }
-        });
-
-        if (eventError) {
-          console.error('Calendar event creation error:', eventError);
-          calendarResult = { success: false, error: eventError.message };
-        } else {
-          console.log('✅ Calendar event created successfully');
-          calendarResult = { success: true, eventId: eventData?.data?.id };
-        }
-      } catch (error) {
-        console.error('Error calling manage-calendar function:', error);
-        calendarResult = { success: false, error: error.message };
       }
     }
 
