@@ -14,7 +14,7 @@ interface EmailRequest {
 }
 
 interface CalendarEventRequest {
-  action: 'create' | 'update' | 'delete';
+  action: 'create' | 'update' | 'delete' | 'read';
   eventId?: string;
   summary: string;
   description?: string;
@@ -22,6 +22,9 @@ interface CalendarEventRequest {
   end: { dateTime: string; timeZone?: string };
   attendees?: Array<{ email: string; displayName?: string }>;
   location?: string;
+  maxResults?: number;
+  timeMin?: string;
+  timeMax?: string;
 }
 
 interface SlackMessageRequest {
@@ -83,10 +86,10 @@ export const useChiefActions = () => {
         throw error;
       }
 
-      console.log(`✅ Calendar event ${eventRequest.action} successful`);
+      console.log(`✅ Calendar ${eventRequest.action} successful`);
       toast({
         title: "Success",
-        description: `Calendar event ${eventRequest.action} successful`,
+        description: `Calendar ${eventRequest.action} successful`,
       });
       
       return data;
@@ -95,6 +98,40 @@ export const useChiefActions = () => {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : `Failed to ${eventRequest.action} calendar event`,
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  const readCalendarEvents = useCallback(async (options?: { maxResults?: number; timeMin?: string; timeMax?: string }) => {
+    try {
+      setLoading(true);
+      console.log('📅 Reading calendar events...');
+
+      const { data, error } = await supabase.functions.invoke('manage-calendar', {
+        body: {
+          action: 'read',
+          summary: '', // Required but not used for read
+          start: { dateTime: '' }, // Required but not used for read  
+          end: { dateTime: '' }, // Required but not used for read
+          ...options
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('✅ Calendar events retrieved successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ Error reading calendar events:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to read calendar events',
         variant: "destructive",
       });
       throw error;
@@ -170,6 +207,7 @@ export const useChiefActions = () => {
     loading,
     sendEmail,
     manageCalendarEvent,
+    readCalendarEvents,
     sendSlackMessage,
     chatWithChief
   };
