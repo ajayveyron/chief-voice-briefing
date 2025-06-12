@@ -38,33 +38,75 @@ interface CalendarEvent {
   location?: string;
 }
 
+interface Email {
+  id: string;
+  subject: string;
+  from: string;
+  snippet: string;
+  received_at: string;
+  is_read: boolean;
+}
+
+interface CalendarEventDB {
+  id: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time: string;
+  location?: string;
+  attendees?: Array<{ email: string; displayName?: string }>;
+}
+
+interface ConversationHistory {
+  message: string;
+  response: string;
+  created_at: string;
+}
+
+interface RecentUpdate {
+  source: string;
+  summary: string;
+  created_at: string;
+  action_suggestions?: string[];
+}
+
+interface ActionItem {
+  title: string;
+  description: string;
+  priority: number;
+  due_date?: string;
+}
+
 // Enhanced function to extract email details from AI response and user message
 function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequest | null {
   const lowerMessage = userMessage.toLowerCase();
   
-  // Check if this is an email sending request
-  const emailKeywords = ['send email', 'compose email', 'write email', 'mail to', 'email to'];
+  // Check if this is an email sending request with more comprehensive matching
+  const emailKeywords = [
+    'send email', 'compose email', 'write email', 'mail to', 'email to',
+    'draft an email', 'write a mail', 'send a note', 'shoot an email'
+  ];
+  
   if (!emailKeywords.some(keyword => lowerMessage.includes(keyword))) {
     return null;
   }
 
-  // Extract recipient email - look for email patterns
+  // Extract recipient email - improved regex for email patterns
   const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
   const emails = userMessage.match(emailRegex) || [];
   
-  // Extract recipient names (improved pattern matching)
+  // Extract recipient names with better pattern matching
   const namePatterns = [
-    /to\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
-    /email\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
-    /send\s+(?:to|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i
+    /(?:to|for|cc|bcc)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
+    /email(?:ing)?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
+    /send(?:ing)?\s+(?:to|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi
   ];
   
-  let recipientNames: string[] = [];
+  const foundNames = new Set<string>();
   for (const pattern of namePatterns) {
-    const matches = userMessage.match(pattern);
-    if (matches) {
-      recipientNames = matches[1].split(/\s+/);
-      break;
+    let match;
+    while ((match = pattern.exec(userMessage)) !== null) {
+      foundNames.add(match[1].trim());
     }
   }
 
@@ -72,21 +114,25 @@ function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequ
   let recipients: string[] = [];
   if (emails.length > 0) {
     recipients = emails;
-  } else if (recipientNames.length > 0) {
+  } else if (foundNames.size > 0) {
     // For demo purposes, we'll construct example emails
-    recipients = recipientNames.map(name => `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`);
+    recipients = Array.from(foundNames).map(name => 
+      `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`
+    );
   }
 
   if (recipients.length === 0) {
     return null;
   }
 
-  // Extract subject with improved pattern matching
+  // Extract subject with improved pattern matching and fallbacks
   let subject = '';
   const subjectPatterns = [
     /subject\s*[:]?\s*["']?([^"'\n]+)["']?/i,
     /about\s*[:]?\s*["']?([^"'\n]+)["']?/i,
-    /re\s*[:]?\s*["']?([^"'\n]+)["']?/i
+    /re\s*[:]?\s*["']?([^"'\n]+)["']?/i,
+    /title\s*[:]?\s*["']?([^"'\n]+)["']?/i,
+    /regarding\s*[:]?\s*["']?([^"'\n]+)["']?/i
   ];
   
   for (const pattern of subjectPatterns) {
@@ -107,8 +153,12 @@ function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequ
       subject = 'Follow-up Regarding Our Conversation';
     } else if (lowerMessage.includes('meeting') || lowerMessage.includes('call')) {
       subject = 'Meeting Request';
+    } else if (lowerMessage.includes('reminder')) {
+      subject = 'Friendly Reminder';
     } else {
-      subject = 'Important Message';
+      // Use first meaningful sentence as subject
+      const firstSentence = aiResponse.split('\n')[0].split('.')[0];
+      subject = firstSentence || 'Important Message';
     }
   }
 
@@ -118,7 +168,8 @@ function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequ
     /saying\s*[:]?\s*["']?([^"'\n]+)["']?/i,
     /content\s*[:]?\s*["']?([^"'\n]+)["']?/i,
     /message\s*[:]?\s*["']?([^"'\n]+)["']?/i,
-    /write\s*[:]?\s*["']?([^"'\n]+)["']?/i
+    /write\s*[:]?\s*["']?([^"'\n]+)["']?/i,
+    /body\s*[:]?\s*["']?([^"'\n]+)["']?/i
   ];
   
   for (const pattern of bodyPatterns) {
@@ -139,17 +190,21 @@ function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequ
                  lowerMessage.includes('rich text') || 
                  lowerMessage.includes('formatted');
 
-  // Check for scheduling requests
-  const scheduledForMatch = userMessage.match(/(schedule|send)\s+(?:for|on)\s+([^.,!?]+)/i);
+  // Check for scheduling requests with better date parsing
+  const scheduledForMatch = userMessage.match(/(?:schedule|send|deliver)\s+(?:for|on|at)\s+([^.,!?]+)/i);
   let scheduledFor = null;
   if (scheduledForMatch) {
-    scheduledFor = new Date(scheduledForMatch[2]).toISOString();
+    try {
+      scheduledFor = new Date(scheduledForMatch[2]).toISOString();
+    } catch (e) {
+      console.warn('Failed to parse scheduled date:', scheduledForMatch[2]);
+    }
   }
 
   return {
     to: recipients,
-    subject,
-    body,
+    subject: subject.substring(0, 200), // Limit subject length
+    body: body.substring(0, 10000), // Limit body length
     isHtml,
     scheduledFor
   };
@@ -159,13 +214,14 @@ function extractEmailDetails(userMessage: string, aiResponse: string): EmailRequ
 function extractCalendarEvent(userMessage: string): CalendarEvent | null {
   const lowerMessage = userMessage.toLowerCase();
   
-  // Check if this is a calendar-related request with improved patterns
+  // Comprehensive calendar-related request patterns
   const calendarKeywords = [
     'schedule meeting', 'create event', 'add to calendar', 'set up meeting', 
     'book meeting', 'schedule call', 'arrange meeting', 'schedule a meeting',
     'create a meeting', 'plan a meeting', 'set a meeting', 'book a call',
     'schedule an event', 'create an event', 'add event', 'new meeting',
-    'meeting at', 'call at', 'event at'
+    'meeting at', 'call at', 'event at', 'setup a call', 'organize meeting',
+    'plan a call', 'arrange a meeting', 'put on calendar', 'add to my schedule'
   ];
   
   if (!calendarKeywords.some(keyword => lowerMessage.includes(keyword))) {
@@ -177,12 +233,11 @@ function extractCalendarEvent(userMessage: string): CalendarEvent | null {
   // Extract event title/subject with improved patterns
   let summary = '';
   const titlePatterns = [
-    /subject\s+([^,\n]+)/i,
-    /title\s+([^,\n]+)/i,
-    /meeting\s+(?:about|for|on)\s+([^,\n]+)/i,
-    /(?:meeting|event|call)\s+titled?\s+([^,\n]+)/i,
-    /(?:meeting|event|call)\s+called\s+([^,\n]+)/i,
-    /(?:schedule|create)\s+(?:a\s+)?(?:meeting|event|call)\s+([^,\n]+?)(?:\s+(?:at|on|for))/i
+    /(?:subject|title)\s+([^,\n]+)/i,
+    /meeting\s+(?:about|for|on|regarding)\s+([^,\n]+)/i,
+    /(?:meeting|event|call)\s+(?:titled?|called)\s+([^,\n]+)/i,
+    /(?:schedule|create|set up)\s+(?:a\s+)?(?:meeting|event|call)\s+([^,\n]+?)(?:\s+(?:at|on|for))/i,
+    /for\s+([^,\n]+?)(?:\s+(?:meeting|call))/i
   ];
   
   for (const pattern of titlePatterns) {
@@ -205,8 +260,12 @@ function extractCalendarEvent(userMessage: string): CalendarEvent | null {
       summary = 'Review Meeting';
     } else if (lowerMessage.includes('call')) {
       summary = 'Call';
+    } else if (lowerMessage.includes('discussion')) {
+      summary = 'Discussion';
     } else {
-      summary = 'Meeting';
+      // Use first meaningful phrase as summary
+      const firstPhrase = userMessage.split(/[.,!?]/)[0];
+      summary = firstPhrase.length > 10 ? firstPhrase : 'Meeting';
     }
   }
 
@@ -215,12 +274,15 @@ function extractCalendarEvent(userMessage: string): CalendarEvent | null {
   // Parse date and time with better handling
   let startDate = new Date();
   
-  // Handle "today" explicitly
+  // Handle relative dates
   if (lowerMessage.includes('today')) {
     startDate = new Date();
   } else if (lowerMessage.includes('tomorrow')) {
     startDate = new Date();
     startDate.setDate(startDate.getDate() + 1);
+  } else if (lowerMessage.includes('next week')) {
+    startDate = new Date();
+    startDate.setDate(startDate.getDate() + 7 - startDate.getDay());
   } else if (lowerMessage.includes('monday')) {
     startDate = getNextWeekday(1);
   } else if (lowerMessage.includes('tuesday')) {
@@ -231,6 +293,10 @@ function extractCalendarEvent(userMessage: string): CalendarEvent | null {
     startDate = getNextWeekday(4);
   } else if (lowerMessage.includes('friday')) {
     startDate = getNextWeekday(5);
+  } else if (lowerMessage.includes('saturday')) {
+    startDate = getNextWeekday(6);
+  } else if (lowerMessage.includes('sunday')) {
+    startDate = getNextWeekday(0);
   }
 
   // Extract time with improved patterns
@@ -238,7 +304,8 @@ function extractCalendarEvent(userMessage: string): CalendarEvent | null {
     /(\d{1,2})\s*(?::|\.)\s*(\d{2})\s*(am|pm)/i,
     /(\d{1,2})\s*(am|pm)/i,
     /(\d{1,2})\s*(?::|\.)\s*(\d{2})/i,
-    /at\s+(\d{1,2})\s*(am|pm)/i
+    /at\s+(\d{1,2})\s*(?:o'clock)?\s*(am|pm)?/i,
+    /(\d{1,2})(?::(\d{2}))?\s*(?:hrs|hours?)?\s*(am|pm)?/i
   ];
 
   let hours = 14; // Default to 2 PM
@@ -247,18 +314,17 @@ function extractCalendarEvent(userMessage: string): CalendarEvent | null {
   for (const pattern of timePatterns) {
     const match = userMessage.match(pattern);
     if (match) {
-      if (match[3] || match[2]) { // AM/PM format
-        hours = parseInt(match[1]);
-        minutes = match[2] && match[2] !== 'am' && match[2] !== 'pm' ? parseInt(match[2]) : 0;
-        const ampm = match[3] || match[2];
-        if (ampm.toLowerCase() === 'pm' && hours !== 12) {
+      hours = parseInt(match[1]);
+      minutes = match[2] ? parseInt(match[2]) : 0;
+      
+      // Handle AM/PM if present
+      if (match[3] || match[2]?.toLowerCase?.() === 'am' || match[2]?.toLowerCase?.() === 'pm') {
+        const ampm = (match[3] || match[2]).toLowerCase();
+        if (ampm === 'pm' && hours !== 12) {
           hours += 12;
-        } else if (ampm.toLowerCase() === 'am' && hours === 12) {
+        } else if (ampm === 'am' && hours === 12) {
           hours = 0;
         }
-      } else { // 24-hour format
-        hours = parseInt(match[1]);
-        minutes = match[2] ? parseInt(match[2]) : 0;
       }
       break;
     }
@@ -269,31 +335,60 @@ function extractCalendarEvent(userMessage: string): CalendarEvent | null {
   
   console.log('⏰ Extracted meeting time:', startDate);
 
-  // If the time is in the past today, move to tomorrow
-  if (startDate < new Date() && lowerMessage.includes('today')) {
+  // If the time is in the past today, move to tomorrow (unless it's explicitly for today)
+  if (startDate < new Date() && !lowerMessage.includes('today')) {
     startDate.setDate(startDate.getDate() + 1);
   }
 
-  // End time is 1 hour later by default
-  const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+  // Calculate end time (default 1 hour, but check for duration mentions)
+  let durationMinutes = 60;
+  const durationMatch = userMessage.match(/(\d+)\s*(?:min|minutes?|hr|hours?)/i);
+  if (durationMatch) {
+    const num = parseInt(durationMatch[1]);
+    if (durationMatch[0].toLowerCase().includes('hour') || 
+        durationMatch[0].toLowerCase().includes('hr')) {
+      durationMinutes = num * 60;
+    } else {
+      durationMinutes = num;
+    }
+  }
+
+  const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
 
   // Extract attendees (optional)
-  const attendeePattern = /with\s+([^,\n]+)/i;
-  const attendeesMatch = userMessage.match(attendeePattern);
+  const attendeePatterns = [
+    /with\s+([^,\n]+)/i,
+    /(?:invite|include|add)\s+([^,\n]+)/i,
+    /(?:participants|attendees)\s*[:]?\s*([^,\n]+)/i
+  ];
+  
   let attendees: Array<{ email: string; displayName?: string }> = [];
   
-  if (attendeesMatch && !lowerMessage.includes('only me') && !lowerMessage.includes('just me')) {
-    const names = attendeesMatch[1].split(/\s+(?:and|,)\s+/);
-    attendees = names.map(name => ({
-      email: `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-      displayName: name.trim()
-    }));
+  for (const pattern of attendeePatterns) {
+    const match = userMessage.match(pattern);
+    if (match && !lowerMessage.includes('only me') && !lowerMessage.includes('just me')) {
+      const names = match[1].split(/\s+(?:and|,)\s+/);
+      attendees = names.map(name => ({
+        email: `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+        displayName: name.trim()
+      }));
+      break;
+    }
+  }
+
+  // Extract location if mentioned
+  let location: string | undefined;
+  const locationMatch = userMessage.match(/(?:at|in|location)\s+([^,\n]+)/i);
+  if (locationMatch) {
+    location = locationMatch[1].trim();
+    // Remove trailing punctuation
+    location = location.replace(/[.,!?]$/, '');
   }
 
   const event = {
     action: 'create' as const,
-    summary,
-    description: `Meeting created via Chief AI assistant`,
+    summary: summary.substring(0, 200), // Limit summary length
+    description: `Meeting created via Chief AI assistant based on: "${userMessage.substring(0, 200)}"`,
     start: {
       dateTime: startDate.toISOString(),
       timeZone: 'Asia/Kolkata' // IST timezone
@@ -303,7 +398,7 @@ function extractCalendarEvent(userMessage: string): CalendarEvent | null {
       timeZone: 'Asia/Kolkata'
     },
     attendees: attendees.length > 0 ? attendees : undefined,
-    location: undefined
+    location
   };
 
   console.log('📅 Final calendar event object:', event);
@@ -321,7 +416,7 @@ function getNextWeekday(targetDay: number): Date {
 }
 
 // Function to fetch emails from the database
-async function fetchEmails(supabase: any, userId: string, limit = 10) {
+async function fetchEmails(supabase: any, userId: string, limit = 10): Promise<Email[]> {
   const { data, error } = await supabase
     .from('user_emails')
     .select('id, subject, from, snippet, received_at, is_read')
@@ -338,7 +433,7 @@ async function fetchEmails(supabase: any, userId: string, limit = 10) {
 }
 
 // Function to fetch calendar events from the database
-async function fetchCalendarEvents(supabase: any, userId: string, days = 7) {
+async function fetchCalendarEvents(supabase: any, userId: string, days = 7): Promise<CalendarEventDB[]> {
   const now = new Date();
   const futureDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
   
@@ -356,6 +451,60 @@ async function fetchCalendarEvents(supabase: any, userId: string, days = 7) {
   }
   
   return data || [];
+}
+
+// Function to format context for AI prompt
+function formatContext(
+  recentEmails: Email[],
+  upcomingEvents: CalendarEventDB[],
+  recentUpdates: RecentUpdate[],
+  pendingActions: ActionItem[],
+  conversationHistory: string
+): string {
+  let contextStr = '';
+
+  if (conversationHistory) {
+    contextStr += `\n\n=== Previous Conversation ===\n${conversationHistory}`;
+  }
+
+  if (recentEmails.length > 0) {
+    contextStr += '\n\n=== Recent Emails ===';
+    recentEmails.forEach(email => {
+      contextStr += `\n- From: ${email.from}, Subject: ${email.subject}`;
+      if (email.snippet) {
+        contextStr += `, Snippet: ${email.snippet.substring(0, 100)}...`;
+      }
+    });
+  }
+
+  if (upcomingEvents.length > 0) {
+    contextStr += '\n\n=== Upcoming Events ===';
+    upcomingEvents.forEach(event => {
+      contextStr += `\n- ${event.title} (${new Date(event.start_time).toLocaleString()})`;
+      if (event.location) {
+        contextStr += `, Location: ${event.location}`;
+      }
+    });
+  }
+
+  if (recentUpdates.length > 0) {
+    contextStr += '\n\n=== Recent Updates ===';
+    recentUpdates.forEach(update => {
+      contextStr += `\n- ${update.source}: ${update.summary}`;
+    });
+  }
+
+  if (pendingActions.length > 0) {
+    contextStr += '\n\n=== Pending Actions ===';
+    pendingActions.forEach(action => {
+      contextStr += `\n- ${action.title} (Priority: ${action.priority})`;
+      if (action.due_date) {
+        contextStr += `, Due: ${new Date(action.due_date).toLocaleDateString()}`;
+      }
+    });
+  }
+
+  return contextStr;
 }
 
 serve(async (req) => {
@@ -472,30 +621,47 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    // Modify system prompt based on whether calendar event was created
-    let systemPrompt = `You are Chief, a highly capable personal assistant. You have access to the user's emails, calendar, and Slack messages. You can:
+    // Enhanced system prompt with better instructions
+    let systemPrompt = `You are Chief, a highly capable personal assistant. You have access to the user's emails, calendar, and other productivity tools. Your role is to:
 
-1. Send emails with attachments and scheduling
-2. Create, update, and delete calendar events  
-3. Send Slack messages to users and channels
-4. Remember conversations and provide context-aware responses
-5. Suggest actionable items based on user's data
+1. Understand and fulfill user requests efficiently
+2. Provide context-aware responses
+3. Handle email and calendar management
+4. Be proactive in suggesting actions
+5. Maintain a professional yet friendly tone
 
-When the user asks you to:
-- Send an email: Confirm the recipient, subject, and content before sending
-- Schedule a meeting: Confirm the title, time, and attendees
-- Check emails: Provide a summary of recent emails
-- Check calendar: List upcoming events
+When handling requests:
+- For emails: Confirm details before sending
+- For meetings: Verify time, attendees, and purpose
+- For information: Provide concise, accurate answers
+- For tasks: Offer to create reminders or action items
 
-Always be helpful, proactive, and concise.`;
+Current time: ${new Date().toLocaleString()}`;
 
     if (calendarResult?.success) {
-      systemPrompt += `\n\nIMPORTANT: You have successfully created a calendar event for the user. Confirm this in your response and provide details about the scheduled meeting.`;
+      systemPrompt += `\n\nNOTE: You successfully created a calendar event titled "${calendarEvent?.summary}"`;
+      if (calendarEvent?.start?.dateTime) {
+        const startTime = new Date(calendarEvent.start.dateTime);
+        systemPrompt += ` scheduled for ${startTime.toLocaleString()}`;
+      }
     } else if (calendarResult && !calendarResult.success) {
-      systemPrompt += `\n\nNote: There was an issue creating the calendar event: ${calendarResult.error}. Let the user know about this.`;
+      systemPrompt += `\n\nNOTE: Failed to create calendar event: ${calendarResult.error}`;
     }
 
-    systemPrompt += `\n\nUser message: ${message}`;
+    // Format context information
+    const contextInfo = includeContext ? formatContext(
+      context.recentEmails,
+      context.upcomingEvents,
+      context.recentUpdates,
+      context.pendingActions,
+      context.conversationHistory
+    ) : '';
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...(includeContext && contextInfo ? [{ role: 'assistant', content: `Context:${contextInfo}` }] : []),
+      { role: 'user', content: message }
+    ];
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -505,17 +671,14 @@ Always be helpful, proactive, and concise.`;
       },
       body: JSON.stringify({
         model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
-        ],
-        max_tokens: 1000,
+        messages,
+        max_tokens: 1500,
         temperature: 0.7,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -556,7 +719,7 @@ Always be helpful, proactive, and concise.`;
         user_id: user.id,
         message,
         response: aiResponse,
-        context: includeContext ? {} : null
+        context: includeContext ? context : null
       });
 
     if (historyError) {
@@ -572,18 +735,29 @@ Always be helpful, proactive, and concise.`;
         emailDetails: emailDetails,
         calendarEventCreated: calendarResult,
         calendarEventDetails: calendarEvent,
-        context: includeContext ? {} : null
+        context: includeContext ? context : null
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
     );
 
   } catch (error) {
     console.error('❌ Error in Chief AI chat:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        stack: Deno.env.get('DENO_ENV') === 'development' ? error.stack : undefined 
+      }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        },
       },
     );
   }
