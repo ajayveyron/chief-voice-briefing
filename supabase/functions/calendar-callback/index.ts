@@ -1,284 +1,204 @@
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
-}
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    console.log('Calendar callback function invoked')
+    console.log('Calendar callback function invoked');
     
-    const url = new URL(req.url)
-    const code = url.searchParams.get('code')
-    const state = url.searchParams.get('state')
-    const error = url.searchParams.get('error')
+    const url = new URL(req.url);
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
+    const error = url.searchParams.get('error');
 
-    console.log('Callback parameters:', { code: !!code, state: !!state, error })
+    console.log('Callback parameters:', { 
+      code: code ? 'present' : 'missing', 
+      state: state ? 'present' : 'missing', 
+      error: error || 'none' 
+    });
 
-    // Use the actual frontend URL from environment or fallback to Lovable preview URL
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://chief-voice-briefing.lovable.app'
+    // Get frontend URL from environment with fallback
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://chief-voice-briefing.lovable.app';
+    const redirectToFrontend = (path: string) => {
+      const redirectUrl = new URL(path, frontendUrl);
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl.toString() 
+        }
+      });
+    };
 
+    // Handle OAuth errors from Google
     if (error) {
-      console.error('OAuth error from Google:', error)
-      const redirectUrl = `${frontendUrl}/?error=oauth_error`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      console.error('OAuth error from Google:', error);
+      return redirectToFrontend(`/?error=oauth_error&details=${encodeURIComponent(error)}`);
     }
 
+    // Validate required parameters
     if (!code || !state) {
-      console.error('Missing required parameters:', { code: !!code, state: !!state })
-      const redirectUrl = `${frontendUrl}/?error=missing_params`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      console.error('Missing required parameters');
+      return redirectToFrontend('/?error=missing_params');
     }
 
-    // Get environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
-    const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
-    
-    console.log('Environment check:', { 
-      supabaseUrl: !!supabaseUrl, 
-      serviceRoleKey: !!serviceRoleKey,
-      clientId: !!clientId,
-      clientSecret: !!clientSecret
-    })
+    // Validate environment variables
+    const requiredEnvVars = {
+      'SUPABASE_URL': Deno.env.get('SUPABASE_URL'),
+      'SUPABASE_SERVICE_ROLE_KEY': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+      'GOOGLE_CLIENT_ID': Deno.env.get('GOOGLE_CLIENT_ID'),
+      'GOOGLE_CLIENT_SECRET': Deno.env.get('GOOGLE_CLIENT_SECRET')
+    };
 
-    if (!supabaseUrl || !serviceRoleKey || !clientId || !clientSecret) {
-      console.error('Missing environment variables')
-      const redirectUrl = `${frontendUrl}/?error=config_error`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+    for (const [name, value] of Object.entries(requiredEnvVars)) {
+      if (!value) {
+        console.error(`Missing environment variable: ${name}`);
+        return redirectToFrontend('/?error=config_error');
+      }
     }
 
-    // Create Supabase admin client with service role key (bypasses RLS)
-    console.log('Creating Supabase admin client')
-    const supabase = createClient(supabaseUrl, serviceRoleKey)
+    // Create Supabase admin client
+    const supabase = createClient(
+      requiredEnvVars['SUPABASE_URL']!,
+      requiredEnvVars['SUPABASE_SERVICE_ROLE_KEY']!,
+      {
+        auth: {
+          persistSession: false
+        }
+      }
+    );
 
-    // Verify state token using admin client
-    console.log('Looking up OAuth state:', state)
+    // Verify state token
+    console.log('Looking up OAuth state:', state);
     const { data: oauthState, error: stateError } = await supabase
       .from('oauth_states')
       .select('*')
       .eq('state_token', state)
       .eq('integration_type', 'calendar')
-      .single()
+      .single();
 
-    if (stateError) {
-      console.error('Error looking up OAuth state:', stateError)
-      const redirectUrl = `${frontendUrl}/?error=invalid_state`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+    if (stateError || !oauthState) {
+      console.error('Invalid state token:', stateError?.message || 'State not found');
+      return redirectToFrontend('/?error=invalid_state');
     }
 
-    if (!oauthState) {
-      console.error('Invalid state token:', state)
-      const redirectUrl = `${frontendUrl}/?error=invalid_state`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
-    }
+    console.log('OAuth state found for user:', oauthState.user_id);
 
-    console.log('OAuth state found for user:', oauthState.user_id)
+    // Exchange authorization code for tokens
+    console.log('Exchanging code for tokens');
+    const tokenParams = new URLSearchParams({
+      client_id: requiredEnvVars['GOOGLE_CLIENT_ID']!,
+      client_secret: requiredEnvVars['GOOGLE_CLIENT_SECRET']!,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: oauthState.redirect_uri || ''
+    });
 
-    // Exchange code for tokens
-    console.log('Exchanging code for tokens')
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-        grant_type: 'authorization_code',
-        redirect_uri: oauthState.redirect_uri || ''
-      })
-    })
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenParams
+    });
 
     if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text()
-      console.error('Token exchange failed:', errorText)
-      const redirectUrl = `${frontendUrl}/?error=token_exchange_failed`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      const errorText = await tokenResponse.text();
+      console.error('Token exchange failed:', tokenResponse.status, errorText);
+      return redirectToFrontend('/?error=token_exchange_failed');
     }
 
-    const tokens = await tokenResponse.json()
-    console.log('Token exchange response:', { 
-      success: !tokens.error, 
-      hasAccessToken: !!tokens.access_token,
-      hasRefreshToken: !!tokens.refresh_token,
+    const tokens = await tokenResponse.json();
+    console.log('Token exchange successful:', { 
       tokenType: tokens.token_type,
-      expiresIn: tokens.expires_in
-    })
+      expiresIn: tokens.expires_in 
+    });
 
-    if (tokens.error) {
-      console.error('OAuth token error:', tokens.error, tokens.error_description)
-      const redirectUrl = `${frontendUrl}/?error=token_error`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+    // Verify we got required tokens
+    if (!tokens.access_token) {
+      console.error('Missing access token in response');
+      return redirectToFrontend('/?error=missing_access_token');
     }
 
-    // Test Calendar API access with the new token
-    console.log('Testing Calendar API access with token:', tokens.access_token?.substring(0, 20) + '...')
+    // Test Calendar API access
+    console.log('Testing Calendar API access');
     const calendarTestResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
       headers: {
         'Authorization': `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json'
+        'Accept': 'application/json'
       }
-    })
+    });
 
     if (!calendarTestResponse.ok) {
-      const errorText = await calendarTestResponse.text()
-      console.error('Calendar API test failed:', calendarTestResponse.status, errorText)
-      const redirectUrl = `${frontendUrl}/?error=calendar_api_failed`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      const errorText = await calendarTestResponse.text();
+      console.error('Calendar API test failed:', calendarTestResponse.status, errorText);
+      return redirectToFrontend('/?error=calendar_api_failed');
     }
 
-    const calendarData = await calendarTestResponse.json()
-    console.log('Calendar API test successful, calendars found:', calendarData.items?.length || 0)
+    const calendarData = await calendarTestResponse.json();
+    console.log('Calendar API test successful. Calendars found:', calendarData.items?.length || 0);
 
-    // Store integration using admin client with better error handling
-    console.log('Storing integration for user:', oauthState.user_id)
-    const { data: existingIntegration, error: checkError } = await supabase
+    // Prepare integration data
+    const integrationData = {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token || null,
+      token_expires_at: new Date(Date.now() + (tokens.expires_in * 1000)).toISOString(),
+      is_active: true,
+      updated_at: new Date().toISOString(),
+      metadata: {
+        calendar_count: calendarData.items?.length || 0,
+        primary_calendar: calendarData.items?.find((c: any) => c.primary)?.id || null
+      }
+    };
+
+    // Upsert integration record
+    console.log('Storing integration for user:', oauthState.user_id);
+    const { error: upsertError } = await supabase
       .from('user_integrations')
-      .select('*')
-      .eq('user_id', oauthState.user_id)
-      .eq('integration_type', 'calendar')
-      .single()
+      .upsert({
+        user_id: oauthState.user_id,
+        integration_type: 'calendar',
+        ...integrationData
+      }, {
+        onConflict: 'user_id,integration_type'
+      });
 
-    let insertError = null
-    
-    if (existingIntegration) {
-      // Update existing integration
-      const { error: updateError } = await supabase
-        .from('user_integrations')
-        .update({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-          is_active: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', oauthState.user_id)
-        .eq('integration_type', 'calendar')
-      
-      insertError = updateError
-    } else {
-      // Insert new integration
-      const { error: createError } = await supabase
-        .from('user_integrations')
-        .insert({
-          user_id: oauthState.user_id,
-          integration_type: 'calendar',
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-          is_active: true
-        })
-      
-      insertError = createError
+    if (upsertError) {
+      console.error('Error storing integration:', upsertError);
+      return redirectToFrontend('/?error=storage_error');
     }
 
-    if (insertError) {
-      console.error('Error storing integration:', insertError)
-      const redirectUrl = `${frontendUrl}/?error=storage_error`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
-    }
-
-    console.log('Integration stored successfully')
-
-    // Clean up state using admin client
-    console.log('Cleaning up OAuth state')
-    const { error: deleteError } = await supabase
+    // Clean up state
+    console.log('Cleaning up OAuth state');
+    await supabase
       .from('oauth_states')
       .delete()
       .eq('id', oauthState.id)
+      .then(({ error }) => {
+        if (error) console.error('Cleanup error (non-critical):', error);
+      });
 
-    if (deleteError) {
-      console.error('Error cleaning up state:', deleteError)
-      // Don't fail the request for cleanup errors
-    }
+    // Successful completion
+    console.log('Calendar integration completed successfully');
+    return redirectToFrontend('/?connected=calendar');
 
-    // Redirect back to home page with success message
-    const redirectUrl = `${frontendUrl}/?connected=calendar`
-    
-    console.log('Redirecting to:', redirectUrl)
-    return new Response(null, {
-      status: 302,
-      headers: { 
-        ...corsHeaders,
-        Location: redirectUrl 
-      }
-    })
   } catch (error) {
-    console.error('Unexpected error in calendar-callback:', error)
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://chief-voice-briefing.lovable.app'
-    const redirectUrl = `${frontendUrl}/?error=unexpected_error`
+    console.error('Unexpected error in calendar-callback:', error);
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://chief-voice-briefing.lovable.app';
     return new Response(null, {
       status: 302,
       headers: { 
         ...corsHeaders,
-        Location: redirectUrl 
+        Location: `${frontendUrl}/?error=unexpected_error`
       }
-    })
+    });
   }
-})
+});
