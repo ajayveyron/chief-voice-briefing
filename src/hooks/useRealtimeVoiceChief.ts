@@ -32,7 +32,7 @@ export const useRealtimeVoiceChief = () => {
       playerRef.current = new RealtimeAudioPlayer();
 
       // Connect to WebSocket - using the correct Supabase function URL
-      const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}/functions/v1/realtime-voice-chief`;
+      const wsUrl = `wss://xxccvppbxnhowncdhvdi.supabase.co/functions/v1/realtime-voice-chief`;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = async () => {
