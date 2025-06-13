@@ -28,8 +28,7 @@ serve(async (req) => {
     });
 
     // Get frontend URL from environment with fallback
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://chief-voice-briefing.lovable.app';
-    const redirectToFrontend = (path: string) => {
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app';    const redirectToFrontend = (path: string) => {
       const redirectUrl = new URL(path, frontendUrl);
       return new Response(null, {
         status: 302,
