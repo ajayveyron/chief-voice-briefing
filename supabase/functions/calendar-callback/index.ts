@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -23,8 +24,8 @@ serve(async (req) => {
 
     console.log('Callback parameters:', { code: !!code, state: !!state, error })
 
-    // Determine the correct frontend URL
-    const frontendUrl = 'https://xxccvppbxnhowncdhvdi.supabase.co'
+    // Use the actual frontend URL from environment or fallback to Lovable preview URL
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://chief-voice-briefing.lovable.app'
 
     if (error) {
       console.error('OAuth error from Google:', error)
@@ -189,16 +190,47 @@ serve(async (req) => {
     const calendarData = await calendarTestResponse.json()
     console.log('Calendar API test successful, calendars found:', calendarData.items?.length || 0)
 
-    // Store integration using admin client
+    // Store integration using admin client with better error handling
     console.log('Storing integration for user:', oauthState.user_id)
-    const { error: insertError } = await supabase.from('user_integrations').upsert({
-      user_id: oauthState.user_id,
-      integration_type: 'calendar',
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-      is_active: true
-    })
+    const { data: existingIntegration, error: checkError } = await supabase
+      .from('user_integrations')
+      .select('*')
+      .eq('user_id', oauthState.user_id)
+      .eq('integration_type', 'calendar')
+      .single()
+
+    let insertError = null
+    
+    if (existingIntegration) {
+      // Update existing integration
+      const { error: updateError } = await supabase
+        .from('user_integrations')
+        .update({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+          is_active: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', oauthState.user_id)
+        .eq('integration_type', 'calendar')
+      
+      insertError = updateError
+    } else {
+      // Insert new integration
+      const { error: createError } = await supabase
+        .from('user_integrations')
+        .insert({
+          user_id: oauthState.user_id,
+          integration_type: 'calendar',
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+          is_active: true
+        })
+      
+      insertError = createError
+    }
 
     if (insertError) {
       console.error('Error storing integration:', insertError)
@@ -239,7 +271,7 @@ serve(async (req) => {
     })
   } catch (error) {
     console.error('Unexpected error in calendar-callback:', error)
-    const frontendUrl = 'https://xxccvppbxnhowncdhvdi.supabase.co'
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://chief-voice-briefing.lovable.app'
     const redirectUrl = `${frontendUrl}/?error=unexpected_error`
     return new Response(null, {
       status: 302,
