@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -34,7 +33,7 @@ serve(async (req) => {
     if (error) {
       console.error('OAuth error from Slack:', error)
       const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?tab=settings&error=oauth_error`
+      const redirectUrl = `${frontendUrl}?error=oauth_error`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -47,7 +46,7 @@ serve(async (req) => {
     if (!code || !state) {
       console.error('Missing required parameters:', { hasCode: !!code, hasState: !!state })
       const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?tab=settings&error=missing_params`
+      const redirectUrl = `${frontendUrl}?error=missing_params`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -79,7 +78,7 @@ serve(async (req) => {
         SLACK_CLIENT_SECRET: !!clientSecret
       })
       const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?tab=settings&error=config_error`
+      const redirectUrl = `${frontendUrl}?error=config_error`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -110,7 +109,7 @@ serve(async (req) => {
     if (stateError) {
       console.error('Error looking up OAuth state:', stateError)
       const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
+      const redirectUrl = `${frontendUrl}?error=invalid_state`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -123,7 +122,7 @@ serve(async (req) => {
     if (!oauthState) {
       console.error('Invalid state token - no matching record found:', state)
       const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?tab=settings&error=invalid_state`
+      const redirectUrl = `${frontendUrl}?error=invalid_state`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -154,7 +153,7 @@ serve(async (req) => {
       const errorText = await tokenResponse.text()
       console.error('Token exchange failed:', tokenResponse.status, errorText)
       const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?tab=settings&error=token_exchange_failed`
+      const redirectUrl = `${frontendUrl}?error=token_exchange_failed`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -175,7 +174,7 @@ serve(async (req) => {
     if (!tokens.ok || tokens.error) {
       console.error('Slack OAuth token error:', tokens.error)
       const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?tab=settings&error=token_error`
+      const redirectUrl = `${frontendUrl}?error=token_error`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -198,7 +197,7 @@ serve(async (req) => {
       const errorText = await slackTestResponse.text()
       console.error('Slack API test failed:', slackTestResponse.status, errorText)
       const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?tab=settings&error=slack_api_failed`
+      const redirectUrl = `${frontendUrl}?error=slack_api_failed`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -241,7 +240,7 @@ serve(async (req) => {
       if (updateError) {
         console.error('Error updating integration:', updateError)
         const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-        const redirectUrl = `${frontendUrl}?tab=settings&error=storage_error`
+        const redirectUrl = `${frontendUrl}?error=storage_error`
         return new Response(null, {
           status: 302,
           headers: { 
@@ -270,7 +269,7 @@ serve(async (req) => {
       if (insertError) {
         console.error('Error creating integration:', insertError)
         const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-        const redirectUrl = `${frontendUrl}?tab=settings&error=storage_error`
+        const redirectUrl = `${frontendUrl}?error=storage_error`
         return new Response(null, {
           status: 302,
           headers: { 
@@ -294,9 +293,9 @@ serve(async (req) => {
       // Don't fail the request for cleanup errors
     }
 
-    // Redirect back to app
+    // Redirect back to home page with success message
     const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-    const redirectUrl = `${frontendUrl}?tab=settings&connected=slack`
+    const redirectUrl = `${frontendUrl}?connected=slack`
     
     console.log('Redirecting to:', redirectUrl)
     return new Response(null, {
@@ -309,7 +308,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Unexpected error in slack-callback:', error)
     const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-    const redirectUrl = `${frontendUrl}?tab=settings&error=unexpected_error`
+    const redirectUrl = `${frontendUrl}?error=unexpected_error`
     return new Response(null, {
       status: 302,
       headers: { 
