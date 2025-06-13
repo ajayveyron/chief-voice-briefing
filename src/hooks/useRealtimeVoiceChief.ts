@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { RealtimeAudioRecorder, RealtimeAudioPlayer } from '@/utils/realtimeVoiceUtils';
@@ -32,8 +31,8 @@ export const useRealtimeVoiceChief = () => {
       // Initialize audio player
       playerRef.current = new RealtimeAudioPlayer();
 
-      // Connect to WebSocket
-      const wsUrl = `wss://xxccvppbxnhowncdhvdi.functions.supabase.co/functions/v1/realtime-voice-chief`;
+      // Connect to WebSocket - using the correct Supabase function URL
+      const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}/functions/v1/realtime-voice-chief`;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = async () => {
