@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -30,10 +31,12 @@ serve(async (req) => {
       stateValue: state
     })
 
+    // Determine the correct frontend URL
+    const frontendUrl = 'https://xxccvppbxnhowncdhvdi.supabase.co'
+
     if (error) {
       console.error('OAuth error from Google:', error)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=oauth_error`
+      const redirectUrl = `${frontendUrl}/?error=oauth_error`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -45,8 +48,7 @@ serve(async (req) => {
 
     if (!code || !state) {
       console.error('Missing required parameters:', { hasCode: !!code, hasState: !!state })
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=missing_params`
+      const redirectUrl = `${frontendUrl}/?error=missing_params`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -77,8 +79,7 @@ serve(async (req) => {
         GOOGLE_CLIENT_ID: !!clientId,
         GOOGLE_CLIENT_SECRET: !!clientSecret
       })
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=config_error`
+      const redirectUrl = `${frontendUrl}/?error=config_error`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -108,8 +109,7 @@ serve(async (req) => {
 
     if (stateError) {
       console.error('Error looking up OAuth state:', stateError)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=invalid_state`
+      const redirectUrl = `${frontendUrl}/?error=invalid_state`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -121,8 +121,7 @@ serve(async (req) => {
 
     if (!oauthState) {
       console.error('Invalid state token - no matching record found:', state)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=invalid_state`
+      const redirectUrl = `${frontendUrl}/?error=invalid_state`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -153,8 +152,7 @@ serve(async (req) => {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
       console.error('Token exchange failed:', tokenResponse.status, errorText)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=token_exchange_failed`
+      const redirectUrl = `${frontendUrl}/?error=token_exchange_failed`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -175,8 +173,7 @@ serve(async (req) => {
 
     if (tokens.error) {
       console.error('OAuth token error:', tokens.error, tokens.error_description)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=token_error`
+      const redirectUrl = `${frontendUrl}/?error=token_error`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -198,8 +195,7 @@ serve(async (req) => {
     if (!gmailTestResponse.ok) {
       const errorText = await gmailTestResponse.text()
       console.error('Gmail API test failed:', gmailTestResponse.status, errorText)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=gmail_api_failed`
+      const redirectUrl = `${frontendUrl}/?error=gmail_api_failed`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -225,8 +221,7 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('Error storing integration:', insertError)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=storage_error`
+      const redirectUrl = `${frontendUrl}/?error=storage_error`
       return new Response(null, {
         status: 302,
         headers: { 
@@ -251,8 +246,7 @@ serve(async (req) => {
     }
 
     // Redirect back to home page with success message
-    const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-    const redirectUrl = `${frontendUrl}?connected=gmail`
+    const redirectUrl = `${frontendUrl}/?connected=gmail`
     
     console.log('Redirecting to:', redirectUrl)
     return new Response(null, {
@@ -264,8 +258,8 @@ serve(async (req) => {
     })
   } catch (error) {
     console.error('Unexpected error in gmail-callback:', error)
-    const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-    const redirectUrl = `${frontendUrl}?error=unexpected_error`
+    const frontendUrl = 'https://xxccvppbxnhowncdhvdi.supabase.co'
+    const redirectUrl = `${frontendUrl}/?error=unexpected_error`
     return new Response(null, {
       status: 302,
       headers: { 
