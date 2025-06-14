@@ -292,6 +292,45 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean | null
+          message: string
+          metadata: Json | null
+          priority: string | null
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message: string
+          metadata?: Json | null
+          priority?: string | null
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          metadata?: Json | null
+          priority?: string | null
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       oauth_states: {
         Row: {
           created_at: string
@@ -657,7 +696,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      setup_cron_job: {
+        Args: { job_name: string; job_schedule: string; job_command: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

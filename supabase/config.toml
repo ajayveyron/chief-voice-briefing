@@ -69,3 +69,18 @@ verify_jwt = false
 
 [functions.chief-action-confirmer]
 verify_jwt = false
+
+[functions.chief-cron-scheduler]
+verify_jwt = false
+
+[functions.chief-daily-summarizer]  
+verify_jwt = false
+
+[functions.chief-proactive-notifier]
+verify_jwt = false
+
+[functions.chief-webhook-handler]
+verify_jwt = false
+
+[functions.chief-data-cleanup]
+verify_jwt = false
