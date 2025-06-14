@@ -43,42 +43,77 @@ export const useUpdates = () => {
     }
 
     try {
-      // First, try to get processed updates (real data)
-      const { data: processedData, error: processedError } = await supabase
-        .from("processed_updates")
-        .select("*")
+      // Get summaries with their suggestions using the new schema
+      const { data: summariesData, error: summariesError } = await supabase
+        .from("summaries")
+        .select(`
+          *,
+          llm_suggestions(*)
+        `)
         .eq("user_id", user.id)
-        .eq("is_read", false)
-        .order("priority", { ascending: false })
-        .order("created_at", { ascending: false })
+        .eq("is_viewed", false)
+        .order("importance", { ascending: false })
+        .order("processed_at", { ascending: false })
         .limit(10);
 
-      if (processedError) throw processedError;
+      if (summariesError) throw summariesError;
 
-      if (processedData && processedData.length > 0) {
-        console.log(`📦 Found ${processedData.length} real processed updates`);
-        setUpdates(processedData);
+      if (summariesData && summariesData.length > 0) {
+        console.log(`📦 Found ${summariesData.length} summaries with suggestions`);
+        // Transform to match the expected Update interface
+        const transformedUpdates = summariesData.map(summary => ({
+          id: summary.id,
+          user_id: summary.user_id,
+          source: summary.raw_event_id ? 'processed' : 'unknown',
+          source_id: summary.id,
+          content: { summary: summary.summary, topic: summary.topic },
+          summary: summary.summary,
+          action_suggestions: summary.llm_suggestions?.map(s => s.prompt) || [],
+          priority: summary.importance === 'high' ? 3 : summary.importance === 'medium' ? 2 : 1,
+          is_read: summary.is_viewed,
+          created_at: summary.processed_at,
+          updated_at: summary.processed_at,
+          processed_at: summary.processed_at
+        }));
+        setUpdates(transformedUpdates);
       } else {
-        // If no processed updates, sync real data from integrations
-        console.log("🔄 No processed updates found, syncing real data...");
+        // If no summaries, sync real data from integrations
+        console.log("🔄 No summaries found, syncing real data...");
         await syncRealData();
         
         // Wait a moment for processing, then fetch again
         setTimeout(async () => {
           const { data: newData, error: newError } = await supabase
-            .from("processed_updates")
-            .select("*")
+            .from("summaries")
+            .select(`
+              *,
+              llm_suggestions(*)
+            `)
             .eq("user_id", user.id)
-            .eq("is_read", false)
-            .order("priority", { ascending: false })
-            .order("created_at", { ascending: false })
+            .eq("is_viewed", false)
+            .order("importance", { ascending: false })
+            .order("processed_at", { ascending: false })
             .limit(10);
             
           if (!newError && newData) {
-            console.log(`📦 Found ${newData.length} updates after sync`);
-            setUpdates(newData);
+            console.log(`📦 Found ${newData.length} summaries after sync`);
+            const transformedUpdates = newData.map(summary => ({
+              id: summary.id,
+              user_id: summary.user_id,
+              source: 'processed',
+              source_id: summary.id,
+              content: { summary: summary.summary, topic: summary.topic },
+              summary: summary.summary,
+              action_suggestions: summary.llm_suggestions?.map(s => s.prompt) || [],
+              priority: summary.importance === 'high' ? 3 : summary.importance === 'medium' ? 2 : 1,
+              is_read: summary.is_viewed,
+              created_at: summary.processed_at,
+              updated_at: summary.processed_at,
+              processed_at: summary.processed_at
+            }));
+            setUpdates(transformedUpdates);
           }
-        }, 2000);
+        }, 3000); // Increased timeout for processing pipeline
       }
     } catch (error) {
       console.error("Error fetching updates:", error);
@@ -90,8 +125,8 @@ export const useUpdates = () => {
   const markAsRead = async (updateId: string) => {
     try {
       const { error } = await supabase
-        .from("processed_updates")
-        .update({ is_read: true })
+        .from("summaries")
+        .update({ is_viewed: true })
         .eq("id", updateId);
 
       if (error) throw error;

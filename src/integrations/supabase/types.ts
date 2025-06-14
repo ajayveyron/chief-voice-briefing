@@ -59,6 +59,50 @@ export type Database = {
           },
         ]
       }
+      actions: {
+        Row: {
+          created_at: string | null
+          executed_at: string | null
+          executed_by_user: boolean | null
+          id: string
+          payload: Json | null
+          status: string | null
+          suggestion_id: string | null
+          type: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          executed_at?: string | null
+          executed_by_user?: boolean | null
+          id?: string
+          payload?: Json | null
+          status?: string | null
+          suggestion_id?: string | null
+          type?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          executed_at?: string | null
+          executed_by_user?: boolean | null
+          id?: string
+          payload?: Json | null
+          status?: string | null
+          suggestion_id?: string | null
+          type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "actions_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "llm_suggestions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_history: {
         Row: {
           context: Json | null
@@ -124,6 +168,129 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      event_audit_log: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string | null
+          raw_event_id: string | null
+          stage: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          raw_event_id?: string | null
+          stage?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          raw_event_id?: string | null
+          stage?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_audit_log_raw_event_id_fkey"
+            columns: ["raw_event_id"]
+            isOneToOne: false
+            referencedRelation: "raw_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_sync_log: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          integration_id: string | null
+          last_synced_at: string | null
+          metadata: Json | null
+          status: string | null
+          sync_type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          integration_id?: string | null
+          last_synced_at?: string | null
+          metadata?: Json | null
+          status?: string | null
+          sync_type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          integration_id?: string | null
+          last_synced_at?: string | null
+          metadata?: Json | null
+          status?: string | null
+          sync_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_sync_log_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "user_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      llm_suggestions: {
+        Row: {
+          confidence_score: number | null
+          created_at: string | null
+          id: string
+          payload: Json | null
+          prompt: string | null
+          requires_confirmation: boolean | null
+          summary_id: string | null
+          type: string | null
+          user_id: string
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string | null
+          id?: string
+          payload?: Json | null
+          prompt?: string | null
+          requires_confirmation?: boolean | null
+          summary_id?: string | null
+          type?: string | null
+          user_id: string
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string | null
+          id?: string
+          payload?: Json | null
+          prompt?: string | null
+          requires_confirmation?: boolean | null
+          summary_id?: string | null
+          type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "llm_suggestions_summary_id_fkey"
+            columns: ["summary_id"]
+            isOneToOne: false
+            referencedRelation: "summaries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       oauth_states: {
         Row: {
@@ -200,6 +367,53 @@ export type Database = {
         }
         Relationships: []
       }
+      raw_events: {
+        Row: {
+          content: string | null
+          content_hash: string | null
+          created_at: string | null
+          event_type: string | null
+          id: string
+          integration_id: string | null
+          source: string
+          status: string | null
+          timestamp: string | null
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          content_hash?: string | null
+          created_at?: string | null
+          event_type?: string | null
+          id?: string
+          integration_id?: string | null
+          source: string
+          status?: string | null
+          timestamp?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          content_hash?: string | null
+          created_at?: string | null
+          event_type?: string | null
+          id?: string
+          integration_id?: string | null
+          source?: string
+          status?: string | null
+          timestamp?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "raw_events_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "user_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_tasks: {
         Row: {
           created_at: string
@@ -238,6 +452,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      summaries: {
+        Row: {
+          entities: string[] | null
+          id: string
+          importance: string | null
+          is_viewed: boolean | null
+          llm_model_used: string | null
+          model_version: string | null
+          processed_at: string | null
+          raw_event_id: string | null
+          summary: string | null
+          topic: string | null
+          user_id: string
+        }
+        Insert: {
+          entities?: string[] | null
+          id?: string
+          importance?: string | null
+          is_viewed?: boolean | null
+          llm_model_used?: string | null
+          model_version?: string | null
+          processed_at?: string | null
+          raw_event_id?: string | null
+          summary?: string | null
+          topic?: string | null
+          user_id: string
+        }
+        Update: {
+          entities?: string[] | null
+          id?: string
+          importance?: string | null
+          is_viewed?: boolean | null
+          llm_model_used?: string | null
+          model_version?: string | null
+          processed_at?: string | null
+          raw_event_id?: string | null
+          summary?: string | null
+          topic?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "summaries_raw_event_id_fkey"
+            columns: ["raw_event_id"]
+            isOneToOne: false
+            referencedRelation: "raw_events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       updates: {
         Row: {
@@ -313,6 +577,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_feedback: {
+        Row: {
+          comments: string | null
+          created_at: string | null
+          feedback_type: string | null
+          id: string
+          suggestion_id: string | null
+          user_id: string
+        }
+        Insert: {
+          comments?: string | null
+          created_at?: string | null
+          feedback_type?: string | null
+          id?: string
+          suggestion_id?: string | null
+          user_id: string
+        }
+        Update: {
+          comments?: string | null
+          created_at?: string | null
+          feedback_type?: string | null
+          id?: string
+          suggestion_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_feedback_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "llm_suggestions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_integrations: {
         Row: {
