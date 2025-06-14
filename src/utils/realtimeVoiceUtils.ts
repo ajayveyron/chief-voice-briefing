@@ -2,7 +2,7 @@
 export class RealtimeAudioRecorder {
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
-  private processor: ScriptProcessorNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
 
   constructor(private onAudioData: (audioData: string) => void) {}
@@ -20,17 +20,41 @@ export class RealtimeAudioRecorder {
       });
       
       this.audioContext = new AudioContext({ sampleRate: 24000 });
-      this.source = this.audioContext.createMediaStreamSource(this.stream);
-      this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
       
-      this.processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        const encodedAudio = this.encodeAudioForAPI(new Float32Array(inputData));
-        this.onAudioData(encodedAudio);
-      };
-      
-      this.source.connect(this.processor);
-      this.processor.connect(this.audioContext.destination);
+      // Try to use AudioWorklet, fallback to ScriptProcessor if not available
+      try {
+        await this.audioContext.audioWorklet.addModule(
+          URL.createObjectURL(new Blob([this.getWorkletCode()], { type: 'application/javascript' }))
+        );
+        
+        this.workletNode = new AudioWorkletNode(this.audioContext, 'audio-recorder-processor');
+        this.workletNode.port.onmessage = (event) => {
+          if (event.data.type === 'audio') {
+            const encodedAudio = this.encodeAudioForAPI(event.data.audio);
+            this.onAudioData(encodedAudio);
+          }
+        };
+        
+        this.source = this.audioContext.createMediaStreamSource(this.stream);
+        this.source.connect(this.workletNode);
+        this.workletNode.connect(this.audioContext.destination);
+        
+        console.log("✅ Using AudioWorkletNode for audio recording");
+      } catch (workletError) {
+        console.warn("AudioWorklet not available, falling back to ScriptProcessor:", workletError);
+        
+        // Fallback to ScriptProcessor
+        const processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+        processor.onaudioprocess = (e) => {
+          const inputData = e.inputBuffer.getChannelData(0);
+          const encodedAudio = this.encodeAudioForAPI(new Float32Array(inputData));
+          this.onAudioData(encodedAudio);
+        };
+        
+        this.source = this.audioContext.createMediaStreamSource(this.stream);
+        this.source.connect(processor);
+        processor.connect(this.audioContext.destination);
+      }
     } catch (error) {
       console.error('Error accessing microphone:', error);
       throw error;
@@ -42,9 +66,9 @@ export class RealtimeAudioRecorder {
       this.source.disconnect();
       this.source = null;
     }
-    if (this.processor) {
-      this.processor.disconnect();
-      this.processor = null;
+    if (this.workletNode) {
+      this.workletNode.disconnect();
+      this.workletNode = null;
     }
     if (this.stream) {
       this.stream.getTracks().forEach(track => track.stop());
@@ -54,6 +78,24 @@ export class RealtimeAudioRecorder {
       this.audioContext.close();
       this.audioContext = null;
     }
+  }
+
+  private getWorkletCode(): string {
+    return `
+      class AudioRecorderProcessor extends AudioWorkletProcessor {
+        process(inputs, outputs, parameters) {
+          const input = inputs[0];
+          if (input && input[0]) {
+            this.port.postMessage({
+              type: 'audio',
+              audio: new Float32Array(input[0])
+            });
+          }
+          return true;
+        }
+      }
+      registerProcessor('audio-recorder-processor', AudioRecorderProcessor);
+    `;
   }
 
   private encodeAudioForAPI(float32Array: Float32Array): string {

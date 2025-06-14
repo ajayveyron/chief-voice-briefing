@@ -31,7 +31,7 @@ serve(async (req) => {
       console.log("🎯 Client WebSocket connected, connecting to OpenAI...");
       
       // Connect to OpenAI Realtime API
-      const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
+      const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01";
       openAISocket = new WebSocket(openAIUrl, [], {
         headers: {
           "Authorization": `Bearer ${OPENAI_API_KEY}`,
@@ -110,7 +110,7 @@ Remember to be helpful, efficient, and speak naturally as if you're a trusted as
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({
             type: "error",
-            message: "OpenAI connection error"
+            message: `OpenAI connection error: ${error instanceof Error ? error.message : 'Unknown error'}`
           }));
         }
       };
