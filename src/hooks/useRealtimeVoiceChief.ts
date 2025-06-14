@@ -135,18 +135,27 @@ export const useRealtimeVoiceChief = () => {
 
       // Play the audio
       const base64AudioResponse = ttsResult.data.audio;
-      const audioBuffer = Uint8Array.from(atob(base64AudioResponse), c => c.charCodeAt(0));
-      const responseAudioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-      const audioUrl = URL.createObjectURL(responseAudioBlob);
+      if (!base64AudioResponse) {
+        throw new Error("No audio data received from TTS service");
+      }
       
-      const audio = new Audio(audioUrl);
-      audio.onended = () => {
-        setConversationState("idle");
-        URL.revokeObjectURL(audioUrl);
-      };
-      
-      await audio.play();
-      console.log("✅ Audio playback started");
+      try {
+        const audioBuffer = Uint8Array.from(atob(base64AudioResponse), c => c.charCodeAt(0));
+        const responseAudioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+        const audioUrl = URL.createObjectURL(responseAudioBlob);
+        
+        const audio = new Audio(audioUrl);
+        audio.onended = () => {
+          setConversationState("idle");
+          URL.revokeObjectURL(audioUrl);
+        };
+        
+        await audio.play();
+        console.log("✅ Audio playback started");
+      } catch (audioError) {
+        console.error("❌ Audio decoding/playback error:", audioError);
+        throw new Error("Failed to decode or play audio response");
+      }
 
     } catch (error) {
       console.error("❌ Processing error:", error);
@@ -161,6 +170,12 @@ export const useRealtimeVoiceChief = () => {
 
   const startRecording = useCallback(() => {
     if (!mediaRecorderRef.current || connectionState !== "connected") return;
+    
+    // Check if already recording
+    if (mediaRecorderRef.current.state === "recording") {
+      console.log("🎤 Already recording, ignoring start request");
+      return;
+    }
 
     setConversationState("listening");
     setCurrentTranscript("");
@@ -242,17 +257,26 @@ export const useRealtimeVoiceChief = () => {
       }
 
       const base64AudioResponse = ttsResult.data.audio;
-      const audioBuffer = Uint8Array.from(atob(base64AudioResponse), c => c.charCodeAt(0));
-      const responseAudioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-      const audioUrl = URL.createObjectURL(responseAudioBlob);
+      if (!base64AudioResponse) {
+        throw new Error("No audio data received from TTS service");
+      }
       
-      const audio = new Audio(audioUrl);
-      audio.onended = () => {
-        setConversationState("idle");
-        URL.revokeObjectURL(audioUrl);
-      };
-      
-      await audio.play();
+      try {
+        const audioBuffer = Uint8Array.from(atob(base64AudioResponse), c => c.charCodeAt(0));
+        const responseAudioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+        const audioUrl = URL.createObjectURL(responseAudioBlob);
+        
+        const audio = new Audio(audioUrl);
+        audio.onended = () => {
+          setConversationState("idle");
+          URL.revokeObjectURL(audioUrl);
+        };
+        
+        await audio.play();
+      } catch (audioError) {
+        console.error("❌ Audio decoding/playback error:", audioError);
+        throw new Error("Failed to decode or play audio response");
+      }
 
     } catch (error) {
       console.error("❌ Text message error:", error);
