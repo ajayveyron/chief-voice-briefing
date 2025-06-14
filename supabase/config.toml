@@ -54,3 +54,12 @@ verify_jwt = true
 
 [functions.realtime-voice-chief]
 verify_jwt = false
+
+[functions.chief-data-processor]
+verify_jwt = false
+
+[functions.chief-summarizer]
+verify_jwt = false
+
+[functions.chief-action-suggester]
+verify_jwt = false

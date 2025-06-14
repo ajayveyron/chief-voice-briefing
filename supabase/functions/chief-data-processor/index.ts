@@ -7,98 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Function to generate AI summary and suggestions
-async function processWithLLM(content: any, source: string): Promise<{
-  summary: string;
-  topic: string;
-  entities: string[];
-  importance: 'low' | 'medium' | 'high';
-  suggestions: Array<{
-    type: string;
-    prompt: string;
-    confidence_score: number;
-    requires_confirmation: boolean;
-    payload: any;
-  }>;
-}> {
-  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIApiKey) {
-    console.warn('OpenAI API key not configured - returning basic processing');
-    return {
-      summary: `${source} update: ${JSON.stringify(content).substring(0, 100)}...`,
-      topic: `${source} Update`,
-      entities: [],
-      importance: 'low',
-      suggestions: []
-    };
-  }
-
-  try {
-    const prompt = `
-You are Chief, an AI executive assistant. Analyze this ${source} data and provide structured output.
-
-Data: ${JSON.stringify(content)}
-
-Respond with ONLY valid JSON in this exact format:
-{
-  "summary": "Brief summary of the content (max 200 chars)",
-  "topic": "Main topic or subject",
-  "entities": ["person1", "company", "project"],
-  "importance": "low|medium|high",
-  "suggestions": [
-    {
-      "type": "action_type",
-      "prompt": "Natural language suggestion",
-      "confidence_score": 0.85,
-      "requires_confirmation": true,
-      "payload": {"key": "value"}
-    }
-  ]
-}`;
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 500,
-        temperature: 0.3,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const result = JSON.parse(data.choices[0].message.content);
-    
-    return {
-      summary: result.summary || `${source} update`,
-      topic: result.topic || `${source} Update`,
-      entities: result.entities || [],
-      importance: result.importance || 'low',
-      suggestions: result.suggestions || []
-    };
-  } catch (error) {
-    console.error('Error processing with LLM:', error);
-    return {
-      summary: `${source} update: ${JSON.stringify(content).substring(0, 100)}...`,
-      topic: `${source} Update`,
-      entities: [],
-      importance: 'low',
-      suggestions: []
-    };
-  }
-}
-
-// Function to process raw events into summaries and suggestions
+// Function to process raw events through the separated LLM pipeline
 async function processRawEvents(supabase: any): Promise<number> {
-  console.log('🔄 Processing raw events...');
+  console.log('🔄 Processing raw events through separated LLM pipeline...');
   let processedCount = 0;
 
   try {
@@ -108,7 +19,7 @@ async function processRawEvents(supabase: any): Promise<number> {
       .select('*')
       .eq('status', 'raw')
       .order('created_at', { ascending: true })
-      .limit(50); // Process in batches
+      .limit(20); // Process in smaller batches for better reliability
 
     if (error) {
       console.error('Error fetching raw events:', error);
@@ -121,46 +32,51 @@ async function processRawEvents(supabase: any): Promise<number> {
       try {
         console.log(`Processing event ${rawEvent.id} from ${rawEvent.source}`);
         
-        // Parse content
-        const content = JSON.parse(rawEvent.content);
-        
-        // Process with LLM
-        const processed = await processWithLLM(content, rawEvent.source);
-        
-        // Create summary
-        const { data: summary, error: summaryError } = await supabase
-          .from('summaries')
-          .insert({
+        // Stage 1: Generate Summary using dedicated summarizer
+        console.log(`📝 Stage 1: Summarizing event ${rawEvent.id}`);
+        const { data: summaryResult, error: summaryError } = await supabase.functions.invoke('chief-summarizer', {
+          body: {
             raw_event_id: rawEvent.id,
-            user_id: rawEvent.user_id,
-            summary: processed.summary,
-            topic: processed.topic,
-            entities: processed.entities,
-            importance: processed.importance,
-            llm_model_used: 'gpt-4o-mini',
-            model_version: 'v1.0',
-            is_viewed: false
-          })
-          .select()
-          .single();
+            content: rawEvent.content,
+            source: rawEvent.source,
+            user_id: rawEvent.user_id
+          }
+        });
 
         if (summaryError) {
-          console.error('Error creating summary:', summaryError);
+          console.error('Error in summarizer:', summaryError);
+          await supabase
+            .from('raw_events')
+            .update({ status: 'failed' })
+            .eq('id', rawEvent.id);
           continue;
         }
 
-        // Create suggestions
-        for (const suggestion of processed.suggestions) {
+        // Stage 2: Generate Action Suggestions using dedicated action suggester
+        console.log(`🎯 Stage 2: Generating actions for summary ${summaryResult.summary_id}`);
+        const { data: actionResult, error: actionError } = await supabase.functions.invoke('chief-action-suggester', {
+          body: {
+            summary_id: summaryResult.summary_id,
+            summary: summaryResult.summary,
+            topic: summaryResult.topic,
+            source: rawEvent.source,
+            original_content: JSON.parse(rawEvent.content),
+            user_id: rawEvent.user_id,
+            user_context: {} // TODO: Add user context from preferences/calendar
+          }
+        });
+
+        if (actionError) {
+          console.error('Error in action suggester:', actionError);
+          // Don't fail the whole process if action suggestion fails
           await supabase
-            .from('llm_suggestions')
+            .from('event_audit_log')
             .insert({
-              summary_id: summary.id,
+              raw_event_id: rawEvent.id,
               user_id: rawEvent.user_id,
-              type: suggestion.type,
-              prompt: suggestion.prompt,
-              confidence_score: suggestion.confidence_score,
-              requires_confirmation: suggestion.requires_confirmation,
-              payload: suggestion.payload
+              stage: 'action_suggested',
+              status: 'failed',
+              message: actionError.message
             });
         }
 
@@ -170,19 +86,19 @@ async function processRawEvents(supabase: any): Promise<number> {
           .update({ status: 'processed' })
           .eq('id', rawEvent.id);
 
-        // Log audit trail
+        // Final audit log
         await supabase
           .from('event_audit_log')
           .insert({
             raw_event_id: rawEvent.id,
             user_id: rawEvent.user_id,
-            stage: 'summarized',
+            stage: 'completed',
             status: 'success',
-            message: `Generated summary and ${processed.suggestions.length} suggestions`
+            message: `Completed processing: Summary created, ${actionResult?.suggestions_created || 0} actions suggested`
           });
 
         processedCount++;
-        console.log(`✅ Processed event ${rawEvent.id}`);
+        console.log(`✅ Completed processing event ${rawEvent.id}`);
 
       } catch (error) {
         console.error(`Error processing event ${rawEvent.id}:`, error);
@@ -199,7 +115,7 @@ async function processRawEvents(supabase: any): Promise<number> {
           .insert({
             raw_event_id: rawEvent.id,
             user_id: rawEvent.user_id,
-            stage: 'summarized',
+            stage: 'processing',
             status: 'failed',
             message: error.message
           });
