@@ -37,12 +37,8 @@ export const useRealtimeVoiceChief = () => {
       // Initialize audio player
       playerRef.current = new RealtimeAudioPlayer();
 
-      // Connect to WebSocket - using a dynamic environment variable
-      const wsUrl =
-        typeof Deno !== "undefined" && Deno.env.get("VOICE_CHIEF_WS_URL")
-          ? Deno.env.get("VOICE_CHIEF_WS_URL")!
-          : window?.process?.env?.VOICE_CHIEF_WS_URL ||
-            "wss://preview--chief-executive-assistant.lovable.app/functions/v1/realtime-voice-chief";
+      // Connect to WebSocket using Supabase edge function
+      const wsUrl = "wss://xxccvppbxnhowncdhvdi.supabase.co/functions/v1/realtime-voice-chief";
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = async () => {
