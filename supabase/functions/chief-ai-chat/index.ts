@@ -418,10 +418,12 @@ function getNextWeekday(targetDay: number): Date {
 // Function to fetch emails from the database
 async function fetchEmails(supabase: any, userId: string, limit = 10): Promise<Email[]> {
   const { data, error } = await supabase
-    .from('user_emails')
-    .select('id, subject, from, snippet, received_at, is_read')
+    .from('raw_events')
+    .select('content, timestamp, source_id')
     .eq('user_id', userId)
-    .order('received_at', { ascending: false })
+    .eq('source', 'gmail')
+    .eq('event_type', 'email')
+    .order('timestamp', { ascending: false })
     .limit(limit);
   
   if (error) {
@@ -429,7 +431,17 @@ async function fetchEmails(supabase: any, userId: string, limit = 10): Promise<E
     return [];
   }
   
-  return data || [];
+  return (data || []).map(event => {
+    const content = typeof event.content === 'string' ? JSON.parse(event.content) : event.content;
+    return {
+      id: event.source_id || content.id || 'unknown',
+      subject: content.subject || 'No Subject',
+      from: content.from || 'Unknown Sender',
+      snippet: content.snippet || content.body?.substring(0, 100) || '',
+      received_at: event.timestamp || content.date || new Date().toISOString(),
+      is_read: false
+    };
+  });
 }
 
 // Function to fetch calendar events from the database
@@ -438,19 +450,32 @@ async function fetchCalendarEvents(supabase: any, userId: string, days = 7): Pro
   const futureDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
   
   const { data, error } = await supabase
-    .from('calendar_events')
-    .select('id, title, description, start_time, end_time, location, attendees')
+    .from('raw_events')
+    .select('content, timestamp, source_id')
     .eq('user_id', userId)
-    .gte('start_time', now.toISOString())
-    .lte('start_time', futureDate.toISOString())
-    .order('start_time', { ascending: true });
+    .eq('source', 'calendar')
+    .eq('event_type', 'event')
+    .gte('timestamp', now.toISOString())
+    .lte('timestamp', futureDate.toISOString())
+    .order('timestamp', { ascending: true });
   
   if (error) {
     console.error('Error fetching calendar events:', error);
     return [];
   }
   
-  return data || [];
+  return (data || []).map(event => {
+    const content = typeof event.content === 'string' ? JSON.parse(event.content) : event.content;
+    return {
+      id: event.source_id || content.id || 'unknown',
+      title: content.summary || content.title || 'No Title',
+      description: content.description || '',
+      start_time: content.start || event.timestamp || new Date().toISOString(),
+      end_time: content.end || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      location: content.location || '',
+      attendees: content.attendees?.map((email: string) => ({ email, displayName: email })) || []
+    };
+  });
 }
 
 // Function to format context for AI prompt
@@ -693,7 +718,15 @@ Current time: ${new Date().toLocaleString()}`;
         console.log('📧 Sending email:', emailDetails);
         
         const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email', {
-          body: emailDetails,
+          body: {
+            to: emailDetails.to,
+            subject: emailDetails.subject,
+            body: emailDetails.body,
+            isHtml: emailDetails.isHtml,
+            cc: emailDetails.cc,
+            bcc: emailDetails.bcc,
+            scheduledFor: emailDetails.scheduledFor
+          },
           headers: {
             Authorization: authHeader
           }
