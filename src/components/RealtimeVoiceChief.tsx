@@ -191,7 +191,7 @@ const RealtimeVoiceChief = () => {
         
         {connectionState === 'connected' && conversationState === 'idle' && (
           <div className="text-center text-xs text-gray-500 mt-4 max-w-sm">
-            <p>🎤 <strong>Hold down</strong> the microphone button to record your message, or use the quick actions above.</p>
+            <p>🎤 <strong>Hold down</strong> the microphone button for at least half a second to record your message, or use the quick actions above.</p>
           </div>
         )}
       </div>

@@ -13,6 +13,7 @@ export const useRealtimeVoiceChief = () => {
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStartTimeRef = useRef<number | null>(null);
   const { toast } = useToast();
 
   const connect = useCallback(async () => {
@@ -74,11 +75,23 @@ export const useRealtimeVoiceChief = () => {
     try {
       setConversationState("thinking");
       
+      // Check if audio blob has sufficient size
+      if (audioBlob.size < 1000) { // Less than 1KB is likely too short
+        console.log("❌ Audio blob too small:", audioBlob.size, "bytes");
+        setConversationState("idle");
+        toast({
+          title: "Recording too short",
+          description: "Please hold the record button longer",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Convert audio to base64
       const arrayBuffer = await audioBlob.arrayBuffer();
       const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
-      console.log("🎤 Transcribing audio...");
+      console.log("🎤 Transcribing audio... (", audioBlob.size, "bytes)");
       
       // Step 1: Transcribe audio
       const transcribeResult = await supabase.functions.invoke('realtime-voice-chief', {
@@ -181,16 +194,33 @@ export const useRealtimeVoiceChief = () => {
     setCurrentTranscript("");
     setAiResponse("");
     
-    mediaRecorderRef.current.start();
+    recordingStartTimeRef.current = Date.now();
+    
+    // Start recording with a time slice to ensure data is captured
+    mediaRecorderRef.current.start(100); // Capture data every 100ms
     console.log("🎤 Recording started");
   }, [connectionState]);
 
   const stopRecording = useCallback(() => {
     if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== "recording") return;
 
+    // Check minimum recording duration (300ms)
+    const recordingDuration = recordingStartTimeRef.current ? Date.now() - recordingStartTimeRef.current : 0;
+    
+    if (recordingDuration < 300) {
+      console.log("🎤 Recording too short, continuing...");
+      setTimeout(() => {
+        if (mediaRecorderRef.current?.state === "recording") {
+          stopRecording();
+        }
+      }, 300 - recordingDuration);
+      return;
+    }
+
     mediaRecorderRef.current.stop();
     setConversationState("thinking");
-    console.log("🎤 Recording stopped");
+    console.log(`🎤 Recording stopped (${recordingDuration}ms)`);
+    recordingStartTimeRef.current = null;
   }, []);
 
   const disconnect = useCallback(() => {
