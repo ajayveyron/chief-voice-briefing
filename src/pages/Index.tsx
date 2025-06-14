@@ -8,6 +8,7 @@ import HomePage from "@/components/HomePage";
 import ChatPage from "@/components/ChatPage";
 import DataPage from "@/components/DataPage";
 import SettingsPage from "@/components/SettingsPage";
+import { ActionConfirmationDialog } from "@/components/ActionConfirmationDialog";
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -113,6 +114,9 @@ const Index = () => {
       
       {/* Bottom navigation */}
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      
+      {/* Action confirmation dialog */}
+      <ActionConfirmationDialog />
     </div>
   );
 };
