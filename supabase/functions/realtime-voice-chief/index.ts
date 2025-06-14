@@ -1,313 +1,150 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-};
-
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  console.log("🔌 Realtime voice chief function called");
+  
+  const { headers } = req;
+  const upgradeHeader = headers.get("upgrade") || "";
+
+  if (upgradeHeader.toLowerCase() !== "websocket") {
+    console.log("❌ Expected WebSocket connection");
+    return new Response("Expected WebSocket connection", { status: 400 });
   }
 
-  // Verify WebSocket upgrade request
-  if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-    return new Response("Expected websocket", { status: 426 });
+  // Get OpenAI API key from environment
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+  if (!OPENAI_API_KEY) {
+    console.error("❌ OPENAI_API_KEY not found");
+    return new Response("Server configuration error", { status: 500 });
   }
 
-  try {
-    // Upgrade to WebSocket connection
-    const { socket, response } = Deno.upgradeWebSocket(req);
-    let openaiWs: WebSocket | null = null;
+  console.log("✅ Upgrading to WebSocket");
+  const { socket, response } = Deno.upgradeWebSocket(req);
+  
+  let openAISocket: WebSocket | null = null;
+  let sessionCreated = false;
 
-    // Client WebSocket event handlers
-    socket.onopen = () => {
-      console.log("🔌 Client connected to realtime voice chief");
-    };
-
-    socket.onmessage = (event) => {
-      if (openaiWs?.readyState === WebSocket.OPEN) {
-        openaiWs.send(event.data);
-      }
-    };
-
-    socket.onclose = () => {
-      console.log("🔌 Client disconnected");
-      openaiWs?.close();
-    };
-
-    socket.onerror = (error) => {
-      console.error("❌ Client WebSocket error:", error);
-      openaiWs?.close();
-    };
-
+  // WebSocket connection opened
+  socket.onopen = () => {
+    console.log("🎯 Client WebSocket connected, connecting to OpenAI...");
+    
     // Connect to OpenAI Realtime API
-    try {
-      const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-      if (!openaiApiKey) {
-        throw new Error('OpenAI API key not configured');
+    const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
+    openAISocket = new WebSocket(openAIUrl, [], {
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "OpenAI-Beta": "realtime=v1"
       }
+    });
 
-      openaiWs = new WebSocket(
-        "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01",
-        {
-          headers: {
-            "Authorization": `Bearer ${openaiApiKey}`,
-            "OpenAI-Beta": "realtime=v1",
-          },
-        }
-      );
+    openAISocket.onopen = () => {
+      console.log("✅ Connected to OpenAI Realtime API");
+    };
 
-      openaiWs.onopen = () => {
-        console.log("🤖 Connected to OpenAI Realtime API");
-        
-        // Configure session
-        const sessionConfig = {
-          type: "session.update",
-          session: {
-            modalities: ["text", "audio"],
-            instructions: `You are Chief, a highly capable AI Chief of Staff assistant. You help manage daily tasks, emails, calendar, and provide intelligent assistance throughout the day.
+    openAISocket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("📦 OpenAI -> Client:", data.type);
+
+        // Handle session creation - send session update after creation
+        if (data.type === "session.created" && !sessionCreated) {
+          sessionCreated = true;
+          console.log("🎯 Session created, sending session update");
+          
+          const sessionUpdate = {
+            type: "session.update",
+            session: {
+              modalities: ["text", "audio"],
+              instructions: `You are Chief, an AI executive assistant. You help busy professionals manage their day efficiently.
 
 Key capabilities:
-- Fetch and summarize emails, calendar events, and updates
-- Schedule meetings and manage calendar
-- Send emails and messages
-- Provide contextual, conversational assistance
-- Remember conversation context
-- Take actions through integrations
+- Calendar management and scheduling
+- Email prioritization and drafting
+- Task organization and reminders
+- Meeting preparation and follow-ups
+- Daily briefings and summaries
 
 Personality:
-- Professional yet friendly
-- Efficient and helpful
-- Proactive in suggesting actions
-- Clear and concise communication
-- Remember previous conversation context`,
-            voice: "alloy",
-            input_audio_format: "pcm16",
-            output_audio_format: "pcm16",
-            input_audio_transcription: {
-              model: "whisper-1"
-            },
-            turn_detection: {
-              type: "server_vad",
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 1000
-            },
-            tools: [
-              {
-                type: "function",
-                name: "get_daily_updates",
-                description: "Get daily updates including emails, calendar events, and other notifications",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    include_emails: { type: "boolean", description: "Include email updates" },
-                    include_calendar: { type: "boolean", description: "Include calendar events" },
-                    include_notifications: { type: "boolean", description: "Include other notifications" }
-                  }
-                }
+- Professional yet approachable
+- Concise but thorough
+- Proactive in suggesting improvements
+- Always respectful of time
+- Confident in handling executive-level tasks
+
+Remember to be helpful, efficient, and speak naturally as if you're a trusted assistant who knows the user's preferences and work style.`,
+              voice: "alloy",
+              input_audio_format: "pcm16",
+              output_audio_format: "pcm16",
+              input_audio_transcription: {
+                model: "whisper-1"
               },
-              {
-                type: "function",
-                name: "schedule_meeting",
-                description: "Schedule a new calendar meeting",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    title: { type: "string", description: "Meeting title" },
-                    datetime: { type: "string", description: "Meeting date and time" },
-                    attendees: { type: "array", items: { type: "string" }, description: "Attendee emails" },
-                    location: { type: "string", description: "Meeting location" }
-                  },
-                  required: ["title", "datetime"]
-                }
+              turn_detection: {
+                type: "server_vad",
+                threshold: 0.5,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 1000
               },
-              {
-                type: "function",
-                name: "send_email",
-                description: "Send an email",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    to: { type: "array", items: { type: "string" }, description: "Recipient emails" },
-                    subject: { type: "string", description: "Email subject" },
-                    body: { type: "string", description: "Email body" }
-                  },
-                  required: ["to", "subject", "body"]
-                }
-              }
-            ],
-            tool_choice: "auto",
-            temperature: 0.7,
-            max_response_output_tokens: 4096
-          }
-        };
+              temperature: 0.8,
+              max_response_output_tokens: "inf"
+            }
+          };
 
-        openaiWs.send(JSON.stringify(sessionConfig));
-      };
-
-      openaiWs.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log("📦 OpenAI message:", data.type);
-
-          // Handle function calls
-          if (data.type === "response.function_call_arguments.done") {
-            handleFunctionCall(data, openaiWs, socket).catch(console.error);
-          }
-
-          // Forward message to client
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(event.data);
-          }
-        } catch (error) {
-          console.error("Error processing OpenAI message:", error);
+          openAISocket?.send(JSON.stringify(sessionUpdate));
         }
-      };
 
-      openaiWs.onerror = (error) => {
-        console.error("❌ OpenAI WebSocket error:", error);
-        socket.send(JSON.stringify({ 
-          type: "error", 
-          message: "OpenAI connection error" 
-        }));
-      };
-
-      openaiWs.onclose = () => {
-        console.log("🔌 OpenAI WebSocket closed");
+        // Forward all messages to client
         if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ 
-            type: "connection_closed", 
-            message: "OpenAI connection closed" 
-          }));
+          socket.send(event.data);
         }
-      };
-
-    } catch (error) {
-      console.error("❌ Error connecting to OpenAI:", error);
-      socket.send(JSON.stringify({ 
-        type: "error", 
-        message: error.message 
-      }));
-      socket.close();
-    }
-
-    return response;
-
-  } catch (error) {
-    console.error("WebSocket upgrade failed:", error);
-    return new Response("WebSocket upgrade failed", { status: 500 });
-  }
-});
-
-async function handleFunctionCall(data: any, openaiWs: WebSocket, clientSocket: WebSocket) {
-  try {
-    const { call_id, name, arguments: args } = data;
-    const parsedArgs = JSON.parse(args);
-    
-    console.log(`🔧 Function call: ${name}`, parsedArgs);
-
-    let result: any;
-    switch (name) {
-      case "get_daily_updates":
-        result = await getDailyUpdates(parsedArgs);
-        break;
-      case "schedule_meeting":
-        result = await scheduleMeeting(parsedArgs);
-        break;
-      case "send_email":
-        result = await sendEmail(parsedArgs);
-        break;
-      default:
-        result = { success: false, message: "Function not implemented" };
-    }
-
-    // Send function result back to OpenAI
-    const functionResult = {
-      type: "conversation.item.create",
-      item: {
-        type: "function_call_output",
-        call_id,
-        output: JSON.stringify(result)
+      } catch (error) {
+        console.error("❌ Error processing OpenAI message:", error);
       }
     };
 
-    openaiWs.send(JSON.stringify(functionResult));
-    openaiWs.send(JSON.stringify({ type: "response.create" }));
+    openAISocket.onerror = (error) => {
+      console.error("❌ OpenAI WebSocket error:", error);
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: "error",
+          message: "OpenAI connection error"
+        }));
+      }
+    };
 
-  } catch (error) {
-    console.error("Error handling function call:", error);
-    if (clientSocket.readyState === WebSocket.OPEN) {
-      clientSocket.send(JSON.stringify({
-        type: "error",
-        message: `Function call failed: ${error.message}`
-      }));
-    }
-  }
-}
+    openAISocket.onclose = (event) => {
+      console.log("🔌 OpenAI WebSocket closed:", event.code, event.reason);
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+    };
+  };
 
-async function getDailyUpdates(args: any) {
-  // In a real implementation, you would:
-  // 1. Connect to email/calendar APIs
-  // 2. Fetch the actual data
-  // 3. Process and summarize it
-  
-  return {
-    success: true,
-    summary: "📊 Today's Updates:\n📧 5 new emails\n📅 3 upcoming meetings\n💬 2 Slack mentions\n🚨 1 high priority task",
-    details: {
-      emails: [
-        { from: "john@example.com", subject: "Project Update", summary: "Waiting for your feedback" },
-        { from: "team@company.com", subject: "Weekly Sync", summary: "Meeting agenda attached" }
-      ],
-      meetings: [
-        { title: "Standup", time: "10:00 AM", participants: 5 },
-        { title: "Project Review", time: "2:00 PM", participants: 3 }
-      ],
-      notifications: [
-        { source: "Slack", message: "New message in #general" },
-        { source: "Task", message: "Deadline approaching for Q2 report" }
-      ]
+  // Forward client messages to OpenAI
+  socket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log("📦 Client -> OpenAI:", data.type);
+      
+      if (openAISocket?.readyState === WebSocket.OPEN) {
+        openAISocket.send(event.data);
+      } else {
+        console.warn("⚠️ OpenAI socket not ready, message dropped");
+      }
+    } catch (error) {
+      console.error("❌ Error processing client message:", error);
     }
   };
-}
 
-async function scheduleMeeting(args: any) {
-  // In a real implementation, you would:
-  // 1. Validate the input
-  // 2. Connect to calendar API
-  // 3. Create the event
-  
-  if (!args.title || !args.datetime) {
-    return { success: false, message: "Title and datetime are required" };
-  }
-
-  return {
-    success: true,
-    message: `Meeting "${args.title}" scheduled for ${args.datetime}`,
-    event_id: "event_" + Math.random().toString(36).substring(2, 9),
-    calendar_link: "https://calendar.example.com/event/mock123"
+  socket.onerror = (error) => {
+    console.error("❌ Client WebSocket error:", error);
   };
-}
 
-async function sendEmail(args: any) {
-  // In a real implementation, you would:
-  // 1. Validate recipients, subject, body
-  // 2. Connect to email API
-  // 3. Send the message
-  
-  if (!args.to || args.to.length === 0) {
-    return { success: false, message: "At least one recipient is required" };
-  }
-
-  return {
-    success: true,
-    message: `Email sent to ${args.to.join(", ")} with subject "${args.subject}"`,
-    message_id: "email_" + Math.random().toString(36).substring(2, 9),
-    timestamp: new Date().toISOString()
+  socket.onclose = () => {
+    console.log("🔌 Client WebSocket closed");
+    if (openAISocket?.readyState === WebSocket.OPEN) {
+      openAISocket.close();
+    }
   };
-}
+
+  return response;
+});
