@@ -289,7 +289,8 @@ serve(async (req) => {
     })
   } catch (error) {
     console.error('Unexpected error in gmail-callback:', error)
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app'    const redirectUrl = `${frontendUrl}/?error=unexpected_error`
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app'
+    const redirectUrl = `${frontendUrl}/?error=unexpected_error`
     return new Response(null, {
       status: 302,
       headers: { 
