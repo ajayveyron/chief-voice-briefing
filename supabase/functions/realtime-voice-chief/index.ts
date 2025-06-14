@@ -45,16 +45,6 @@ serve(async (req) => {
         proxySocket.onopen = () => {
           console.log("✅ Connected to proxy server");
         };
-      } catch (error) {
-        console.error("❌ Failed to create OpenAI WebSocket:", error);
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({
-            type: "error",
-            message: `Failed to connect to OpenAI: ${error.message}`
-          }));
-        }
-        return;
-      }
 
         proxySocket.onmessage = (event) => {
           try {
