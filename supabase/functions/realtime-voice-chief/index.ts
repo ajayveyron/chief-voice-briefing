@@ -77,7 +77,9 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are Chief, an AI executive assistant. You help busy professionals manage their day efficiently.
+              content: `CRITICAL INSTRUCTION: You MUST respond ONLY in English language. Never use any other language.
+
+You are Chief, an AI executive assistant. You help busy professionals manage their day efficiently.
 
 Key capabilities:
 - Calendar management and scheduling
@@ -93,9 +95,13 @@ Personality:
 - Always respectful of time
 - Confident in handling executive-level tasks
 
-IMPORTANT: Always respond in English, regardless of the language used in the input. Keep responses concise and actionable. Speak naturally as if you're a trusted assistant.`
+MANDATORY: Your response must be in English only, regardless of what language the user speaks. If the user speaks in Korean, Chinese, Spanish, or any other language, you must respond in English. This is non-negotiable.
+
+Keep responses concise and actionable. Speak naturally as if you're a trusted assistant.
+
+REMINDER: ENGLISH ONLY - NO EXCEPTIONS.`
             },
-            { role: 'user', content: text }
+            { role: 'user', content: `User said: "${text}". Please respond ONLY in English, regardless of the language the user used.` }
           ],
           max_tokens: 500,
           temperature: 0.8
@@ -122,6 +128,44 @@ IMPORTANT: Always respond in English, regardless of the language used in the inp
     if (action === 'speak' && text) {
       console.log("🔊 Converting text to speech...");
 
+      // Ensure text is in English before TTS conversion
+      let englishText = text;
+      
+      // Check if text contains non-English characters and translate if needed
+      const hasNonEnglish = /[^\x00-\x7F]/.test(text);
+      if (hasNonEnglish) {
+        console.log("⚠️ Non-English text detected, translating to English...");
+        
+        const translateResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: 'Translate the following text to English. Return ONLY the translated text, nothing else.'
+              },
+              { role: 'user', content: text }
+            ],
+            max_tokens: 300,
+            temperature: 0
+          }),
+        });
+
+        if (translateResponse.ok) {
+          const translateResult = await translateResponse.json();
+          englishText = translateResult.choices[0].message.content.trim();
+          console.log("✅ Translated to English:", englishText);
+        } else {
+          console.warn("❌ Translation failed, using fallback English text");
+          englishText = "Hello! How can I assist you today?";
+        }
+      }
+
       const ttsResponse = await fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: {
@@ -131,7 +175,7 @@ IMPORTANT: Always respond in English, regardless of the language used in the inp
         body: JSON.stringify({
           model: 'tts-1',
           voice: 'alloy',
-          input: text,
+          input: englishText,
           response_format: 'mp3'
         }),
       });
