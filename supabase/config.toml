@@ -51,3 +51,6 @@ verify_jwt = false
 
 [functions.chief-ai-chat]
 verify_jwt = true
+
+[functions.realtime-voice-chief]
+verify_jwt = false
