@@ -14,6 +14,7 @@ export const useRealtimeVoiceChief = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingStartTimeRef = useRef<number | null>(null);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
 
   const connect = useCallback(async () => {
@@ -197,15 +198,19 @@ export const useRealtimeVoiceChief = () => {
         const audioUrl = URL.createObjectURL(responseAudioBlob);
         
         const audio = new Audio(audioUrl);
+        currentAudioRef.current = audio; // Track the current audio
+        
         audio.onended = () => {
           setConversationState("idle");
           URL.revokeObjectURL(audioUrl);
+          currentAudioRef.current = null;
         };
         
         audio.onerror = (e) => {
           console.error("❌ Audio playback error:", e);
           setConversationState("idle");
           URL.revokeObjectURL(audioUrl);
+          currentAudioRef.current = null;
         };
         
         await audio.play();
@@ -272,6 +277,14 @@ export const useRealtimeVoiceChief = () => {
 
   const disconnect = useCallback(() => {
     console.log("🔌 Disconnecting from voice chief...");
+
+    // Stop any currently playing audio immediately
+    if (currentAudioRef.current) {
+      console.log("🔇 Stopping current audio playback");
+      currentAudioRef.current.pause();
+      currentAudioRef.current.currentTime = 0;
+      currentAudioRef.current = null;
+    }
 
     if (mediaRecorderRef.current) {
       if (mediaRecorderRef.current.state === "recording") {
@@ -357,9 +370,19 @@ export const useRealtimeVoiceChief = () => {
         const audioUrl = URL.createObjectURL(responseAudioBlob);
         
         const audio = new Audio(audioUrl);
+        currentAudioRef.current = audio; // Track the current audio
+        
         audio.onended = () => {
           setConversationState("idle");
           URL.revokeObjectURL(audioUrl);
+          currentAudioRef.current = null;
+        };
+        
+        audio.onerror = (e) => {
+          console.error("❌ Audio playback error:", e);
+          setConversationState("idle");
+          URL.revokeObjectURL(audioUrl);
+          currentAudioRef.current = null;
         };
         
         await audio.play();

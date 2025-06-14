@@ -9,7 +9,8 @@ import {
   Bot, 
   Volume2,
   VolumeX,
-  MessageSquare
+  MessageSquare,
+  Square
 } from "lucide-react";
 import { useRealtimeVoiceChief } from "@/hooks/useRealtimeVoiceChief";
 import { cn } from "@/lib/utils";
@@ -118,18 +119,28 @@ export const ChiefVoiceInterface: React.FC<ChiefVoiceInterfaceProps> = ({
         <div className="relative">
           <Button
             size="lg"
-            variant={isListening ? "default" : "outline"}
+            variant={isListening ? "default" : isSpeaking ? "destructive" : "outline"}
             className={cn(
               "h-32 w-32 rounded-full transition-all duration-300",
               isListening && "shadow-lg shadow-primary/25 scale-105",
-              isSpeaking && "animate-pulse"
+              isSpeaking && "animate-pulse shadow-lg shadow-destructive/25 scale-105"
             )}
-            onClick={isListening ? handleStopRecording : handleStartRecording}
+            onClick={
+              isListening 
+                ? handleStopRecording 
+                : isSpeaking 
+                  ? disconnect 
+                  : handleStartRecording
+            }
             disabled={connectionState === "connecting"}
           >
             {isListening ? (
               <div className="flex items-center justify-center">
                 <MicOff className="h-12 w-12 animate-pulse" />
+              </div>
+            ) : isSpeaking ? (
+              <div className="flex items-center justify-center">
+                <Square className="h-12 w-12" />
               </div>
             ) : (
               <Mic className="h-12 w-12" />
@@ -150,13 +161,13 @@ export const ChiefVoiceInterface: React.FC<ChiefVoiceInterfaceProps> = ({
         {/* Status Text */}
         <div className="text-center">
           <h2 className="text-xl font-semibold mb-2">
-            {isListening ? "I'm listening..." : isSpeaking ? "Chief is speaking" : "Tap to start"}
+            {isListening ? "I'm listening..." : isSpeaking ? "Tap to stop" : "Tap to start"}
           </h2>
           <p className="text-muted-foreground">
             {isListening 
               ? "Speak naturally, I'll understand and take action"
               : isSpeaking 
-              ? "I'm responding to your request"
+              ? "Chief is speaking - tap the stop button to interrupt"
               : "Start a voice conversation with Chief"
             }
           </p>
