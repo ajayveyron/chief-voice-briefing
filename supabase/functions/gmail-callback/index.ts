@@ -32,7 +32,7 @@ serve(async (req) => {
     })
 
     // Use the actual frontend URL from environment or fallback to Lovable preview URL
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://chief-voice-briefing.lovable.app'
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app'
 
     if (error) {
       console.error('OAuth error from Google:', error)
