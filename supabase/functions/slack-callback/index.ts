@@ -32,7 +32,8 @@ serve(async (req) => {
 
     if (error) {
       console.error('OAuth error from Slack:', error)
-      const frontendUrl = 'https://preview--chief-executive-assistant.lovable.app'      const redirectUrl = `${frontendUrl}?error=oauth_error`
+      const frontendUrl = 'https://preview--chief-executive-assistant.lovable.app'
+      const redirectUrl = `${frontendUrl}?error=oauth_error`
       return new Response(null, {
         status: 302,
         headers: { 
