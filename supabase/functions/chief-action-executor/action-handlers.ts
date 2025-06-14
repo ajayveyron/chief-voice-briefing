@@ -68,13 +68,18 @@ export async function executeCalendarAction(payload: ActionPayload, supabase: an
       const { data, error } = await supabase.functions.invoke('manage-calendar', {
         body: {
           action: 'create',
-          event: {
-            summary: title,
-            start: { dateTime: start_time },
-            end: { dateTime: end_time || new Date(new Date(start_time).getTime() + 60 * 60 * 1000).toISOString() },
-            attendees: attendees ? attendees.map(email => ({ email })) : undefined,
-            description: description || ''
-          }
+          summary: title,
+          start: { 
+            dateTime: start_time,
+            timeZone: 'UTC'
+          },
+          end: { 
+            dateTime: end_time || new Date(new Date(start_time).getTime() + 60 * 60 * 1000).toISOString(),
+            timeZone: 'UTC'
+          },
+          attendees: attendees ? attendees.map(email => ({ email })) : undefined,
+          description: description || '',
+          reminders: { useDefault: true }
         }
       });
 
