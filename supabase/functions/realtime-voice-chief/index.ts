@@ -19,40 +19,31 @@ serve(async (req) => {
   }
   
   console.log("✅ API Key found, length:", OPENAI_API_KEY.length);
-  console.log("✅ API Key starts with:", OPENAI_API_KEY.substring(0, 10));
-  console.log("✅ API Key ends with:", OPENAI_API_KEY.substring(OPENAI_API_KEY.length - 10));
 
   console.log("✅ Upgrading to WebSocket");
   
   try {
     const { socket, response } = Deno.upgradeWebSocket(req);
     
-    let openAISocket: WebSocket | null = null;
-    let sessionCreated = false;
+    let proxySocket: WebSocket | null = null;
 
     // WebSocket connection opened
     socket.onopen = async () => {
-      console.log("🎯 Client WebSocket connected, connecting to OpenAI...");
+      console.log("🎯 Client WebSocket connected, connecting to proxy...");
       
       try {
-        // Test with simple WebSocket connection first to get better error info
-        const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01";
+        // Connect to Node.js proxy server instead of OpenAI directly
+        // TODO: Replace this URL with your deployed proxy server URL
+        const proxyUrl = "wss://your-proxy-server.fly.dev"; // Replace with your actual proxy URL
         
-        console.log("🔑 Attempting OpenAI connection with API key length:", OPENAI_API_KEY.length);
-        console.log("🔗 Connecting to URL:", openAIUrl);
+        console.log("🔗 Connecting to proxy:", proxyUrl);
         
-        // Try basic WebSocket first to see what error we get
-        openAISocket = new WebSocket(openAIUrl);
+        // Add API key as query parameter for the proxy
+        const urlWithKey = `${proxyUrl}?api_key=${encodeURIComponent(OPENAI_API_KEY)}`;
+        proxySocket = new WebSocket(urlWithKey);
 
-        openAISocket.onopen = () => {
-          console.log("✅ Connected to OpenAI Realtime API");
-          
-          // Try sending auth as first message after connection
-          console.log("🔑 Sending authentication message...");
-          openAISocket.send(JSON.stringify({
-            type: "authenticate", 
-            authorization: `Bearer ${OPENAI_API_KEY}`
-          }));
+        proxySocket.onopen = () => {
+          console.log("✅ Connected to proxy server");
         };
       } catch (error) {
         console.error("❌ Failed to create OpenAI WebSocket:", error);
@@ -65,106 +56,68 @@ serve(async (req) => {
         return;
       }
 
-      openAISocket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log("📦 OpenAI -> Client:", data.type);
+        proxySocket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log("📦 Proxy -> Client:", data.type);
 
-          // Handle session creation - send session update after creation
-          if (data.type === "session.created" && !sessionCreated) {
-            sessionCreated = true;
-            console.log("🎯 Session created, sending session update");
-            
-            const sessionUpdate = {
-              type: "session.update",
-              session: {
-                modalities: ["text", "audio"],
-                instructions: `You are Chief, an AI executive assistant. You help busy professionals manage their day efficiently.
-
-Key capabilities:
-- Calendar management and scheduling
-- Email prioritization and drafting
-- Task organization and reminders
-- Meeting preparation and follow-ups
-- Daily briefings and summaries
-
-Personality:
-- Professional yet approachable
-- Concise but thorough
-- Proactive in suggesting improvements
-- Always respectful of time
-- Confident in handling executive-level tasks
-
-Remember to be helpful, efficient, and speak naturally as if you're a trusted assistant who knows the user's preferences and work style.`,
-                voice: "alloy",
-                input_audio_format: "pcm16",
-                output_audio_format: "pcm16",
-                input_audio_transcription: {
-                  model: "whisper-1"
-                },
-                turn_detection: {
-                  type: "server_vad",
-                  threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 1000
-                },
-                temperature: 0.8,
-                max_response_output_tokens: "inf"
-              }
-            };
-
-            if (openAISocket?.readyState === WebSocket.OPEN) {
-              openAISocket.send(JSON.stringify(sessionUpdate));
+            // Forward all messages to client (the proxy handles session management)
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(event.data);
             }
+          } catch (error) {
+            console.error("❌ Error processing proxy message:", error);
           }
+        };
 
-          // Forward all messages to client
+        proxySocket.onerror = (error) => {
+          console.error("❌ Proxy WebSocket error:", error);
+          const errorMessage = error instanceof ErrorEvent ? error.message : 
+                             error instanceof Error ? error.message : 
+                             'Proxy WebSocket connection failed';
+          
           if (socket.readyState === WebSocket.OPEN) {
-            socket.send(event.data);
+            socket.send(JSON.stringify({
+              type: "error",
+              message: errorMessage
+            }));
           }
-        } catch (error) {
-          console.error("❌ Error processing OpenAI message:", error);
-        }
-      };
+        };
 
-      openAISocket.onerror = (error) => {
-        console.error("❌ OpenAI WebSocket error:", error);
-        const errorMessage = error instanceof ErrorEvent ? error.message : 
-                           error instanceof Error ? error.message : 
-                           'OpenAI WebSocket connection failed';
-        
+        proxySocket.onclose = (event) => {
+          console.log("🔌 Proxy WebSocket closed:", event.code, event.reason);
+          const closeMessage = event.reason || `Connection closed with code ${event.code}`;
+          
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+              type: "error", 
+              message: `Proxy connection closed: ${closeMessage}`
+            }));
+            socket.close();
+          }
+        };
+      } catch (error) {
+        console.error("❌ Failed to connect to proxy:", error);
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({
             type: "error",
-            message: errorMessage
+            message: `Failed to connect to proxy: ${error.message}`
           }));
         }
-      };
-
-      openAISocket.onclose = (event) => {
-        console.log("🔌 OpenAI WebSocket closed:", event.code, event.reason);
-        const closeMessage = event.reason || `Connection closed with code ${event.code}`;
-        
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({
-            type: "error", 
-            message: `OpenAI connection closed: ${closeMessage}`
-          }));
-          socket.close();
-        }
-      };
+        return;
+      }
     };
 
-    // Forward client messages to OpenAI
+    // Forward client messages to proxy
     socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log("📦 Client -> OpenAI:", data.type);
+        console.log("📦 Client -> Proxy:", data.type);
         
-        if (openAISocket?.readyState === WebSocket.OPEN) {
-          openAISocket.send(event.data);
+        if (proxySocket?.readyState === WebSocket.OPEN) {
+          proxySocket.send(event.data);
         } else {
-          console.warn("⚠️ OpenAI socket not ready, message dropped");
+          console.warn("⚠️ Proxy socket not ready, message dropped");
         }
       } catch (error) {
         console.error("❌ Error processing client message:", error);
@@ -177,8 +130,8 @@ Remember to be helpful, efficient, and speak naturally as if you're a trusted as
 
     socket.onclose = () => {
       console.log("🔌 Client WebSocket closed");
-      if (openAISocket?.readyState === WebSocket.OPEN) {
-        openAISocket.close();
+      if (proxySocket?.readyState === WebSocket.OPEN) {
+        proxySocket.close();
       }
     };
 

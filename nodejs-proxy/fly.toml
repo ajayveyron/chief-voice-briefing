@@ -1,0 +1,36 @@
+app = "openai-realtime-proxy"
+primary_region = "iad"
+
+[build]
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+
+  [[http_service.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[http_service.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+# Add support for WebSocket on port 8081
+[[services]]
+  internal_port = 8081
+  protocol = "tcp"
+  auto_stop_machines = true
+  auto_start_machines = true
+
+  [[services.ports]]
+    port = 8081
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 8082
+    handlers = ["tls", "http"]
