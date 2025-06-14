@@ -87,9 +87,20 @@ export const useRealtimeVoiceChief = () => {
         return;
       }
       
-      // Convert audio to base64
+      // Convert audio to base64 using chunked processing to prevent stack overflow
       const arrayBuffer = await audioBlob.arrayBuffer();
-      const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      const uint8Array = new Uint8Array(arrayBuffer);
+      
+      // Process in chunks to prevent "Maximum call stack size exceeded" error
+      let binaryString = '';
+      const chunkSize = 32768; // 32KB chunks
+      
+      for (let i = 0; i < uint8Array.length; i += chunkSize) {
+        const chunk = uint8Array.slice(i, i + chunkSize);
+        binaryString += String.fromCharCode.apply(null, Array.from(chunk));
+      }
+      
+      const base64Audio = btoa(binaryString);
 
       console.log("🎤 Transcribing audio... (", audioBlob.size, "bytes)");
       

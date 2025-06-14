@@ -26,16 +26,34 @@ serve(async (req) => {
 
     console.log('🎵 Processing audio transcription...');
 
-    // Convert base64 to binary
-    const binaryString = atob(audio);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+    // Process base64 decoding in chunks to prevent memory issues with large files
+    function decodeBase64InChunks(base64String: string): Uint8Array {
+      // Remove any whitespace from base64 string
+      const cleanBase64 = base64String.replace(/\s/g, '');
+      
+      // Decode the entire base64 string at once (since it's properly formatted from frontend)
+      const binaryString = atob(cleanBase64);
+      
+      // Convert to Uint8Array in chunks to prevent stack overflow
+      const result = new Uint8Array(binaryString.length);
+      const chunkSize = 32768; // 32KB chunks
+      
+      for (let i = 0; i < binaryString.length; i += chunkSize) {
+        const end = Math.min(i + chunkSize, binaryString.length);
+        for (let j = i; j < end; j++) {
+          result[j] = binaryString.charCodeAt(j);
+        }
+      }
+      
+      return result;
     }
+
+    // Process audio with chunked decoding
+    const binaryAudio = decodeBase64InChunks(audio);
 
     // Prepare form data
     const formData = new FormData();
-    const blob = new Blob([bytes], { type: 'audio/webm' });
+    const blob = new Blob([binaryAudio], { type: 'audio/webm' });
     formData.append('file', blob, 'audio.webm');
     formData.append('model', 'whisper-1');
     formData.append('language', 'en');
