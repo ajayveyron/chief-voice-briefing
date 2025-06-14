@@ -19,6 +19,8 @@ serve(async (req) => {
   }
   
   console.log("✅ API Key found, length:", OPENAI_API_KEY.length);
+  console.log("✅ API Key starts with:", OPENAI_API_KEY.substring(0, 10));
+  console.log("✅ API Key ends with:", OPENAI_API_KEY.substring(OPENAI_API_KEY.length - 10));
 
   console.log("✅ Upgrading to WebSocket");
   
@@ -33,21 +35,24 @@ serve(async (req) => {
       console.log("🎯 Client WebSocket connected, connecting to OpenAI...");
       
       try {
-        // Connect to OpenAI Realtime API with proper headers
+        // Test with simple WebSocket connection first to get better error info
         const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01";
         
         console.log("🔑 Attempting OpenAI connection with API key length:", OPENAI_API_KEY.length);
+        console.log("🔗 Connecting to URL:", openAIUrl);
         
-        // Create WebSocket with authorization header
-        openAISocket = new WebSocket(openAIUrl, ["realtime"], {
-          headers: {
-            "Authorization": `Bearer ${OPENAI_API_KEY}`,
-            "OpenAI-Beta": "realtime=v1"
-          }
-        });
+        // Try basic WebSocket first to see what error we get
+        openAISocket = new WebSocket(openAIUrl);
 
         openAISocket.onopen = () => {
           console.log("✅ Connected to OpenAI Realtime API");
+          
+          // Try sending auth as first message after connection
+          console.log("🔑 Sending authentication message...");
+          openAISocket.send(JSON.stringify({
+            type: "authenticate", 
+            authorization: `Bearer ${OPENAI_API_KEY}`
+          }));
         };
       } catch (error) {
         console.error("❌ Failed to create OpenAI WebSocket:", error);
