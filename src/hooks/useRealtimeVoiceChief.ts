@@ -122,12 +122,14 @@ export const useRealtimeVoiceChief = () => {
             break;
 
           case "error":
-            console.error("❌ OpenAI error:", data.message);
+            console.error("❌ OpenAI error:", data.message || data.error || 'Unknown error');
+            console.error("❌ Full error object:", data);
             toast({
-              title: "Error",
-              description: data.message,
+              title: "Connection Error",
+              description: data.message || data.error || 'Failed to connect to OpenAI',
               variant: "destructive",
             });
+            setConnectionState("error");
             break;
         }
       };

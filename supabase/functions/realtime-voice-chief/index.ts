@@ -107,17 +107,27 @@ Remember to be helpful, efficient, and speak naturally as if you're a trusted as
 
       openAISocket.onerror = (error) => {
         console.error("❌ OpenAI WebSocket error:", error);
+        const errorMessage = error instanceof ErrorEvent ? error.message : 
+                           error instanceof Error ? error.message : 
+                           'OpenAI WebSocket connection failed';
+        
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({
             type: "error",
-            message: `OpenAI connection error: ${error instanceof Error ? error.message : 'Unknown error'}`
+            message: errorMessage
           }));
         }
       };
 
       openAISocket.onclose = (event) => {
         console.log("🔌 OpenAI WebSocket closed:", event.code, event.reason);
+        const closeMessage = event.reason || `Connection closed with code ${event.code}`;
+        
         if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({
+            type: "error", 
+            message: `OpenAI connection closed: ${closeMessage}`
+          }));
           socket.close();
         }
       };
