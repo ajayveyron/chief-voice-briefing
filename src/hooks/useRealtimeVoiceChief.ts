@@ -158,15 +158,30 @@ export const useRealtimeVoiceChief = () => {
           throw new Error("Invalid audio data received");
         }
         
+        console.log("🔊 Received base64 audio length:", base64AudioResponse.length);
+        console.log("🔊 First 50 chars:", base64AudioResponse.substring(0, 50));
+        
         // Clean the base64 string (remove any whitespace or invalid characters)
         const cleanBase64 = base64AudioResponse.replace(/[^A-Za-z0-9+/=]/g, '');
         
         // Validate base64 format
         if (cleanBase64.length % 4 !== 0) {
+          console.error("❌ Invalid base64 format - length not divisible by 4:", cleanBase64.length);
           throw new Error("Invalid base64 format");
         }
         
-        const audioBuffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
+        // Test base64 decoding first
+        let audioBuffer;
+        try {
+          const binaryString = atob(cleanBase64);
+          audioBuffer = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+          console.log("✅ Base64 decoded successfully, audio buffer size:", audioBuffer.length);
+        } catch (decodeError) {
+          console.error("❌ Base64 decode failed:", decodeError);
+          console.error("Base64 sample (100 chars):", cleanBase64.substring(0, 100));
+          throw new Error("Failed to decode base64 audio data");
+        }
+        
         const responseAudioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
         const audioUrl = URL.createObjectURL(responseAudioBlob);
         
@@ -176,11 +191,18 @@ export const useRealtimeVoiceChief = () => {
           URL.revokeObjectURL(audioUrl);
         };
         
+        audio.onerror = (e) => {
+          console.error("❌ Audio playback error:", e);
+          setConversationState("idle");
+          URL.revokeObjectURL(audioUrl);
+        };
+        
         await audio.play();
         console.log("✅ Audio playback started");
       } catch (audioError) {
         console.error("❌ Audio decoding/playback error:", audioError);
-        console.error("Base64 audio response:", base64AudioResponse?.substring(0, 100), "...");
+        console.error("Base64 audio response length:", base64AudioResponse?.length);
+        console.error("Base64 audio response sample:", base64AudioResponse?.substring(0, 100), "...");
         throw new Error("Failed to decode or play audio response");
       }
 

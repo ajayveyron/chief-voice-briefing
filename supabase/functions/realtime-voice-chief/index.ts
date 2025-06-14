@@ -186,17 +186,28 @@ REMINDER: ENGLISH ONLY - NO EXCEPTIONS.`
 
       const audioBuffer = await ttsResponse.arrayBuffer();
       
-      // Convert to base64 in chunks to avoid stack overflow
+      // Convert to base64 using a more reliable method
       const uint8Array = new Uint8Array(audioBuffer);
-      let base64Audio = '';
-      const chunkSize = 0x8000; // 32KB chunks
+      
+      // Use TextDecoder approach to avoid issues with special characters
+      let binaryString = '';
+      const chunkSize = 32768; // 32KB chunks
       
       for (let i = 0; i < uint8Array.length; i += chunkSize) {
         const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
-        base64Audio += btoa(String.fromCharCode.apply(null, Array.from(chunk)));
+        // Convert chunk to binary string more safely
+        const chunkString = Array.from(chunk, byte => String.fromCharCode(byte)).join('');
+        binaryString += chunkString;
+      }
+      
+      const base64Audio = btoa(binaryString);
+
+      // Validate the base64 string
+      if (!base64Audio || base64Audio.length < 100) {
+        throw new Error('Generated base64 audio is too short or empty');
       }
 
-      console.log("✅ Audio generated successfully");
+      console.log("✅ Audio generated successfully, base64 length:", base64Audio.length);
 
       return new Response(JSON.stringify({ 
         audio: base64Audio,
