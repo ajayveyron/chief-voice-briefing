@@ -17,6 +17,8 @@ serve(async (req) => {
     console.error("❌ OPENAI_API_KEY not found");
     return new Response("Server configuration error", { status: 500 });
   }
+  
+  console.log("✅ API Key found, length:", OPENAI_API_KEY.length);
 
   console.log("✅ Upgrading to WebSocket");
   
@@ -27,21 +29,36 @@ serve(async (req) => {
     let sessionCreated = false;
 
     // WebSocket connection opened
-    socket.onopen = () => {
+    socket.onopen = async () => {
       console.log("🎯 Client WebSocket connected, connecting to OpenAI...");
       
-      // Connect to OpenAI Realtime API
-      const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01";
-      openAISocket = new WebSocket(openAIUrl, [], {
-        headers: {
-          "Authorization": `Bearer ${OPENAI_API_KEY}`,
-          "OpenAI-Beta": "realtime=v1"
-        }
-      });
+      try {
+        // Connect to OpenAI Realtime API with proper headers
+        const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01";
+        
+        console.log("🔑 Attempting OpenAI connection with API key length:", OPENAI_API_KEY.length);
+        
+        // Create WebSocket with authorization header
+        openAISocket = new WebSocket(openAIUrl, ["realtime"], {
+          headers: {
+            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+            "OpenAI-Beta": "realtime=v1"
+          }
+        });
 
-      openAISocket.onopen = () => {
-        console.log("✅ Connected to OpenAI Realtime API");
-      };
+        openAISocket.onopen = () => {
+          console.log("✅ Connected to OpenAI Realtime API");
+        };
+      } catch (error) {
+        console.error("❌ Failed to create OpenAI WebSocket:", error);
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({
+            type: "error",
+            message: `Failed to connect to OpenAI: ${error.message}`
+          }));
+        }
+        return;
+      }
 
       openAISocket.onmessage = (event) => {
         try {
