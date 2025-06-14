@@ -98,13 +98,14 @@ serve(async (req) => {
       }
     })
 
-    // Verify state token using admin client
+    // Verify state token using admin client (also check if not expired)
     console.log('Looking up OAuth state:', state)
     const { data: oauthState, error: stateError } = await supabase
       .from('oauth_states')
       .select('*')
       .eq('state_token', state)
       .eq('integration_type', 'gmail')
+      .gt('expires_at', new Date().toISOString())
       .single()
 
     if (stateError) {

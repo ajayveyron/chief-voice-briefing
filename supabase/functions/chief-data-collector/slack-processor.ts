@@ -28,20 +28,110 @@ export async function processSlackData(supabase: any): Promise<number> {
           started_at: new Date().toISOString() 
         });
 
-        // Call the existing fetch-slack-messages function
-        const { data: slackData, error: slackError } = await supabase.functions.invoke('fetch-slack-messages', {
-          headers: {
-            Authorization: `Bearer ${integration.access_token}`
-          }
-        });
+        // Function to refresh token if needed
+        async function refreshTokenIfExpired() {
+          const now = new Date()
+          const expiresAt = new Date(integration.token_expires_at)
+          
+          if (now >= expiresAt && integration.refresh_token) {
+            console.log('Token expired, refreshing...')
+            
+            const refreshResponse = await fetch('https://slack.com/api/oauth.v2.access', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({
+                client_id: Deno.env.get('SLACK_CLIENT_ID') ?? '',
+                client_secret: Deno.env.get('SLACK_CLIENT_SECRET') ?? '',
+                refresh_token: integration.refresh_token,
+                grant_type: 'refresh_token'
+              })
+            })
 
-        if (slackError) {
-          console.error(`Error fetching Slack for user ${integration.user_id}:`, slackError);
-          await logSyncStatus(supabase, integration.id, 'polling', 'error', slackError.message);
-          continue;
+            if (refreshResponse.ok) {
+              const tokens = await refreshResponse.json()
+              if (tokens.ok) {
+                integration.access_token = tokens.access_token
+                integration.token_expires_at = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null
+                
+                // Update in database
+                await supabase
+                  .from('user_integrations')
+                  .update({
+                    access_token: tokens.access_token,
+                    token_expires_at: integration.token_expires_at,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', integration.id)
+                
+                console.log('Token refreshed successfully')
+              } else {
+                throw new Error(`Failed to refresh token: ${tokens.error}`)
+              }
+            } else {
+              throw new Error('Failed to refresh token')
+            }
+          }
         }
 
-        const messages = slackData?.messages || [];
+        await refreshTokenIfExpired()
+
+        // Fetch messages directly from Slack API - simplified approach
+        const messagesResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel&exclude_archived=false&limit=20', {
+          headers: {
+            'Authorization': `Bearer ${integration.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (!messagesResponse.ok) {
+          if (messagesResponse.status === 401) {
+            await refreshTokenIfExpired()
+            // Don't retry for Slack as token refresh is complex
+          }
+          throw new Error(`Slack API error: ${messagesResponse.status}`)
+        }
+
+        const channelsData = await messagesResponse.json()
+        if (!channelsData.ok) {
+          throw new Error(`Slack API error: ${channelsData.error}`)
+        }
+
+        const messages = []
+        const channels = channelsData.channels || []
+
+        // Get recent messages from accessible channels only
+        for (const channel of channels.slice(0, 5)) {
+          if (channel.is_member) {
+            try {
+              const historyResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}&limit=10`, {
+                headers: {
+                  'Authorization': `Bearer ${integration.access_token}`,
+                  'Content-Type': 'application/json'
+                }
+              })
+
+              if (historyResponse.ok) {
+                const historyData = await historyResponse.json()
+                if (historyData.ok && historyData.messages) {
+                  for (const message of historyData.messages) {
+                    if (message.text && !message.bot_id) {
+                      messages.push({
+                        id: message.ts,
+                        text: message.text,
+                        user: message.user || 'Unknown',
+                        channel: `#${channel.name}`,
+                        timestamp: new Date(parseFloat(message.ts) * 1000).toISOString()
+                      })
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching messages from channel ${channel.name}:`, error)
+            }
+          }
+        }
+
         console.log(`💬 Processing ${messages.length} messages for user ${integration.user_id}`);
 
         for (const message of messages) {

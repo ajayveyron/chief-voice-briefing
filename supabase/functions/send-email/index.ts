@@ -65,6 +65,49 @@ serve(async (req) => {
       throw new Error('Gmail integration not found or inactive');
     }
 
+    // Function to refresh token if needed
+    async function refreshTokenIfExpired() {
+      const now = new Date()
+      const expiresAt = new Date(integration.token_expires_at)
+      
+      if (now >= expiresAt && integration.refresh_token) {
+        console.log('Token expired, refreshing...')
+        
+        const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: Deno.env.get('GOOGLE_CLIENT_ID') ?? '',
+            client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') ?? '',
+            refresh_token: integration.refresh_token,
+            grant_type: 'refresh_token'
+          })
+        })
+
+        if (refreshResponse.ok) {
+          const tokens = await refreshResponse.json()
+          integration.access_token = tokens.access_token
+          integration.token_expires_at = new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+          
+          // Update in database
+          await supabase
+            .from('user_integrations')
+            .update({
+              access_token: tokens.access_token,
+              token_expires_at: integration.token_expires_at,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', integration.id)
+          
+          console.log('Token refreshed successfully')
+        } else {
+          throw new Error('Failed to refresh token')
+        }
+      }
+    }
+
+    await refreshTokenIfExpired()
+
     // If scheduled, store for later processing
     if (emailRequest.scheduledFor) {
       const { error: scheduleError } = await supabase
@@ -114,6 +157,35 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        // Try to refresh token and retry once
+        await refreshTokenIfExpired()
+        const retryResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${integration.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(gmailMessage),
+        });
+
+        if (!retryResponse.ok) {
+          const error = await retryResponse.text();
+          throw new Error(`Gmail API error after refresh: ${error}`);
+        }
+
+        const result = await retryResponse.json();
+        console.log('✅ Email sent successfully after token refresh:', result.id);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            messageId: result.id,
+            message: 'Email sent successfully'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       const error = await response.text();
       throw new Error(`Gmail API error: ${error}`);
     }
