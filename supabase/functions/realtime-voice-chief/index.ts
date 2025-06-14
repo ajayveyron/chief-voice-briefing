@@ -19,43 +19,45 @@ serve(async (req) => {
   }
 
   console.log("✅ Upgrading to WebSocket");
-  const { socket, response } = Deno.upgradeWebSocket(req);
   
-  let openAISocket: WebSocket | null = null;
-  let sessionCreated = false;
-
-  // WebSocket connection opened
-  socket.onopen = () => {
-    console.log("🎯 Client WebSocket connected, connecting to OpenAI...");
+  try {
+    const { socket, response } = Deno.upgradeWebSocket(req);
     
-    // Connect to OpenAI Realtime API
-    const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
-    openAISocket = new WebSocket(openAIUrl, [], {
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "OpenAI-Beta": "realtime=v1"
-      }
-    });
+    let openAISocket: WebSocket | null = null;
+    let sessionCreated = false;
 
-    openAISocket.onopen = () => {
-      console.log("✅ Connected to OpenAI Realtime API");
-    };
+    // WebSocket connection opened
+    socket.onopen = () => {
+      console.log("🎯 Client WebSocket connected, connecting to OpenAI...");
+      
+      // Connect to OpenAI Realtime API
+      const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
+      openAISocket = new WebSocket(openAIUrl, [], {
+        headers: {
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "OpenAI-Beta": "realtime=v1"
+        }
+      });
 
-    openAISocket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("📦 OpenAI -> Client:", data.type);
+      openAISocket.onopen = () => {
+        console.log("✅ Connected to OpenAI Realtime API");
+      };
 
-        // Handle session creation - send session update after creation
-        if (data.type === "session.created" && !sessionCreated) {
-          sessionCreated = true;
-          console.log("🎯 Session created, sending session update");
-          
-          const sessionUpdate = {
-            type: "session.update",
-            session: {
-              modalities: ["text", "audio"],
-              instructions: `You are Chief, an AI executive assistant. You help busy professionals manage their day efficiently.
+      openAISocket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log("📦 OpenAI -> Client:", data.type);
+
+          // Handle session creation - send session update after creation
+          if (data.type === "session.created" && !sessionCreated) {
+            sessionCreated = true;
+            console.log("🎯 Session created, sending session update");
+            
+            const sessionUpdate = {
+              type: "session.update",
+              session: {
+                modalities: ["text", "audio"],
+                instructions: `You are Chief, an AI executive assistant. You help busy professionals manage their day efficiently.
 
 Key capabilities:
 - Calendar management and scheduling
@@ -72,79 +74,85 @@ Personality:
 - Confident in handling executive-level tasks
 
 Remember to be helpful, efficient, and speak naturally as if you're a trusted assistant who knows the user's preferences and work style.`,
-              voice: "alloy",
-              input_audio_format: "pcm16",
-              output_audio_format: "pcm16",
-              input_audio_transcription: {
-                model: "whisper-1"
-              },
-              turn_detection: {
-                type: "server_vad",
-                threshold: 0.5,
-                prefix_padding_ms: 300,
-                silence_duration_ms: 1000
-              },
-              temperature: 0.8,
-              max_response_output_tokens: "inf"
+                voice: "alloy",
+                input_audio_format: "pcm16",
+                output_audio_format: "pcm16",
+                input_audio_transcription: {
+                  model: "whisper-1"
+                },
+                turn_detection: {
+                  type: "server_vad",
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 1000
+                },
+                temperature: 0.8,
+                max_response_output_tokens: "inf"
+              }
+            };
+
+            if (openAISocket?.readyState === WebSocket.OPEN) {
+              openAISocket.send(JSON.stringify(sessionUpdate));
             }
-          };
+          }
 
-          openAISocket?.send(JSON.stringify(sessionUpdate));
+          // Forward all messages to client
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(event.data);
+          }
+        } catch (error) {
+          console.error("❌ Error processing OpenAI message:", error);
         }
+      };
 
-        // Forward all messages to client
+      openAISocket.onerror = (error) => {
+        console.error("❌ OpenAI WebSocket error:", error);
         if (socket.readyState === WebSocket.OPEN) {
-          socket.send(event.data);
+          socket.send(JSON.stringify({
+            type: "error",
+            message: "OpenAI connection error"
+          }));
+        }
+      };
+
+      openAISocket.onclose = (event) => {
+        console.log("🔌 OpenAI WebSocket closed:", event.code, event.reason);
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.close();
+        }
+      };
+    };
+
+    // Forward client messages to OpenAI
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("📦 Client -> OpenAI:", data.type);
+        
+        if (openAISocket?.readyState === WebSocket.OPEN) {
+          openAISocket.send(event.data);
+        } else {
+          console.warn("⚠️ OpenAI socket not ready, message dropped");
         }
       } catch (error) {
-        console.error("❌ Error processing OpenAI message:", error);
+        console.error("❌ Error processing client message:", error);
       }
     };
 
-    openAISocket.onerror = (error) => {
-      console.error("❌ OpenAI WebSocket error:", error);
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
-          type: "error",
-          message: "OpenAI connection error"
-        }));
-      }
+    socket.onerror = (error) => {
+      console.error("❌ Client WebSocket error:", error);
     };
 
-    openAISocket.onclose = (event) => {
-      console.log("🔌 OpenAI WebSocket closed:", event.code, event.reason);
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.close();
-      }
-    };
-  };
-
-  // Forward client messages to OpenAI
-  socket.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      console.log("📦 Client -> OpenAI:", data.type);
-      
+    socket.onclose = () => {
+      console.log("🔌 Client WebSocket closed");
       if (openAISocket?.readyState === WebSocket.OPEN) {
-        openAISocket.send(event.data);
-      } else {
-        console.warn("⚠️ OpenAI socket not ready, message dropped");
+        openAISocket.close();
       }
-    } catch (error) {
-      console.error("❌ Error processing client message:", error);
-    }
-  };
+    };
 
-  socket.onerror = (error) => {
-    console.error("❌ Client WebSocket error:", error);
-  };
-
-  socket.onclose = () => {
-    console.log("🔌 Client WebSocket closed");
-    if (openAISocket?.readyState === WebSocket.OPEN) {
-      openAISocket.close();
-    }
-  };
-
-  return response;
+    return response;
+  } catch (error) {
+    console.error("❌ WebSocket upgrade failed:", error);
+    return new Response("WebSocket upgrade failed", { status: 500 });
+  }
 });
