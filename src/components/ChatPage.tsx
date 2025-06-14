@@ -3,8 +3,9 @@ import { useState } from "react";
 import { useUpdates } from "@/hooks/useUpdates";
 import { useUserDocuments } from "@/hooks/useUserDocuments";
 import { Button } from "@/components/ui/button";
-import { Send, Mail, CheckCircle, XCircle } from "lucide-react";
+import { Send, Mail, CheckCircle, XCircle, Mic } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import RealtimeVoiceChief from "@/components/RealtimeVoiceChief";
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Array<{
@@ -20,6 +21,7 @@ const ChatPage = () => {
   }]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
   const { updates } = useUpdates();
   const { documents } = useUserDocuments();
 
@@ -77,12 +79,41 @@ const ChatPage = () => {
     }
   };
 
+  if (isVoiceMode) {
+    return (
+      <div className="relative">
+        <RealtimeVoiceChief />
+        <Button 
+          onClick={() => setIsVoiceMode(false)} 
+          variant="outline" 
+          size="sm"
+          className="absolute top-4 right-4 z-10 flex items-center gap-2"
+        >
+          Text Chat
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col pb-16">
       {/* Header */}
       <div className="p-4 border-b border-gray-700 flex-shrink-0">
-        <h1 className="text-xl font-semibold">Chat with Chief</h1>
-        <p className="text-sm text-gray-400">Your AI assistant that can send emails, manage calendar, and more</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-semibold">Chat with Chief</h1>
+            <p className="text-sm text-gray-400">Your AI assistant that can send emails, manage calendar, and more</p>
+          </div>
+          <Button 
+            onClick={() => setIsVoiceMode(true)} 
+            variant="outline" 
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Mic size={16} />
+            Voice
+          </Button>
+        </div>
       </div>
 
       {/* Messages Container - takes up remaining space */}

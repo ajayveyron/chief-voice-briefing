@@ -153,7 +153,20 @@ export const useRealtimeVoiceChief = () => {
       }
       
       try {
-        const audioBuffer = Uint8Array.from(atob(base64AudioResponse), c => c.charCodeAt(0));
+        // Validate base64 string before decoding
+        if (!base64AudioResponse || typeof base64AudioResponse !== 'string') {
+          throw new Error("Invalid audio data received");
+        }
+        
+        // Clean the base64 string (remove any whitespace or invalid characters)
+        const cleanBase64 = base64AudioResponse.replace(/[^A-Za-z0-9+/=]/g, '');
+        
+        // Validate base64 format
+        if (cleanBase64.length % 4 !== 0) {
+          throw new Error("Invalid base64 format");
+        }
+        
+        const audioBuffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
         const responseAudioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
         const audioUrl = URL.createObjectURL(responseAudioBlob);
         
@@ -167,6 +180,7 @@ export const useRealtimeVoiceChief = () => {
         console.log("✅ Audio playback started");
       } catch (audioError) {
         console.error("❌ Audio decoding/playback error:", audioError);
+        console.error("Base64 audio response:", base64AudioResponse?.substring(0, 100), "...");
         throw new Error("Failed to decode or play audio response");
       }
 
@@ -292,7 +306,20 @@ export const useRealtimeVoiceChief = () => {
       }
       
       try {
-        const audioBuffer = Uint8Array.from(atob(base64AudioResponse), c => c.charCodeAt(0));
+        // Validate base64 string before decoding
+        if (!base64AudioResponse || typeof base64AudioResponse !== 'string') {
+          throw new Error("Invalid audio data received");
+        }
+        
+        // Clean the base64 string (remove any whitespace or invalid characters)
+        const cleanBase64 = base64AudioResponse.replace(/[^A-Za-z0-9+/=]/g, '');
+        
+        // Validate base64 format
+        if (cleanBase64.length % 4 !== 0) {
+          throw new Error("Invalid base64 format");
+        }
+        
+        const audioBuffer = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0));
         const responseAudioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
         const audioUrl = URL.createObjectURL(responseAudioBlob);
         
@@ -305,6 +332,7 @@ export const useRealtimeVoiceChief = () => {
         await audio.play();
       } catch (audioError) {
         console.error("❌ Audio decoding/playback error:", audioError);
+        console.error("Base64 audio response:", base64AudioResponse?.substring(0, 100), "...");
         throw new Error("Failed to decode or play audio response");
       }
 
