@@ -1,180 +1,203 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  RealtimeAudioRecorder,
-  RealtimeAudioPlayer,
-} from "@/utils/realtimeVoiceUtils";
+import { supabase } from "@/integrations/supabase/client";
 
 type ConnectionState = "disconnected" | "connecting" | "connected" | "error";
 type ConversationState = "idle" | "listening" | "speaking" | "thinking";
 
-interface RealtimeMessage {
-  type: string;
-  [key: string]: any;
-}
-
 export const useRealtimeVoiceChief = () => {
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("disconnected");
-  const [conversationState, setConversationState] =
-    useState<ConversationState>("idle");
+  const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const [conversationState, setConversationState] = useState<ConversationState>("idle");
   const [currentTranscript, setCurrentTranscript] = useState<string>("");
-  const [messages, setMessages] = useState<RealtimeMessage[]>([]);
+  const [aiResponse, setAiResponse] = useState<string>("");
 
-  const wsRef = useRef<WebSocket | null>(null);
-  const recorderRef = useRef<RealtimeAudioRecorder | null>(null);
-  const playerRef = useRef<RealtimeAudioPlayer | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
 
   const connect = useCallback(async () => {
-    if (connectionState === "connected" || connectionState === "connecting")
-      return;
+    if (connectionState === "connected" || connectionState === "connecting") return;
 
     try {
       setConnectionState("connecting");
-      console.log("🔌 Connecting to realtime voice chief...");
+      console.log("🔌 Connecting to voice chief...");
 
-      // Initialize audio player
-      playerRef.current = new RealtimeAudioPlayer();
+      // Request microphone permission
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
 
-      // Connect to WebSocket using Supabase edge function
-      const wsUrl = "wss://xxccvppbxnhowncdhvdi.supabase.co/functions/v1/realtime-voice-chief";
-      wsRef.current = new WebSocket(wsUrl);
+      // Set up MediaRecorder
+      mediaRecorderRef.current = new MediaRecorder(stream, {
+        mimeType: 'audio/webm'
+      });
 
-      wsRef.current.onopen = async () => {
-        console.log("✅ Connected to voice chief");
-        setConnectionState("connected");
-        setConversationState("idle");
-
-        // Initialize audio recorder
-        try {
-          recorderRef.current = new RealtimeAudioRecorder((audioData) => {
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(
-                JSON.stringify({
-                  type: "input_audio_buffer.append",
-                  audio: audioData,
-                })
-              );
-            }
-          });
-          await recorderRef.current.start();
-
-          toast({
-            title: "Connected",
-            description: "Voice chief is ready. Start speaking!",
-          });
-        } catch (error) {
-          console.error("❌ Error starting recorder:", error);
-          toast({
-            title: "Microphone Error",
-            description:
-              "Could not access microphone. Please check permissions.",
-            variant: "destructive",
-          });
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
         }
       };
 
-      wsRef.current.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
-        console.log("📦 Received:", data.type);
-
-        setMessages((prev) => [...prev, data]);
-
-        switch (data.type) {
-          case "session.created":
-            console.log("🎯 Session created");
-            break;
-
-          case "session.updated":
-            console.log("⚙️ Session updated");
-            break;
-
-          case "input_audio_buffer.speech_started":
-            setConversationState("listening");
-            setCurrentTranscript("");
-            break;
-
-          case "input_audio_buffer.speech_stopped":
-            setConversationState("thinking");
-            break;
-
-          case "response.audio_transcript.delta":
-            if (data.delta) {
-              setCurrentTranscript((prev) => prev + data.delta);
-            }
-            break;
-
-          case "response.audio.delta":
-            if (data.delta && playerRef.current) {
-              setConversationState("speaking");
-              await playerRef.current.addToQueue(data.delta);
-            }
-            break;
-
-          case "response.audio.done":
-            setConversationState("idle");
-            setCurrentTranscript("");
-            break;
-
-          case "response.done":
-            setConversationState("idle");
-            break;
-
-          case "error":
-            const errorMessage = data.message || data.error?.message || data.error || 'Unknown error';
-            console.error("❌ OpenAI error:", errorMessage);
-            console.error("❌ Full error object:", data);
-            toast({
-              title: "Connection Error", 
-              description: errorMessage,
-              variant: "destructive",
-            });
-            setConnectionState("error");
-            break;
-        }
+      mediaRecorderRef.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        audioChunksRef.current = [];
+        
+        await processAudio(audioBlob);
       };
 
-      wsRef.current.onerror = (error) => {
-        console.error("❌ WebSocket error:", error);
-        setConnectionState("error");
-        toast({
-          title: "Connection Error",
-          description: "Failed to connect to voice chief",
-          variant: "destructive",
-        });
-      };
+      setConnectionState("connected");
+      setConversationState("idle");
 
-      wsRef.current.onclose = () => {
-        console.log("🔌 WebSocket closed");
-        setConnectionState("disconnected");
-        setConversationState("idle");
-        cleanup();
-      };
+      toast({
+        title: "Connected",
+        description: "Voice chief is ready. Click to start recording!",
+      });
+
     } catch (error) {
       console.error("❌ Connection error:", error);
       setConnectionState("error");
       toast({
         title: "Connection Failed",
-        description:
-          error instanceof Error ? error.message : "Failed to connect",
+        description: error instanceof Error ? error.message : "Failed to connect",
         variant: "destructive",
       });
     }
   }, [connectionState, toast]);
 
+  const processAudio = async (audioBlob: Blob) => {
+    try {
+      setConversationState("thinking");
+      
+      // Convert audio to base64
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+      console.log("🎤 Transcribing audio...");
+      
+      // Step 1: Transcribe audio
+      const transcribeResult = await supabase.functions.invoke('realtime-voice-chief', {
+        body: {
+          action: 'transcribe',
+          audio: base64Audio
+        }
+      });
+
+      if (transcribeResult.error) {
+        throw new Error(transcribeResult.error.message);
+      }
+
+      const transcriptionText = transcribeResult.data.text;
+      setCurrentTranscript(transcriptionText);
+      console.log("✅ Transcription:", transcriptionText);
+
+      if (!transcriptionText || transcriptionText.trim().length === 0) {
+        setConversationState("idle");
+        return;
+      }
+
+      // Step 2: Get AI response
+      console.log("🤖 Getting AI response...");
+      const chatResult = await supabase.functions.invoke('realtime-voice-chief', {
+        body: {
+          action: 'chat',
+          text: transcriptionText
+        }
+      });
+
+      if (chatResult.error) {
+        throw new Error(chatResult.error.message);
+      }
+
+      const aiResponseText = chatResult.data.text;
+      setAiResponse(aiResponseText);
+      console.log("✅ AI Response:", aiResponseText);
+
+      // Step 3: Convert AI response to speech
+      console.log("🔊 Converting to speech...");
+      setConversationState("speaking");
+      
+      const ttsResult = await supabase.functions.invoke('realtime-voice-chief', {
+        body: {
+          action: 'speak',
+          text: aiResponseText
+        }
+      });
+
+      if (ttsResult.error) {
+        throw new Error(ttsResult.error.message);
+      }
+
+      // Play the audio
+      const base64AudioResponse = ttsResult.data.audio;
+      const audioBuffer = Uint8Array.from(atob(base64AudioResponse), c => c.charCodeAt(0));
+      const responseAudioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+      const audioUrl = URL.createObjectURL(responseAudioBlob);
+      
+      const audio = new Audio(audioUrl);
+      audio.onended = () => {
+        setConversationState("idle");
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      await audio.play();
+      console.log("✅ Audio playback started");
+
+    } catch (error) {
+      console.error("❌ Processing error:", error);
+      setConversationState("idle");
+      toast({
+        title: "Processing Error",
+        description: error instanceof Error ? error.message : "Failed to process audio",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const startRecording = useCallback(() => {
+    if (!mediaRecorderRef.current || connectionState !== "connected") return;
+
+    setConversationState("listening");
+    setCurrentTranscript("");
+    setAiResponse("");
+    
+    mediaRecorderRef.current.start();
+    console.log("🎤 Recording started");
+  }, [connectionState]);
+
+  const stopRecording = useCallback(() => {
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== "recording") return;
+
+    mediaRecorderRef.current.stop();
+    setConversationState("thinking");
+    console.log("🎤 Recording stopped");
+  }, []);
+
   const disconnect = useCallback(() => {
     console.log("🔌 Disconnecting from voice chief...");
 
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    if (mediaRecorderRef.current) {
+      if (mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+      
+      const stream = mediaRecorderRef.current.stream;
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      
+      mediaRecorderRef.current = null;
     }
 
-    cleanup();
     setConnectionState("disconnected");
     setConversationState("idle");
     setCurrentTranscript("");
+    setAiResponse("");
 
     toast({
       title: "Disconnected",
@@ -182,33 +205,65 @@ export const useRealtimeVoiceChief = () => {
     });
   }, [toast]);
 
-  const cleanup = useCallback(() => {
-    if (recorderRef.current) {
-      recorderRef.current.stop();
-      recorderRef.current = null;
-    }
+  const sendTextMessage = useCallback(async (text: string) => {
+    if (connectionState !== "connected") return;
 
-    if (playerRef.current) {
-      playerRef.current.clear();
-      playerRef.current = null;
-    }
-  }, []);
+    try {
+      setConversationState("thinking");
+      setCurrentTranscript(text);
 
-  const sendTextMessage = useCallback((text: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      const message = {
-        type: "conversation.item.create",
-        item: {
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text }],
-        },
+      // Get AI response
+      const chatResult = await supabase.functions.invoke('realtime-voice-chief', {
+        body: {
+          action: 'chat',
+          text: text
+        }
+      });
+
+      if (chatResult.error) {
+        throw new Error(chatResult.error.message);
+      }
+
+      const aiResponseText = chatResult.data.text;
+      setAiResponse(aiResponseText);
+
+      // Convert to speech and play
+      setConversationState("speaking");
+      
+      const ttsResult = await supabase.functions.invoke('realtime-voice-chief', {
+        body: {
+          action: 'speak',
+          text: aiResponseText
+        }
+      });
+
+      if (ttsResult.error) {
+        throw new Error(ttsResult.error.message);
+      }
+
+      const base64AudioResponse = ttsResult.data.audio;
+      const audioBuffer = Uint8Array.from(atob(base64AudioResponse), c => c.charCodeAt(0));
+      const responseAudioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+      const audioUrl = URL.createObjectURL(responseAudioBlob);
+      
+      const audio = new Audio(audioUrl);
+      audio.onended = () => {
+        setConversationState("idle");
+        URL.revokeObjectURL(audioUrl);
       };
+      
+      await audio.play();
 
-      wsRef.current.send(JSON.stringify(message));
-      wsRef.current.send(JSON.stringify({ type: "response.create" }));
+    } catch (error) {
+      console.error("❌ Text message error:", error);
+      setConversationState("idle");
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to process message",
+        variant: "destructive",
+      });
     }
-  }, []);
+  }, [connectionState, toast]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -221,9 +276,11 @@ export const useRealtimeVoiceChief = () => {
     connectionState,
     conversationState,
     currentTranscript,
-    messages,
+    aiResponse,
     connect,
     disconnect,
+    startRecording,
+    stopRecording,
     sendTextMessage,
   };
 };

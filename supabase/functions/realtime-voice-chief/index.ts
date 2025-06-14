@@ -1,85 +1,83 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 serve(async (req) => {
-  console.log("🔌 Realtime voice chief function called");
-  
-  const { headers } = req;
-  const upgradeHeader = headers.get("upgrade") || "";
-
-  if (upgradeHeader.toLowerCase() !== "websocket") {
-    console.log("❌ Expected WebSocket connection");
-    return new Response("Expected WebSocket connection", { status: 400 });
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
   }
 
-  // Get OpenAI API key from environment
-  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  if (!OPENAI_API_KEY) {
-    console.error("❌ OPENAI_API_KEY not found");
-    return new Response("Server configuration error", { status: 500 });
-  }
-  
-  console.log("✅ API Key found, length:", OPENAI_API_KEY.length);
-  console.log("✅ API Key starts with:", OPENAI_API_KEY.substring(0, 10));
-  console.log("✅ API Key ends with:", OPENAI_API_KEY.substring(OPENAI_API_KEY.length - 10));
-
-  console.log("✅ Upgrading to WebSocket");
-  
   try {
-    const { socket, response } = Deno.upgradeWebSocket(req);
-    
-    let openAISocket: WebSocket | null = null;
-    let sessionCreated = false;
+    const { audio, text, action } = await req.json();
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
-    // WebSocket connection opened
-    socket.onopen = async () => {
-      console.log("🎯 Client WebSocket connected, connecting to OpenAI...");
+    if (!OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not found');
+    }
+
+    console.log("🎯 Processing request with action:", action);
+
+    // Handle voice-to-text conversion
+    if (action === 'transcribe' && audio) {
+      console.log("🎤 Transcribing audio...");
       
-      try {
-        // Test with simple WebSocket connection first to get better error info
-        const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01";
-        
-        console.log("🔑 Attempting OpenAI connection with API key length:", OPENAI_API_KEY.length);
-        console.log("🔗 Connecting to URL:", openAIUrl);
-        
-        // Try basic WebSocket first to see what error we get
-        openAISocket = new WebSocket(openAIUrl);
-
-        openAISocket.onopen = () => {
-          console.log("✅ Connected to OpenAI Realtime API");
-          
-          // Try sending auth as first message after connection
-          console.log("🔑 Sending authentication message...");
-          openAISocket.send(JSON.stringify({
-            type: "authenticate", 
-            authorization: `Bearer ${OPENAI_API_KEY}`
-          }));
-        };
-      } catch (error) {
-        console.error("❌ Failed to create OpenAI WebSocket:", error);
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({
-            type: "error",
-            message: `Failed to connect to OpenAI: ${error.message}`
-          }));
-        }
-        return;
+      // Decode base64 audio
+      const binaryString = atob(audio);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
       }
 
-      openAISocket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log("📦 OpenAI -> Client:", data.type);
+      // Create form data for Whisper API
+      const formData = new FormData();
+      const blob = new Blob([bytes], { type: 'audio/webm' });
+      formData.append('file', blob, 'audio.webm');
+      formData.append('model', 'whisper-1');
 
-          // Handle session creation - send session update after creation
-          if (data.type === "session.created" && !sessionCreated) {
-            sessionCreated = true;
-            console.log("🎯 Session created, sending session update");
-            
-            const sessionUpdate = {
-              type: "session.update",
-              session: {
-                modalities: ["text", "audio"],
-                instructions: `You are Chief, an AI executive assistant. You help busy professionals manage their day efficiently.
+      const transcribeResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: formData,
+      });
+
+      if (!transcribeResponse.ok) {
+        throw new Error(`Transcription failed: ${await transcribeResponse.text()}`);
+      }
+
+      const transcription = await transcribeResponse.json();
+      console.log("✅ Transcription:", transcription.text);
+
+      return new Response(JSON.stringify({ 
+        text: transcription.text,
+        action: 'transcription_complete'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Handle AI chat response
+    if (action === 'chat' && text) {
+      console.log("🤖 Getting AI response for:", text);
+
+      const chatResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `You are Chief, an AI executive assistant. You help busy professionals manage their day efficiently.
 
 Key capabilities:
 - Calendar management and scheduling
@@ -95,96 +93,76 @@ Personality:
 - Always respectful of time
 - Confident in handling executive-level tasks
 
-Remember to be helpful, efficient, and speak naturally as if you're a trusted assistant who knows the user's preferences and work style.`,
-                voice: "alloy",
-                input_audio_format: "pcm16",
-                output_audio_format: "pcm16",
-                input_audio_transcription: {
-                  model: "whisper-1"
-                },
-                turn_detection: {
-                  type: "server_vad",
-                  threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 1000
-                },
-                temperature: 0.8,
-                max_response_output_tokens: "inf"
-              }
-            };
+Keep responses concise and actionable. Speak naturally as if you're a trusted assistant.`
+            },
+            { role: 'user', content: text }
+          ],
+          max_tokens: 500,
+          temperature: 0.8
+        }),
+      });
 
-            if (openAISocket?.readyState === WebSocket.OPEN) {
-              openAISocket.send(JSON.stringify(sessionUpdate));
-            }
-          }
-
-          // Forward all messages to client
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(event.data);
-          }
-        } catch (error) {
-          console.error("❌ Error processing OpenAI message:", error);
-        }
-      };
-
-      openAISocket.onerror = (error) => {
-        console.error("❌ OpenAI WebSocket error:", error);
-        const errorMessage = error instanceof ErrorEvent ? error.message : 
-                           error instanceof Error ? error.message : 
-                           'OpenAI WebSocket connection failed';
-        
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({
-            type: "error",
-            message: errorMessage
-          }));
-        }
-      };
-
-      openAISocket.onclose = (event) => {
-        console.log("🔌 OpenAI WebSocket closed:", event.code, event.reason);
-        const closeMessage = event.reason || `Connection closed with code ${event.code}`;
-        
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({
-            type: "error", 
-            message: `OpenAI connection closed: ${closeMessage}`
-          }));
-          socket.close();
-        }
-      };
-    };
-
-    // Forward client messages to OpenAI
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("📦 Client -> OpenAI:", data.type);
-        
-        if (openAISocket?.readyState === WebSocket.OPEN) {
-          openAISocket.send(event.data);
-        } else {
-          console.warn("⚠️ OpenAI socket not ready, message dropped");
-        }
-      } catch (error) {
-        console.error("❌ Error processing client message:", error);
+      if (!chatResponse.ok) {
+        throw new Error(`Chat failed: ${await chatResponse.text()}`);
       }
-    };
 
-    socket.onerror = (error) => {
-      console.error("❌ Client WebSocket error:", error);
-    };
+      const chatResult = await chatResponse.json();
+      const aiResponse = chatResult.choices[0].message.content;
+      console.log("✅ AI Response:", aiResponse);
 
-    socket.onclose = () => {
-      console.log("🔌 Client WebSocket closed");
-      if (openAISocket?.readyState === WebSocket.OPEN) {
-        openAISocket.close();
+      return new Response(JSON.stringify({ 
+        text: aiResponse,
+        action: 'chat_complete'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Handle text-to-speech conversion
+    if (action === 'speak' && text) {
+      console.log("🔊 Converting text to speech...");
+
+      const ttsResponse = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'tts-1',
+          voice: 'alloy',
+          input: text,
+          response_format: 'mp3'
+        }),
+      });
+
+      if (!ttsResponse.ok) {
+        throw new Error(`TTS failed: ${await ttsResponse.text()}`);
       }
-    };
 
-    return response;
+      const audioBuffer = await ttsResponse.arrayBuffer();
+      const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
+
+      console.log("✅ Audio generated successfully");
+
+      return new Response(JSON.stringify({ 
+        audio: base64Audio,
+        action: 'speech_complete'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    throw new Error('Invalid action or missing required parameters');
+
   } catch (error) {
-    console.error("❌ WebSocket upgrade failed:", error);
-    return new Response("WebSocket upgrade failed", { status: 500 });
+    console.error('❌ Error:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });

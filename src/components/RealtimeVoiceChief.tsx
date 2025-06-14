@@ -9,8 +9,11 @@ const RealtimeVoiceChief = () => {
     connectionState,
     conversationState,
     currentTranscript,
+    aiResponse,
     connect,
     disconnect,
+    startRecording,
+    stopRecording,
     sendTextMessage
   } = useRealtimeVoiceChief();
 
@@ -105,14 +108,46 @@ const RealtimeVoiceChief = () => {
           )}
         </div>
 
-        {/* Main Action Button */}
-        <button
-          onClick={handleMainAction}
-          disabled={connectionState === 'connecting'}
-          className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 ${getStatusColor()} text-white disabled:opacity-50`}
-        >
-          {getIcon()}
-        </button>
+         {/* Recording Controls */}
+         {connectionState === 'connected' && (
+           <div className="flex gap-4">
+             <button
+               onMouseDown={startRecording}
+               onMouseUp={stopRecording}
+               onTouchStart={startRecording}
+               onTouchEnd={stopRecording}
+               disabled={conversationState === 'speaking' || conversationState === 'thinking'}
+               className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 ${
+                 conversationState === 'listening' ? 'bg-red-500' : 'bg-blue-500'
+               } text-white disabled:opacity-50`}
+             >
+               {conversationState === 'listening' ? (
+                 <Mic size={32} className="animate-pulse" />
+               ) : (
+                 <Mic size={32} />
+               )}
+             </button>
+           </div>
+         )}
+
+         {/* Main Action Button - Only for connecting/disconnecting */}
+         {connectionState !== 'connected' && (
+           <button
+             onClick={handleMainAction}
+             disabled={connectionState === 'connecting'}
+             className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 ${getStatusColor()} text-white disabled:opacity-50`}
+           >
+             {getIcon()}
+           </button>
+         )}
+
+         {/* AI Response Display */}
+         {aiResponse && connectionState === 'connected' && (
+           <div className="w-full bg-gray-800/50 rounded-lg p-4 mt-4">
+             <p className="text-sm text-gray-400 mb-2">Chief's Response:</p>
+             <p className="text-white text-sm">{aiResponse}</p>
+           </div>
+         )}
 
         {/* Quick Actions */}
         {connectionState === 'connected' && (
@@ -150,7 +185,13 @@ const RealtimeVoiceChief = () => {
         {/* Tips */}
         {connectionState === 'disconnected' && (
           <div className="text-center text-xs text-gray-500 mt-4 max-w-sm">
-            <p>💡 <strong>Pro tip:</strong> Once connected, you can have natural conversations with Chief about your schedule, emails, tasks, and more. Just speak naturally!</p>
+            <p>💡 <strong>Pro tip:</strong> Once connected, hold down the microphone button to record your message. Chief will transcribe, respond, and speak back to you!</p>
+          </div>
+        )}
+        
+        {connectionState === 'connected' && conversationState === 'idle' && (
+          <div className="text-center text-xs text-gray-500 mt-4 max-w-sm">
+            <p>🎤 <strong>Hold down</strong> the microphone button to record your message, or use the quick actions above.</p>
           </div>
         )}
       </div>
