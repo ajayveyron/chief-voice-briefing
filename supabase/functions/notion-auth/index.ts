@@ -29,16 +29,16 @@ serve(async (req) => {
 
     const clientId = Deno.env.get('NOTION_CLIENT_ID');
     const clientSecret = Deno.env.get('NOTION_CLIENT_SECRET');
-    const frontendUrl = Deno.env.get('FRONTEND_URL');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
 
-    if (!clientId || !clientSecret || !frontendUrl) {
+    if (!clientId || !clientSecret || !supabaseUrl) {
       console.error('Missing environment variables');
       throw new Error('Server configuration error');
     }
 
     // Generate state token for OAuth security
     const stateToken = crypto.randomUUID();
-    const redirectUri = `${frontendUrl}/api/notion-callback`;
+    const redirectUri = `${supabaseUrl}/functions/v1/notion-callback`;
 
     // Store state in database
     const { error: stateError } = await supabase
@@ -64,6 +64,7 @@ serve(async (req) => {
     authUrl.searchParams.set('owner', 'user');
 
     console.log('Generated Notion auth URL for user:', user.id);
+    console.log('Redirect URI:', redirectUri);
 
     return new Response(
       JSON.stringify({ authUrl: authUrl.toString() }),

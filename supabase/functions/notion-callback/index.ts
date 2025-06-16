@@ -17,7 +17,7 @@ serve(async (req) => {
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
-    const frontendUrl = Deno.env.get('FRONTEND_URL');
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://lovable.dev';
 
     if (error) {
       console.error('OAuth error:', error);
@@ -50,11 +50,14 @@ serve(async (req) => {
 
     const clientId = Deno.env.get('NOTION_CLIENT_ID');
     const clientSecret = Deno.env.get('NOTION_CLIENT_SECRET');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
 
-    if (!clientId || !clientSecret) {
+    if (!clientId || !clientSecret || !supabaseUrl) {
       console.error('Missing Notion OAuth credentials');
       return Response.redirect(`${frontendUrl}/settings?error=config_error`);
     }
+
+    const redirectUri = `${supabaseUrl}/functions/v1/notion-callback`;
 
     // Exchange code for access token
     const tokenResponse = await fetch('https://api.notion.com/v1/oauth/token', {
@@ -67,7 +70,7 @@ serve(async (req) => {
       body: JSON.stringify({
         grant_type: 'authorization_code',
         code: code,
-        redirect_uri: stateData.redirect_uri
+        redirect_uri: redirectUri
       })
     });
 
@@ -141,7 +144,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Unexpected error in notion-callback:', error);
-    const frontendUrl = Deno.env.get('FRONTEND_URL');
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://lovable.dev';
     return Response.redirect(`${frontendUrl}/settings?error=unexpected_error`);
   }
 });
