@@ -19,6 +19,12 @@ verify_jwt = false
 [functions.gmail-callback]
 verify_jwt = false
 
+[functions.notion-auth]
+verify_jwt = false
+
+[functions.notion-callback]
+verify_jwt = false
+
 [functions.fetch-calendar-events]
 verify_jwt = false
 
@@ -26,6 +32,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.fetch-slack-messages]
+verify_jwt = false
+
+[functions.fetch-notion-pages]
 verify_jwt = false
 
 [functions.chief-data-collector]
