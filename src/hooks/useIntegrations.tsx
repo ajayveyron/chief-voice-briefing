@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 type Integration = Database["public"]["Tables"]["user_integrations"]["Row"];
-type IntegrationType = 'gmail' | 'calendar' | 'slack' | string;
+type IntegrationType = 'gmail' | 'calendar' | 'slack' | 'notion' | string;
 
 export const useIntegrations = () => {
   const { user } = useAuth();

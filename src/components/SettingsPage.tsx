@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { Mail, Calendar, CheckCircle, AlertCircle, MessageSquare } from "lucide-react";
+import { Mail, Calendar, CheckCircle, AlertCircle, MessageSquare, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const SettingsPage = () => {
@@ -29,7 +29,7 @@ const SettingsPage = () => {
     }
   };
 
-  const handleConnect = async (type: 'gmail' | 'calendar' | 'slack') => {
+  const handleConnect = async (type: 'gmail' | 'calendar' | 'slack' | 'notion') => {
     try {
       await connectIntegration(type);
     } catch (error) {
@@ -155,6 +155,13 @@ const SettingsPage = () => {
       icon: MessageSquare,
       color: 'text-green-500',
     },
+    {
+      id: 'notion',
+      name: 'Notion',
+      description: 'Sync with your Notion workspace',
+      icon: FileText,
+      color: 'text-purple-500',
+    },
   ];
 
   return (
@@ -226,7 +233,7 @@ const SettingsPage = () => {
                         <AlertCircle size={16} className="text-red-500" />
                         <Button
                           size="sm"
-                          onClick={() => handleConnect(integration.id as 'gmail' | 'calendar' | 'slack')}
+                          onClick={() => handleConnect(integration.id as 'gmail' | 'calendar' | 'slack' | 'notion')}
                           disabled={loading}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
