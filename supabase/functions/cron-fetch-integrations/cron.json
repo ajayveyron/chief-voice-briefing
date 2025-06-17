@@ -1,0 +1,7 @@
+{
+  "schedule": "*/5 * * * *",
+  "method": "POST",
+  "headers": {
+    "Authorization": "Bearer ${CRON_SECRET}"
+  }
+}
