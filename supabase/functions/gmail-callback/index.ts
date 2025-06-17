@@ -43,8 +43,7 @@ serve(async (req) => {
 
     // Always use the home screen as the frontend URL for redirects
     const frontendUrl =
-      (Deno.env.get("FRONTEND_URL") ||
-        "https://preview--chief-executive-assistant.lovable.app") + "/";
+      "https://preview--chief-executive-assistant.lovable.app" + "/";
 
     if (error) {
       console.error("OAuth error from Google:", error);
@@ -260,7 +259,6 @@ serve(async (req) => {
   } catch (error) {
     console.error("Unexpected error in gmail-callback:", error);
     const frontendUrl =
-      Deno.env.get("FRONTEND_URL") ||
       "https://preview--chief-executive-assistant.lovable.app";
     return redirectWithError(frontendUrl, "unexpected_error");
   }

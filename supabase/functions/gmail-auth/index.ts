@@ -37,8 +37,7 @@ serve(async (req) => {
       const state = crypto.randomUUID();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes expiry
       const redirectUri =
-        (Deno.env.get("FRONTEND_URL") ||
-          "https://preview--chief-executive-assistant.lovable.app") + "/";
+        "https://preview--chief-executive-assistant.lovable.app" + "/";
 
       console.log("Creating OAuth state for user:", user.id);
       console.log("Redirect URI (home screen):", redirectUri);
