@@ -15,6 +15,49 @@ import {
 import { useRealtimeVoiceChief } from "@/hooks/useRealtimeVoiceChief";
 import { cn } from "@/lib/utils";
 
+import { Conversation } from '@elevenlabs/client';
+
+const startButton = document.getElementById('startButton');
+const stopButton = document.getElementById('stopButton');
+const connectionStatus = document.getElementById('connectionStatus');
+const agentStatus = document.getElementById('agentStatus');
+
+let conversation;
+
+export const startConversation = async() => {
+    try {
+        // Request microphone permission
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // Start the conversation
+        conversation = await Conversation.startSession({
+            agentId: 'agent_01jxze02qqem3bpzsegmbsfv67', // Replace with your agent ID
+            onConnect: () => {
+                connectionStatus.textContent = 'Connected';
+            },
+            onDisconnect: () => {
+                connectionStatus.textContent = 'Disconnected';
+            },
+            onError: (error) => {
+                console.error('Error:', error);
+            },
+            onModeChange: (mode) => {
+                agentStatus.textContent = mode.mode === 'speaking' ? 'speaking' : 'listening';
+            },
+        });
+    } catch (error) {
+        console.error('Failed to start conversation:', error);
+    }
+}
+
+export async function stopConversation() {
+    if (conversation) {
+        await conversation.endSession();
+        conversation = null;
+    }
+}
+
+
 interface ChiefVoiceInterfaceProps {
   onTextToggle?: () => void;
 }
@@ -76,6 +119,11 @@ export const ChiefVoiceInterface: React.FC<ChiefVoiceInterfaceProps> = ({
     return "text-foreground";
   };
 
+  const handleOnClick = () => {
+      console.log('clicked')
+      startConversation()
+  }
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -118,33 +166,9 @@ export const ChiefVoiceInterface: React.FC<ChiefVoiceInterfaceProps> = ({
         {/* Central Microphone Button */}
         <div className="relative">
           <Button
-            size="lg"
-            variant={isListening ? "default" : isSpeaking ? "destructive" : "outline"}
-            className={cn(
-              "h-32 w-32 rounded-full transition-all duration-300",
-              isListening && "shadow-lg shadow-primary/25 scale-105",
-              isSpeaking && "animate-pulse shadow-lg shadow-destructive/25 scale-105"
-            )}
-            onClick={
-              isListening 
-                ? handleStopRecording 
-                : isSpeaking 
-                  ? disconnect 
-                  : handleStartRecording
-            }
-            disabled={connectionState === "connecting"}
+            
+            onClick={handleOnClick}
           >
-            {isListening ? (
-              <div className="flex items-center justify-center">
-                <MicOff className="h-12 w-12 animate-pulse" />
-              </div>
-            ) : isSpeaking ? (
-              <div className="flex items-center justify-center">
-                <Square className="h-12 w-12" />
-              </div>
-            ) : (
-              <Mic className="h-12 w-12" />
-            )}
           </Button>
           
           {/* Speaking indicator */}

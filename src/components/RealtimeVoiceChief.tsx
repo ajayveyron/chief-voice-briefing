@@ -4,6 +4,8 @@ import { Mic, MicOff, Phone, PhoneOff, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRealtimeVoiceChief } from '@/hooks/useRealtimeVoiceChief';
 
+import { Conversation } from '@/components/Conversation';
+
 const RealtimeVoiceChief = () => {
   const {
     connectionState,
@@ -75,6 +77,8 @@ const RealtimeVoiceChief = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white flex flex-col items-center justify-center p-8">
+
+      <Conversation />
       <div className="flex flex-col items-center space-y-8 max-w-md w-full">
         
         {/* Chief Avatar and Status */}
