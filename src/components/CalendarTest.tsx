@@ -1,10 +1,18 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, Loader2, Clock, MapPin, Users } from "lucide-react";
+import {
+  Calendar,
+  Loader2,
+  Clock,
+  MapPin,
+  Users,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import { format, formatDistanceToNow, isSameDay, parseISO } from "date-fns";
 
 interface CalendarEvent {
   id: string;
@@ -18,50 +26,64 @@ interface CalendarEvent {
     date?: string;
   };
   location?: string;
-  attendees?: Array<{ email: string; displayName?: string; responseStatus?: string }>;
+  attendees?: Array<{
+    email: string;
+    displayName?: string;
+    responseStatus?: string;
+  }>;
   description?: string;
   status?: string;
+  htmlLink?: string;
 }
 
 interface CalendarResponse {
   events: CalendarEvent[];
+  error?: string;
 }
 
 export const CalendarTest = () => {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
   const { toast } = useToast();
 
   const testCalendarConnection = async () => {
     setLoading(true);
     setEvents([]);
+    setExpandedEvent(null);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        throw new Error('No active session');
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        throw new Error(sessionError?.message || "No active session");
       }
 
-      const { data, error } = await supabase.functions.invoke('fetch-calendar-events', {
-        headers: {
-          Authorization: `Bearer ${sessionData.session.access_token}`
+      const { data, error } = await supabase.functions.invoke<CalendarResponse>(
+        "fetch-calendar-events",
+        {
+          headers: {
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+          },
         }
-      });
+      );
 
       if (error) throw error;
+      if (data.error) throw new Error(data.error);
 
-      const response = data as CalendarResponse;
-      setEvents(response.events || []);
-      
+      setEvents(data.events || []);
+
       toast({
-        title: "Success",
-        description: `Fetched ${response.events?.length || 0} upcoming events.`,
+        title: "Calendar Connection Successful",
+        description: `Fetched ${data.events?.length || 0} upcoming events.`,
       });
-    } catch (error) {
-      console.error('Calendar test error:', error);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Calendar test error:", error);
       toast({
-        title: "Error",
-        description: `Calendar test failed: ${error.message}`,
+        title: "Calendar Connection Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -69,84 +91,90 @@ export const CalendarTest = () => {
     }
   };
 
-  const formatEventTime = (start: CalendarEvent['start'], end: CalendarEvent['end']) => {
+  const formatEventTime = (
+    start: CalendarEvent["start"],
+    end: CalendarEvent["end"]
+  ) => {
     try {
       const startTime = start.dateTime || start.date;
       const endTime = end.dateTime || end.date;
-      
+
       if (!startTime) return "Time not specified";
-      
-      const startDate = new Date(startTime);
-      const endDate = new Date(endTime || startTime);
-      
+
+      const startDate = parseISO(startTime);
+      const endDate = parseISO(endTime || startTime);
+
       if (start.date && !start.dateTime) {
         // All-day event
-        return `All day - ${startDate.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric'
-        })}`;
+        return `All day - ${format(startDate, "MMM d, yyyy")}`;
       }
-      
-      const isSameDay = startDate.toDateString() === endDate.toDateString();
-      
+
+      const isSameDay = isSameDay(startDate, endDate);
+
       if (isSameDay) {
-        return `${startDate.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric'
-        })} • ${startDate.toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit'
-        })} - ${endDate.toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit'
-        })}`;
+        return `${format(startDate, "MMM d")} • ${format(
+          startDate,
+          "h:mm a"
+        )} - ${format(endDate, "h:mm a")}`;
       }
-      
-      return `${startDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      })} ${startDate.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit'
-      })} - ${endDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      })} ${endDate.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit'
-      })}`;
+
+      return `${format(startDate, "MMM d h:mm a")} - ${format(
+        endDate,
+        "MMM d h:mm a"
+      )}`;
     } catch {
       return "Invalid date";
     }
   };
 
-  const getStatusColor = (status?: string) => {
+  const getStatusInfo = (status?: string) => {
     switch (status) {
-      case 'confirmed': return 'text-green-400';
-      case 'tentative': return 'text-yellow-400';
-      case 'cancelled': return 'text-red-400';
-      default: return 'text-gray-400';
+      case "confirmed":
+        return { text: "Confirmed", color: "text-green-400 bg-green-400/10" };
+      case "tentative":
+        return { text: "Tentative", color: "text-yellow-400 bg-yellow-400/10" };
+      case "cancelled":
+        return { text: "Cancelled", color: "text-red-400 bg-red-400/10" };
+      default:
+        return { text: "Confirmed", color: "text-gray-400 bg-gray-400/10" };
     }
   };
 
+  const getAttendeeStatus = (responseStatus?: string) => {
+    switch (responseStatus?.toLowerCase()) {
+      case "accepted":
+        return "text-green-400";
+      case "declined":
+        return "text-red-400";
+      case "tentative":
+        return "text-yellow-400";
+      default:
+        return "text-gray-400";
+    }
+  };
+
+  const toggleExpandEvent = (id: string) => {
+    setExpandedEvent(expandedEvent === id ? null : id);
+  };
+
   return (
-    <Card>
+    <Card className="bg-gray-800/50 border-gray-700">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
+        <CardTitle className="flex items-center gap-2 text-gray-100">
           <Calendar className="h-5 w-5 text-blue-500" />
-          <span>Calendar Test</span>
+          <span>Calendar Integration</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-gray-400">
           Test your Google Calendar integration by fetching upcoming events.
         </p>
-        
+
         <Button
           onClick={testCalendarConnection}
           disabled={loading}
-          className="w-full"
+          className="w-full bg-blue-600 hover:bg-blue-700 transition-colors"
+          aria-label="Test Calendar connection"
         >
           {loading ? (
             <>
@@ -159,52 +187,110 @@ export const CalendarTest = () => {
         </Button>
 
         {events.length > 0 && (
-          <div className="mt-6 space-y-3">
-            <h4 className="font-medium text-sm">Upcoming Events ({events.length})</h4>
+          <div className="mt-4 space-y-3">
+            <h4 className="font-medium text-sm text-gray-300">
+              Upcoming Events ({events.length})
+            </h4>
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {events.map((event) => (
-                <Card key={event.id} className="bg-gray-800/50 border-gray-700">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <h5 className="font-medium text-sm text-white line-clamp-2">
-                          {event.summary || "Untitled Event"}
-                        </h5>
-                        <span className={`text-xs px-2 py-1 rounded-full bg-gray-700 ${getStatusColor(event.status)}`}>
-                          {event.status || 'confirmed'}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center text-xs text-gray-300">
-                        <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
-                        <span className="truncate">{formatEventTime(event.start, event.end)}</span>
-                      </div>
-                      
-                      {event.location && (
-                        <div className="flex items-center text-xs text-gray-400">
-                          <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
-                          <span className="truncate">{event.location}</span>
+              {events.map((event) => {
+                const statusInfo = getStatusInfo(event.status);
+                return (
+                  <Card
+                    key={event.id}
+                    className="bg-gray-700/50 border-gray-600 hover:border-gray-500 transition-colors"
+                  >
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h5 className="font-medium text-sm text-white line-clamp-2">
+                            {event.summary || "Untitled Event"}
+                          </h5>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${statusInfo.color}`}
+                            >
+                              {statusInfo.text}
+                            </span>
+                            <button
+                              onClick={() => toggleExpandEvent(event.id)}
+                              className="text-gray-400 hover:text-gray-300 transition-colors"
+                              aria-label={
+                                expandedEvent === event.id
+                                  ? "Collapse event"
+                                  : "Expand event"
+                              }
+                            >
+                              {expandedEvent === event.id ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
-                      )}
-                      
-                      {event.attendees && event.attendees.length > 0 && (
-                        <div className="flex items-center text-xs text-gray-400">
-                          <Users className="h-3 w-3 mr-1 flex-shrink-0" />
-                          <span className="truncate">
-                            {event.attendees.length} attendee{event.attendees.length > 1 ? 's' : ''}
-                          </span>
+
+                        <div className="flex items-center text-xs text-gray-300">
+                          <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                          <span>{formatEventTime(event.start, event.end)}</span>
                         </div>
-                      )}
-                      
-                      {event.description && (
-                        <p className="text-xs text-gray-400 line-clamp-2">
-                          {event.description.replace(/<[^>]*>/g, '').trim()}
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                        {event.location && (
+                          <div className="flex items-start text-xs text-gray-400">
+                            <MapPin className="h-3 w-3 mr-1 flex-shrink-0 mt-0.5" />
+                            <span className="truncate">{event.location}</span>
+                          </div>
+                        )}
+
+                        {expandedEvent === event.id && (
+                          <div className="mt-2 pt-2 border-t border-gray-600 space-y-3">
+                            {event.description && (
+                              <div className="text-xs text-gray-300 whitespace-pre-line">
+                                {event.description
+                                  .replace(/<[^>]*>/g, "")
+                                  .trim()}
+                              </div>
+                            )}
+
+                            {event.attendees && event.attendees.length > 0 && (
+                              <div>
+                                <div className="text-xs font-medium text-gray-400 mb-1">
+                                  Attendees ({event.attendees.length})
+                                </div>
+                                <div className="space-y-1 text-xs">
+                                  {event.attendees.map((attendee, index) => (
+                                    <div
+                                      key={index}
+                                      className={`flex items-center ${getAttendeeStatus(
+                                        attendee.responseStatus
+                                      )}`}
+                                    >
+                                      <User className="h-3 w-3 mr-1 flex-shrink-0" />
+                                      <span className="truncate">
+                                        {attendee.displayName || attendee.email}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {event.htmlLink && (
+                              <a
+                                href={event.htmlLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-block text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                              >
+                                Open in Google Calendar
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
         )}
@@ -212,7 +298,10 @@ export const CalendarTest = () => {
         {events.length === 0 && !loading && (
           <div className="text-center py-8 text-gray-400">
             <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No events to display. Click "Test Calendar Connection" to fetch your upcoming events.</p>
+            <p className="text-sm">
+              No events to display. Click "Test Calendar Connection" to fetch
+              your upcoming events.
+            </p>
           </div>
         )}
       </CardContent>

@@ -1,25 +1,8 @@
-
 import { useState } from "react";
-import { ChiefInterface } from "@/components/ChiefInterface";
-import { ChiefVoiceInterface } from "@/components/ChiefVoiceInterface";
+import ChiefInterface from "@/components/ChiefInterface";
 
 const ChatPage = () => {
-  const [isVoiceMode, setIsVoiceMode] = useState(false);
-
-  if (isVoiceMode) {
-    return (
-      <ChiefVoiceInterface 
-        onTextToggle={() => setIsVoiceMode(false)}
-      />
-    );
-  }
-
-  return (
-    <ChiefInterface 
-      onVoiceToggle={() => setIsVoiceMode(true)}
-      isVoiceMode={isVoiceMode}
-    />
-  );
+  return <ChiefInterface />;
 };
 
 export default ChatPage;
