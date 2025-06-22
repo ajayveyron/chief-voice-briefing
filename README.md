@@ -1,73 +1,59 @@
-# Welcome to your Lovable project
+# Chief – Your AI Executive Assistant
 
-## Project info
+Chief is a voice-first AI assistant built for busy founders, CXOs, and operators. Whether you're on a commute, having lunch, or in between meetings, Chief gives you quick, actionable insights without needing a screen.
 
-**URL**: https://lovable.dev/projects/bf2eb92c-b16b-43f3-94d0-6f9e70816e8b
+## 🧠 What It Does
 
-## How can I edit this code?
+Chief connects with your key work tools – Slack, Gmail, and Calendar – and turns scattered updates into a focused voice brief. You can talk to Chief like you would to your Chief of Staff. It listens, understands, summarizes, and suggests – all in natural, human-like speech.
 
-There are several ways of editing your application.
+## 🎯 Core Features (v1)
 
-**Use Lovable**
+- **Voice-First Interface**: One big button. Tap to talk, and Chief responds naturally.
+- **Gmail Integration**: Summarizes unread emails, drafts replies.
+- **Slack Integration**: Reads important messages, suggests responses.
+- **Calendar Integration**: Summarizes your day, books/reschedules meetings.
+- **Context Awareness**: Understand context about user's contacts, projects they are working on, writign style etc
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/bf2eb92c-b16b-43f3-94d0-6f9e70816e8b) and start prompting.
 
-Changes made via Lovable will be committed automatically to this repo.
+## ⚙️ Tech Stack
 
-**Use your preferred IDE**
+- **Frontend**: React
+- **Backend**: Supabase (Edge Functions, DB), Node.js
+- **LLM Orchestration**: OpenAI + Custom Prompt Engine
+- **Speech Layer**: ElevenLabs
+- **Auth**: Supabase Auth
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🧪 Beta Mode
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Chief is currently in private beta. Users are onboarded manually and integrations are authenticated via OAuth for Gmail, Slack, and Google Calendar.
 
-Follow these steps:
+## 🗂️ Folder Structure
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+/src
+/components     → UI components
+/integrations   → Slack, Gmail, Calendar connectors
+/llm            → Prompt generation, response orchestration
+/utils          → Helper functions
+App.tsx         → Main voice interface logic
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 🧩 Integration Flow (Simplified)
 
-# Step 3: Install the necessary dependencies.
-npm i
+1. **OAuth Auth** → Connect Gmail, Slack, Calendar
+2. **Pull Raw Data** → Via Supabase Edge Functions
+3. **Summarize + Normalize** → LLMs structure data (emails, messages, events)
+4. **Voice Orchestration** → Generates context-specific voice response
+5. **Speak** → Streamed audio sent to user
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+## 📦 Future Plans
 
-**Edit a file directly in GitHub**
+- Add support for Notion, Jira, WhatsApp (via A1Base)
+- Voice commands to act on messages
+- Smart nudges (e.g., "You missed replying to that investor")
+- Android version
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 📄 License
 
-**Use GitHub Codespaces**
+MIT
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/bf2eb92c-b16b-43f3-94d0-6f9e70816e8b) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## 🧑‍💻 Author 
+Connect with the team at [mychief.app](https://mychief.app)
