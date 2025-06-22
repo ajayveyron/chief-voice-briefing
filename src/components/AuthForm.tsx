@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -58,28 +57,29 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
       // Create a simple demo account that bypasses email confirmation
       const demoEmail = `demo-${Date.now()}@chief.app`;
       const demoPassword = "demo123456";
-      
+
       console.log("Creating demo account...", demoEmail);
-      
+
       // Create the account
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: demoEmail,
-        password: demoPassword,
-        options: {
-          emailRedirectTo: window.location.origin,
-          data: {
-            demo_mode: true
-          }
-        }
-      });
-      
+      const { data: signUpData, error: signUpError } =
+        await supabase.auth.signUp({
+          email: demoEmail,
+          password: demoPassword,
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: {
+              demo_mode: true,
+            },
+          },
+        });
+
       if (signUpError) {
         console.error("Demo signup error:", signUpError);
         throw signUpError;
       }
-      
+
       console.log("Demo account created, signing in...");
-      
+
       // For demo mode, we'll use the session from signup if available
       if (signUpData.session) {
         console.log("Demo session available immediately");
@@ -90,17 +90,19 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
         onAuthSuccess();
       } else {
         // If no session, try to sign in (though this might fail with email confirmation)
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: demoEmail,
-          password: demoPassword,
-        });
-        
+        const { data: signInData, error: signInError } =
+          await supabase.auth.signInWithPassword({
+            email: demoEmail,
+            password: demoPassword,
+          });
+
         if (signInError) {
           console.error("Demo signin error:", signInError);
           // If sign in fails due to email confirmation, show a helpful message
           toast({
             title: "Demo Mode Notice",
-            description: "Demo account created but needs email confirmation. Please use regular sign up for now, or contact support to disable email confirmation.",
+            description:
+              "Demo account created but needs email confirmation. Please use regular sign up for now, or contact support to disable email confirmation.",
             variant: "destructive",
           });
         } else {
@@ -115,7 +117,9 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
       console.error("Demo mode error:", error);
       toast({
         title: "Demo mode error",
-        description: error.message || "Failed to create demo account. Please try regular sign up.",
+        description:
+          error.message ||
+          "Failed to create demo account. Please try regular sign up.",
         variant: "destructive",
       });
     } finally {
@@ -128,7 +132,9 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-4xl font-light mb-2">Chief</h1>
-          <p className="text-gray-400">Your Virtual assistant for staying updated</p>
+          <p className="text-gray-400">
+            Your Virtual assistant for staying updated
+          </p>
         </div>
 
         {/* Demo Mode Button */}
@@ -145,7 +151,9 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
             <span className="w-full border-t border-gray-700" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-black px-2 text-gray-500">Or continue with email</span>
+            <span className="bg-black px-2 text-gray-500">
+              Or continue with email
+            </span>
           </div>
         </div>
 
@@ -184,7 +192,9 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
             onClick={() => setIsLogin(!isLogin)}
             className="text-gray-400 hover:text-white transition-colors"
           >
-            {isLogin ? "Need an account? Sign up" : "Already have an account? Sign in"}
+            {isLogin
+              ? "Need an account? Sign up"
+              : "Already have an account? Sign in"}
           </button>
         </div>
       </div>

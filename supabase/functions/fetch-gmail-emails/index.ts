@@ -97,11 +97,11 @@ serve(async (req) => {
 
     await refreshTokenIfExpired();
 
-    // Fetch emails from Gmail API (only unread)
+    // Improved Gmail query to get latest unread emails first
     const gmailQuery =
-      "is:unread -category:{promotions updates forums social} label:inbox";
+      "is:unread in:inbox -category:{promotions social updates forums}";
     const gmailResponse = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=${encodeURIComponent(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=${encodeURIComponent(
         gmailQuery
       )}`,
       {
@@ -117,7 +117,7 @@ serve(async (req) => {
         // Try to refresh token and retry once
         await refreshTokenIfExpired();
         const retryResponse = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=${encodeURIComponent(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=${encodeURIComponent(
             gmailQuery
           )}`,
           {
@@ -135,64 +135,10 @@ serve(async (req) => {
         }
 
         const messagesData = await retryResponse.json();
-        const emails = [];
-
-        // Process messages...
-        for (const message of messagesData.messages || []) {
-          const detailResponse = await fetch(
-            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
-            {
-              headers: {
-                Authorization: `Bearer ${integration.access_token}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-
-          if (detailResponse.ok) {
-            const emailDetail = await detailResponse.json();
-
-            // Extract subject and sender
-            const headers = emailDetail.payload?.headers || [];
-            const subject =
-              headers.find((h: any) => h.name === "Subject")?.value ||
-              "No Subject";
-            const from =
-              headers.find((h: any) => h.name === "From")?.value ||
-              "Unknown Sender";
-            const date =
-              headers.find((h: any) => h.name === "Date")?.value || "";
-
-            // Extract body text
-            let body = "";
-            if (emailDetail.payload?.body?.data) {
-              body = atob(
-                emailDetail.payload.body.data
-                  .replace(/-/g, "+")
-                  .replace(/_/g, "/")
-              );
-            } else if (emailDetail.payload?.parts) {
-              const textPart = emailDetail.payload.parts.find(
-                (part: any) => part.mimeType === "text/plain"
-              );
-              if (textPart?.body?.data) {
-                body = atob(
-                  textPart.body.data.replace(/-/g, "+").replace(/_/g, "/")
-                );
-              }
-            }
-
-            emails.push({
-              id: message.id,
-              subject,
-              from,
-              date,
-              snippet: emailDetail.snippet || "",
-              body: body.substring(0, 500), // Limit body length
-            });
-          }
-        }
-
+        const emails = await processMessages(
+          messagesData.messages || [],
+          integration.access_token
+        );
         return new Response(JSON.stringify({ emails }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -201,59 +147,10 @@ serve(async (req) => {
     }
 
     const messagesData = await gmailResponse.json();
-    const emails = [];
-
-    // Fetch details for each message
-    for (const message of messagesData.messages || []) {
-      const detailResponse = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${integration.access_token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (detailResponse.ok) {
-        const emailDetail = await detailResponse.json();
-
-        // Extract subject and sender
-        const headers = emailDetail.payload?.headers || [];
-        const subject =
-          headers.find((h: any) => h.name === "Subject")?.value || "No Subject";
-        const from =
-          headers.find((h: any) => h.name === "From")?.value ||
-          "Unknown Sender";
-        const date = headers.find((h: any) => h.name === "Date")?.value || "";
-
-        // Extract body text
-        let body = "";
-        if (emailDetail.payload?.body?.data) {
-          body = atob(
-            emailDetail.payload.body.data.replace(/-/g, "+").replace(/_/g, "/")
-          );
-        } else if (emailDetail.payload?.parts) {
-          const textPart = emailDetail.payload.parts.find(
-            (part: any) => part.mimeType === "text/plain"
-          );
-          if (textPart?.body?.data) {
-            body = atob(
-              textPart.body.data.replace(/-/g, "+").replace(/_/g, "/")
-            );
-          }
-        }
-
-        emails.push({
-          id: message.id,
-          subject,
-          from,
-          date,
-          snippet: emailDetail.snippet || "",
-          body: body.substring(0, 500), // Limit body length
-        });
-      }
-    }
+    const emails = await processMessages(
+      messagesData.messages || [],
+      integration.access_token
+    );
 
     return new Response(JSON.stringify({ emails }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -266,3 +163,117 @@ serve(async (req) => {
     });
   }
 });
+
+// Helper function to process messages and extract relevant data
+async function processMessages(messages: any[], accessToken: string) {
+  const emails = [];
+
+  // Process messages in parallel for better performance
+  await Promise.all(
+    messages.map(async (message) => {
+      try {
+        const detailResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (detailResponse.ok) {
+          const emailDetail = await detailResponse.json();
+
+          // Extract subject, sender, and date
+          const headers = emailDetail.payload?.headers || [];
+          const subject =
+            headers.find((h: any) => h.name === "Subject")?.value ||
+            "No Subject";
+          const from =
+            headers.find((h: any) => h.name === "From")?.value ||
+            "Unknown Sender";
+          const date = headers.find((h: any) => h.name === "Date")?.value || "";
+
+          // Get the full message if we need more details
+          const fullMessageResponse = await fetch(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}?format=full`,
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          let body = "";
+          if (fullMessageResponse.ok) {
+            const fullMessage = await fullMessageResponse.json();
+            body = extractEmailBody(fullMessage);
+          }
+
+          emails.push({
+            id: message.id,
+            subject,
+            from,
+            date,
+            snippet: emailDetail.snippet || "",
+            body: body.substring(0, 1000), // Increased limit for better context
+          });
+        }
+      } catch (error) {
+        console.error(`Error processing message ${message.id}:`, error);
+      }
+    })
+  );
+
+  // Sort emails by date (newest first)
+  emails.sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
+  return emails;
+}
+
+// Helper function to extract email body from different parts
+function extractEmailBody(message: any): string {
+  if (!message.payload) return "";
+
+  // Handle simple emails with direct body
+  if (message.payload.body?.data) {
+    return decodeBase64(message.payload.body.data);
+  }
+
+  // Handle multipart emails
+  if (message.payload.parts) {
+    // Find the text/plain part first
+    const textPart = message.payload.parts.find(
+      (part: any) => part.mimeType === "text/plain"
+    );
+    if (textPart?.body?.data) {
+      return decodeBase64(textPart.body.data);
+    }
+
+    // Fallback to text/html if no plain text
+    const htmlPart = message.payload.parts.find(
+      (part: any) => part.mimeType === "text/html"
+    );
+    if (htmlPart?.body?.data) {
+      // Simple HTML to text conversion (remove tags)
+      const html = decodeBase64(htmlPart.body.data);
+      return html.replace(/<[^>]*>/g, " ");
+    }
+  }
+
+  return "";
+}
+
+// Helper function to decode base64 email content
+function decodeBase64(data: string): string {
+  try {
+    return atob(data.replace(/-/g, "+").replace(/_/g, "/"));
+  } catch (error) {
+    console.error("Error decoding base64:", error);
+    return "";
+  }
+}

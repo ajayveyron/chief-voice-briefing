@@ -146,9 +146,11 @@ serve(async (req) => {
   }
 
   try {
+    console.log("[CRON] Cron job started at:", new Date().toISOString());
     // Verify cron secret
     const authHeader = req.headers.get("Authorization");
     if (authHeader !== `Bearer ${Deno.env.get("CRON_SECRET")}`) {
+      console.log("[CRON] Unauthorized request. Invalid CRON_SECRET.");
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -166,10 +168,16 @@ serve(async (req) => {
       .select("id")
       .eq("is_active", true);
 
+    console.log(`[CRON] Found ${users?.length || 0} active users.`);
+
     for (const user of users) {
       try {
+        console.log(`[CRON] Processing user: ${user.id}`);
         // Get last fetch time for this user
         const lastFetchTime = await getLastFetchTime(supabaseClient, user.id);
+        console.log(
+          `[CRON] Last fetch time for user ${user.id}: ${lastFetchTime}`
+        );
 
         // Fetch new data from all integrations
         const gmailData = await fetchGmailData(
@@ -177,16 +185,32 @@ serve(async (req) => {
           user.id,
           lastFetchTime
         );
+        console.log(
+          `[CRON] Gmail data fetched for user ${user.id}:`,
+          gmailData
+        );
         const calendarData = await fetchCalendarData(
           supabaseClient,
           user.id,
           lastFetchTime
         );
+        console.log(
+          `[CRON] Calendar data fetched for user ${user.id}:`,
+          calendarData
+        );
 
         // Process each item through LLM
         for (const item of [...gmailData, ...calendarData]) {
           const source = gmailData.includes(item) ? "gmail" : "calendar";
+          console.log(
+            `[CRON] Processing item from ${source} for user ${user.id}:`,
+            item
+          );
           const processedData = await processWithLLM(item, source);
+          console.log(
+            `[CRON] Processed data for user ${user.id}:`,
+            processedData
+          );
 
           // Store processed data
           await supabaseClient.from("processed_integration_data").insert({
@@ -196,21 +220,24 @@ serve(async (req) => {
             processed_data: processedData,
             created_at: new Date().toISOString(),
           });
+          console.log(`[CRON] Stored processed data for user ${user.id}.`);
         }
 
         // Update last fetch time
         await updateLastFetchTime(supabaseClient, user.id);
+        console.log(`[CRON] Updated last fetch time for user ${user.id}.`);
       } catch (error) {
-        console.error(`Error processing user ${user.id}:`, error);
+        console.error(`[CRON] Error processing user ${user.id}:`, error);
         // Continue with next user even if one fails
       }
     }
 
+    console.log("[CRON] Cron job completed at:", new Date().toISOString());
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Error in cron job:", error);
+    console.error("[CRON] Error in cron job:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
