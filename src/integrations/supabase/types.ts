@@ -361,6 +361,27 @@ export type Database = {
         }
         Relationships: []
       }
+      posts: {
+        Row: {
+          body: string
+          embedding: string | null
+          id: number
+          title: string
+        }
+        Insert: {
+          body: string
+          embedding?: string | null
+          id?: number
+          title: string
+        }
+        Update: {
+          body?: string
+          embedding?: string | null
+          id?: number
+          title?: string
+        }
+        Relationships: []
+      }
       processed_updates: {
         Row: {
           action_suggestions: string[] | null
