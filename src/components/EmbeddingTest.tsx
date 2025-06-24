@@ -34,16 +34,17 @@ const EmbeddingTest: React.FC = () => {
         normalize: true,
       });
 
-      // Extract the embedding output
-      const embedding = Array.from(output.data);
+      // Extract the embedding output and convert to string
+      const embeddingArray = Array.from(output.data);
+      const embeddingString = JSON.stringify(embeddingArray);
       
-      console.log('✅ Embedding generated:', embedding.length, 'dimensions');
+      console.log('✅ Embedding generated:', embeddingArray.length, 'dimensions');
 
       // Store the vector in Postgres
       const { data, error: insertError } = await supabase.from('posts').insert({
         title,
         body,
-        embedding,
+        embedding: embeddingString,
       });
 
       if (insertError) {
@@ -54,7 +55,7 @@ const EmbeddingTest: React.FC = () => {
       setResult({
         title,
         body,
-        embeddingDimensions: embedding.length,
+        embeddingDimensions: embeddingArray.length,
         data
       });
 

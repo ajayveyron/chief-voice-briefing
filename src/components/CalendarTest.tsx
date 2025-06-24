@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +12,9 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
+  User,
 } from "lucide-react";
-import { format, formatDistanceToNow, isSameDay, parseISO } from "date-fns";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
 
 interface CalendarEvent {
   id: string;
@@ -109,7 +111,8 @@ export const CalendarTest = () => {
         return `All day - ${format(startDate, "MMM d, yyyy")}`;
       }
 
-      const isSameDay = isSameDay(startDate, endDate);
+      // Check if events are on the same day
+      const isSameDay = startDate.toDateString() === endDate.toDateString();
 
       if (isSameDay) {
         return `${format(startDate, "MMM d")} • ${format(
