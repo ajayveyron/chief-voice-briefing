@@ -1,10 +1,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { GmailTest } from "@/components/GmailTest";
-import { CalendarTest } from "@/components/CalendarTest";
-import { SlackTest } from "@/components/SlackTest";
-import { NotionTest } from "@/components/NotionTest";
+import GmailTest from "@/components/GmailTest";
+import CalendarTest from "@/components/CalendarTest";
+import SlackTest from "@/components/SlackTest";
+import NotionTest from "@/components/NotionTest";
 import EmbeddingTest from "@/components/EmbeddingTest";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
