@@ -1,167 +1,371 @@
-
-import React, { useState } from 'react';
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Calendar, Database, Clock } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { embedData } from '../utils/embeddingUtils';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Calendar,
+  Loader2,
+  Clock,
+  MapPin,
+  Users,
+  ChevronDown,
+  ChevronUp,
+  User,
+} from "lucide-react";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
+import {
+  generateAndStoreEmbedding,
+  formatCalendarForEmbedding,
+} from "@/utils/embeddingUtils";
 
 interface CalendarEvent {
   id: string;
-  title: string;
-  description: string;
-  start_time: string;
-  end_time: string;
+  summary: string;
+  start: {
+    dateTime?: string;
+    date?: string;
+  };
+  end: {
+    dateTime?: string;
+    date?: string;
+  };
   location?: string;
+  attendees?: Array<{
+    email: string;
+    displayName?: string;
+    responseStatus?: string;
+  }>;
+  description?: string;
+  status?: string;
+  htmlLink?: string;
 }
 
-const CalendarTest = () => {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [embedLoading, setEmbedLoading] = useState(false);
+interface CalendarResponse {
+  events: CalendarEvent[];
+  error?: string;
+}
 
-  const fetchEvents = async () => {
+export const CalendarTest = () => {
+  const [loading, setLoading] = useState(false);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
+  const [embeddingLoading, setEmbeddingLoading] = useState(false);
+  const { toast } = useToast();
+
+  const testCalendarConnection = async () => {
     setLoading(true);
-    setError(null);
+    setEvents([]);
+    setExpandedEvent(null);
+
     try {
-      const { data, error } = await supabase.functions.invoke('test-calendar', {
-        body: { action: 'fetch' }
-      });
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        throw new Error(sessionError?.message || "No active session");
+      }
+
+      const { data, error } = await supabase.functions.invoke<CalendarResponse>(
+        "fetch-calendar-events",
+        {
+          headers: {
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+          },
+        }
+      );
 
       if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
       setEvents(data.events || []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch calendar events');
+
+      toast({
+        title: "Calendar Connection Successful",
+        description: `Fetched ${data.events?.length || 0} upcoming events.`,
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Calendar test error:", error);
+      toast({
+        title: "Calendar Connection Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEmbedData = async () => {
+  const formatEventTime = (
+    start: CalendarEvent["start"],
+    end: CalendarEvent["end"]
+  ) => {
+    try {
+      const startTime = start.dateTime || start.date;
+      const endTime = end.dateTime || end.date;
+
+      if (!startTime) return "Time not specified";
+
+      const startDate = parseISO(startTime);
+      const endDate = parseISO(endTime || startTime);
+
+      if (start.date && !start.dateTime) {
+        // All-day event
+        return `All day - ${format(startDate, "MMM d, yyyy")}`;
+      }
+
+      // Check if events are on the same day
+      const isSameDay = startDate.toDateString() === endDate.toDateString();
+
+      if (isSameDay) {
+        return `${format(startDate, "MMM d")} • ${format(
+          startDate,
+          "h:mm a"
+        )} - ${format(endDate, "h:mm a")}`;
+      }
+
+      return `${format(startDate, "MMM d h:mm a")} - ${format(
+        endDate,
+        "MMM d h:mm a"
+      )}`;
+    } catch {
+      return "Invalid date";
+    }
+  };
+
+  const getStatusInfo = (status?: string) => {
+    switch (status) {
+      case "confirmed":
+        return { text: "Confirmed", color: "text-green-400 bg-green-400/10" };
+      case "tentative":
+        return { text: "Tentative", color: "text-yellow-400 bg-yellow-400/10" };
+      case "cancelled":
+        return { text: "Cancelled", color: "text-red-400 bg-red-400/10" };
+      default:
+        return { text: "Confirmed", color: "text-gray-400 bg-gray-400/10" };
+    }
+  };
+
+  const getAttendeeStatus = (responseStatus?: string) => {
+    switch (responseStatus?.toLowerCase()) {
+      case "accepted":
+        return "text-green-400";
+      case "declined":
+        return "text-red-400";
+      case "tentative":
+        return "text-yellow-400";
+      default:
+        return "text-gray-400";
+    }
+  };
+
+  const toggleExpandEvent = (id: string) => {
+    setExpandedEvent(expandedEvent === id ? null : id);
+  };
+
+  const embedEvents = async () => {
     if (events.length === 0) {
-      setError('No events to embed. Please fetch events first.');
+      toast({
+        title: "No Data to Embed",
+        description: "Please fetch calendar events first before embedding.",
+        variant: "destructive",
+      });
       return;
     }
 
-    setEmbedLoading(true);
-    setError(null);
-
+    setEmbeddingLoading(true);
     try {
-      await embedData(events, 'calendar');
-      // Show success message or update UI
-    } catch (err: any) {
-      setError(err.message || 'Failed to embed data');
+      const embeddingData = formatCalendarForEmbedding(events);
+      
+      for (const data of embeddingData) {
+        await generateAndStoreEmbedding(data);
+      }
+
+      toast({
+        title: "Events Embedded Successfully",
+        description: `${events.length} calendar events have been embedded into the vector store.`,
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Embedding error:", error);
+      toast({
+        title: "Embedding Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
-      setEmbedLoading(false);
+      setEmbeddingLoading(false);
     }
   };
 
-  const formatDateTime = (dateTime: string) => {
-    return new Date(dateTime).toLocaleString();
-  };
-
   return (
-    <div className="space-y-6">
-      <div className="flex gap-3">
-        <Button 
-          onClick={fetchEvents} 
-          disabled={loading}
-          className="flex items-center gap-2"
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Calendar className="h-4 w-4" />
-          )}
-          {loading ? 'Fetching...' : 'Fetch Events'}
-        </Button>
+    <Card className="bg-gray-800/50 border-gray-700">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-gray-100">
+          <Calendar className="h-5 w-5 text-blue-500" />
+          <span>Calendar Integration</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-gray-400">
+          Test your Google Calendar integration by fetching upcoming events.
+        </p>
 
-        <Button
-          onClick={handleEmbedData}
-          disabled={embedLoading || events.length === 0}
-          variant="outline"
-          className="flex items-center gap-2"
-        >
-          {embedLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Database className="h-4 w-4" />
-          )}
-          {embedLoading ? 'Embedding...' : 'Embed Data'}
-        </Button>
-      </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={testCalendarConnection}
+            disabled={loading}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 transition-colors"
+            aria-label="Test Calendar connection"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Fetching Events...
+              </>
+            ) : (
+              "Test Calendar Connection"
+            )}
+          </Button>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+          <Button
+            onClick={embedEvents}
+            disabled={embeddingLoading || events.length === 0}
+            className="bg-purple-600 hover:bg-purple-700 transition-colors"
+            aria-label="Embed events into vector store"
+          >
+            {embeddingLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Embedding...
+              </>
+            ) : (
+              "Embed Data"
+            )}
+          </Button>
+        </div>
 
-      {events.length > 0 && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="p-4 border-b">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Upcoming Events</h3>
-                <Badge variant="secondary">{events.length} events</Badge>
-              </div>
-            </div>
-            
-            <ScrollArea className="h-[400px]">
-              <div className="p-4 space-y-4">
-                {events.map((event, index) => (
-                  <div key={event.id}>
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium">{event.title}</h4>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                            <Clock className="h-3 w-3" />
-                            <span>{formatDateTime(event.start_time)}</span>
+        {events.length > 0 && (
+          <div className="mt-4 space-y-3">
+            <h4 className="font-medium text-sm text-gray-300">
+              Upcoming Events ({events.length})
+            </h4>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {events.map((event) => {
+                const statusInfo = getStatusInfo(event.status);
+                return (
+                  <Card
+                    key={event.id}
+                    className="bg-gray-700/50 border-gray-600 hover:border-gray-500 transition-colors"
+                  >
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h5 className="font-medium text-sm text-white line-clamp-2">
+                            {event.summary || "Untitled Event"}
+                          </h5>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${statusInfo.color}`}
+                            >
+                              {statusInfo.text}
+                            </span>
+                            <button
+                              onClick={() => toggleExpandEvent(event.id)}
+                              className="text-gray-400 hover:text-gray-300 transition-colors"
+                              aria-label={
+                                expandedEvent === event.id
+                                  ? "Collapse event"
+                                  : "Expand event"
+                              }
+                            >
+                              {expandedEvent === event.id ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </button>
                           </div>
                         </div>
-                        <Badge variant="outline">Event</Badge>
-                      </div>
-                      
-                      {event.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {event.description}
-                        </p>
-                      )}
-                      
-                      {event.location && (
-                        <p className="text-xs text-muted-foreground">
-                          📍 {event.location}
-                        </p>
-                      )}
-                    </div>
-                    {index < events.length - 1 && <Separator className="mt-4" />}
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
 
-      {!loading && events.length === 0 && !error && (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">No events loaded yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Click "Fetch Events" to load your calendar events
+                        <div className="flex items-center text-xs text-gray-300">
+                          <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                          <span>{formatEventTime(event.start, event.end)}</span>
+                        </div>
+
+                        {event.location && (
+                          <div className="flex items-start text-xs text-gray-400">
+                            <MapPin className="h-3 w-3 mr-1 flex-shrink-0 mt-0.5" />
+                            <span className="truncate">{event.location}</span>
+                          </div>
+                        )}
+
+                        {expandedEvent === event.id && (
+                          <div className="mt-2 pt-2 border-t border-gray-600 space-y-3">
+                            {event.description && (
+                              <div className="text-xs text-gray-300 whitespace-pre-line">
+                                {event.description
+                                  .replace(/<[^>]*>/g, "")
+                                  .trim()}
+                              </div>
+                            )}
+
+                            {event.attendees && event.attendees.length > 0 && (
+                              <div>
+                                <div className="text-xs font-medium text-gray-400 mb-1">
+                                  Attendees ({event.attendees.length})
+                                </div>
+                                <div className="space-y-1 text-xs">
+                                  {event.attendees.map((attendee, index) => (
+                                    <div
+                                      key={index}
+                                      className={`flex items-center ${getAttendeeStatus(
+                                        attendee.responseStatus
+                                      )}`}
+                                    >
+                                      <User className="h-3 w-3 mr-1 flex-shrink-0" />
+                                      <span className="truncate">
+                                        {attendee.displayName || attendee.email}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {event.htmlLink && (
+                              <a
+                                href={event.htmlLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-block text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                              >
+                                Open in Google Calendar
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {events.length === 0 && !loading && (
+          <div className="text-center py-8 text-gray-400">
+            <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">
+              No events to display. Click "Test Calendar Connection" to fetch
+              your upcoming events.
             </p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
-
-export default CalendarTest;

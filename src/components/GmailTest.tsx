@@ -1,152 +1,271 @@
-
-import React, { useState } from 'react';
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Mail, Database, CheckCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { embedData } from '../utils/embeddingUtils';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Mail,
+  Loader2,
+  Clock,
+  User,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import {
+  generateAndStoreEmbedding,
+  formatGmailForEmbedding,
+} from "@/utils/embeddingUtils";
 
 interface Email {
   id: string;
   subject: string;
   from: string;
-  snippet: string;
   date: string;
+  snippet: string;
+  body?: string;
 }
 
-const GmailTest = () => {
-  const [emails, setEmails] = useState<Email[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [embedLoading, setEmbedLoading] = useState(false);
+interface GmailResponse {
+  emails: Email[];
+  error?: string;
+}
 
-  const fetchEmails = async () => {
+export const GmailTest = () => {
+  const [loading, setLoading] = useState(false);
+  const [emails, setEmails] = useState<Email[]>([]);
+  const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
+  const [embeddingLoading, setEmbeddingLoading] = useState(false);
+  const { toast } = useToast();
+
+  const testGmailConnection = async () => {
     setLoading(true);
-    setError(null);
+    setEmails([]);
+    setExpandedEmail(null);
+
     try {
-      const { data, error } = await supabase.functions.invoke('test-gmail', {
-        body: { action: 'fetch' }
-      });
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        throw new Error(sessionError?.message || "No active session");
+      }
+
+      const { data, error } = await supabase.functions.invoke<GmailResponse>(
+        "fetch-gmail-emails",
+        {
+          headers: {
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+          },
+        }
+      );
 
       if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
       setEmails(data.emails || []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch emails');
+
+      toast({
+        title: "Gmail Connection Successful",
+        description: `Fetched ${
+          data.emails?.length || 0
+        } emails from your inbox.`,
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Gmail test error:", error);
+      toast({
+        title: "Gmail Connection Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEmbedData = async () => {
+  const formatDate = (dateStr: string) => {
+    try {
+      return formatDistanceToNow(new Date(dateStr), { addSuffix: true });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const extractSenderInfo = (from: string) => {
+    const match = from.match(/^(?:"?([^"]*)"?\s)?(?:<?(.+?)>?)$/);
+    return {
+      name: match?.[1]?.trim() || match?.[2] || from,
+      email: match?.[2] || from,
+    };
+  };
+
+  const toggleExpandEmail = (id: string) => {
+    setExpandedEmail(expandedEmail === id ? null : id);
+  };
+
+  const embedEmails = async () => {
     if (emails.length === 0) {
-      setError('No emails to embed. Please fetch emails first.');
+      toast({
+        title: "No Data to Embed",
+        description: "Please fetch emails first before embedding.",
+        variant: "destructive",
+      });
       return;
     }
 
-    setEmbedLoading(true);
-    setError(null);
-
+    setEmbeddingLoading(true);
     try {
-      await embedData(emails, 'gmail');
-      // Show success message or update UI
-    } catch (err: any) {
-      setError(err.message || 'Failed to embed data');
+      const embeddingData = formatGmailForEmbedding(emails);
+      
+      for (const data of embeddingData) {
+        await generateAndStoreEmbedding(data);
+      }
+
+      toast({
+        title: "Emails Embedded Successfully",
+        description: `${emails.length} emails have been embedded into the vector store.`,
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Embedding error:", error);
+      toast({
+        title: "Embedding Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
-      setEmbedLoading(false);
+      setEmbeddingLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-3">
-        <Button 
-          onClick={fetchEmails} 
-          disabled={loading}
-          className="flex items-center gap-2"
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Mail className="h-4 w-4" />
-          )}
-          {loading ? 'Fetching...' : 'Fetch Emails'}
-        </Button>
+    <Card className="bg-gray-800/50 border-gray-700">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-gray-100">
+          <Mail className="h-5 w-5 text-red-500" />
+          <span>Gmail Integration</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-gray-400">
+          Test your Gmail integration by fetching recent unread emails from your
+          inbox.
+        </p>
 
-        <Button
-          onClick={handleEmbedData}
-          disabled={embedLoading || emails.length === 0}
-          variant="outline"
-          className="flex items-center gap-2"
-        >
-          {embedLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Database className="h-4 w-4" />
-          )}
-          {embedLoading ? 'Embedding...' : 'Embed Data'}
-        </Button>
-      </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={testGmailConnection}
+            disabled={loading}
+            className="flex-1 bg-red-600 hover:bg-red-700 transition-colors"
+            aria-label="Test Gmail connection"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Fetching Emails...
+              </>
+            ) : (
+              "Test Gmail Connection"
+            )}
+          </Button>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+          <Button
+            onClick={embedEmails}
+            disabled={embeddingLoading || emails.length === 0}
+            className="bg-purple-600 hover:bg-purple-700 transition-colors"
+            aria-label="Embed emails into vector store"
+          >
+            {embeddingLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Embedding...
+              </>
+            ) : (
+              "Embed Data"
+            )}
+          </Button>
+        </div>
 
-      {emails.length > 0 && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="p-4 border-b">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Recent Emails</h3>
-                <Badge variant="secondary">{emails.length} emails</Badge>
-              </div>
-            </div>
-            
-            <ScrollArea className="h-[400px]">
-              <div className="p-4 space-y-4">
-                {emails.map((email, index) => (
-                  <div key={email.id}>
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium truncate">{email.subject}</h4>
-                          <p className="text-sm text-muted-foreground">{email.from}</p>
+        {emails.length > 0 && (
+          <div className="mt-4 space-y-3">
+            <h4 className="font-medium text-sm text-gray-300">
+              Recent Unread Emails ({emails.length})
+            </h4>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {emails.map((email) => {
+                const sender = extractSenderInfo(email.from);
+                return (
+                  <Card
+                    key={email.id}
+                    className="bg-gray-700/50 border-gray-600 hover:border-gray-500 transition-colors"
+                  >
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h5 className="font-medium text-sm text-gray-100 line-clamp-2">
+                            {email.subject || "No Subject"}
+                          </h5>
+                          <button
+                            onClick={() => toggleExpandEmail(email.id)}
+                            className="text-gray-400 hover:text-gray-300 transition-colors"
+                            aria-label={
+                              expandedEmail === email.id
+                                ? "Collapse email"
+                                : "Expand email"
+                            }
+                          >
+                            {expandedEmail === email.id ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </button>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {new Date(email.date).toLocaleDateString()}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {email.snippet}
-                      </p>
-                    </div>
-                    {index < emails.length - 1 && <Separator className="mt-4" />}
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
 
-      {!loading && emails.length === 0 && !error && (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Mail className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">No emails loaded yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Click "Fetch Emails" to load your recent emails
+                        <div className="flex items-center text-xs text-gray-300">
+                          <User className="h-3 w-3 mr-1 flex-shrink-0" />
+                          <span className="truncate" title={sender.email}>
+                            {sender.name}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center text-xs text-gray-400">
+                          <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                          <span>{formatDate(email.date)}</span>
+                        </div>
+
+                        <p className="text-xs text-gray-400 line-clamp-2">
+                          {email.snippet}
+                        </p>
+
+                        {expandedEmail === email.id && email.body && (
+                          <div className="mt-2 p-2 bg-gray-800/50 rounded text-xs text-gray-300 overflow-auto max-h-60">
+                            <div
+                              dangerouslySetInnerHTML={{ __html: email.body }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {emails.length === 0 && !loading && (
+          <div className="text-center py-8 text-gray-400">
+            <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">
+              No emails to display. Click "Test Gmail Connection" to fetch your
+              recent emails.
             </p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
-
-export default GmailTest;

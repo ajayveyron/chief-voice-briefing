@@ -47,43 +47,6 @@ export const generateAndStoreEmbedding = async (data: EmbeddingData) => {
   };
 };
 
-export const embedData = async (items: any[], source: string) => {
-  console.log(`🔄 Starting embedding process for ${items.length} ${source} items...`);
-  
-  try {
-    let formattedData: EmbeddingData[] = [];
-    
-    switch (source) {
-      case 'gmail':
-        formattedData = formatGmailForEmbedding(items);
-        break;
-      case 'calendar':
-        formattedData = formatCalendarForEmbedding(items);
-        break;
-      case 'slack':
-        formattedData = formatSlackForEmbedding(items);
-        break;
-      case 'notion':
-        formattedData = formatNotionForEmbedding(items);
-        break;
-      default:
-        throw new Error(`Unsupported source: ${source}`);
-    }
-
-    const results = [];
-    for (const item of formattedData) {
-      const result = await generateAndStoreEmbedding(item);
-      results.push(result);
-    }
-
-    console.log(`✅ Successfully embedded ${results.length} items from ${source}`);
-    return results;
-  } catch (error) {
-    console.error(`❌ Error embedding ${source} data:`, error);
-    throw error;
-  }
-};
-
 export const formatGmailForEmbedding = (emails: any[]): EmbeddingData[] => {
   return emails.map(email => ({
     title: `Gmail: ${email.subject || 'No Subject'}`,
