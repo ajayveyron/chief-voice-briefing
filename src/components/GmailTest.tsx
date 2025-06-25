@@ -12,6 +12,10 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import {
+  generateAndStoreEmbedding,
+  formatGmailForEmbedding,
+} from "@/utils/embeddingUtils";
 
 interface Email {
   id: string;
@@ -31,6 +35,7 @@ export const GmailTest = () => {
   const [loading, setLoading] = useState(false);
   const [emails, setEmails] = useState<Email[]>([]);
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
+  const [embeddingLoading, setEmbeddingLoading] = useState(false);
   const { toast } = useToast();
 
   const testGmailConnection = async () => {
@@ -99,6 +104,42 @@ export const GmailTest = () => {
     setExpandedEmail(expandedEmail === id ? null : id);
   };
 
+  const embedEmails = async () => {
+    if (emails.length === 0) {
+      toast({
+        title: "No Data to Embed",
+        description: "Please fetch emails first before embedding.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEmbeddingLoading(true);
+    try {
+      const embeddingData = formatGmailForEmbedding(emails);
+      
+      for (const data of embeddingData) {
+        await generateAndStoreEmbedding(data);
+      }
+
+      toast({
+        title: "Emails Embedded Successfully",
+        description: `${emails.length} emails have been embedded into the vector store.`,
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Embedding error:", error);
+      toast({
+        title: "Embedding Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setEmbeddingLoading(false);
+    }
+  };
+
   return (
     <Card className="bg-gray-800/50 border-gray-700">
       <CardHeader>
@@ -113,21 +154,39 @@ export const GmailTest = () => {
           inbox.
         </p>
 
-        <Button
-          onClick={testGmailConnection}
-          disabled={loading}
-          className="w-full bg-red-600 hover:bg-red-700 transition-colors"
-          aria-label="Test Gmail connection"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Fetching Emails...
-            </>
-          ) : (
-            "Test Gmail Connection"
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={testGmailConnection}
+            disabled={loading}
+            className="flex-1 bg-red-600 hover:bg-red-700 transition-colors"
+            aria-label="Test Gmail connection"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Fetching Emails...
+              </>
+            ) : (
+              "Test Gmail Connection"
+            )}
+          </Button>
+
+          <Button
+            onClick={embedEmails}
+            disabled={embeddingLoading || emails.length === 0}
+            className="bg-purple-600 hover:bg-purple-700 transition-colors"
+            aria-label="Embed emails into vector store"
+          >
+            {embeddingLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Embedding...
+              </>
+            ) : (
+              "Embed Data"
+            )}
+          </Button>
+        </div>
 
         {emails.length > 0 && (
           <div className="mt-4 space-y-3">

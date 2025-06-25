@@ -13,6 +13,10 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import {
+  generateAndStoreEmbedding,
+  formatNotionForEmbedding,
+} from "@/utils/embeddingUtils";
 
 interface NotionPage {
   id: string;
@@ -39,6 +43,7 @@ export const NotionTest = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<NotionResponse | null>(null);
   const [expandedPage, setExpandedPage] = useState<string | null>(null);
+  const [embeddingLoading, setEmbeddingLoading] = useState(false);
   const { toast } = useToast();
 
   const testNotionConnection = async () => {
@@ -102,6 +107,42 @@ export const NotionTest = () => {
     return JSON.stringify(value);
   };
 
+  const embedPages = async () => {
+    if (!data?.pages || data.pages.length === 0) {
+      toast({
+        title: "No Data to Embed",
+        description: "Please fetch Notion pages first before embedding.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEmbeddingLoading(true);
+    try {
+      const embeddingData = formatNotionForEmbedding(data.pages);
+      
+      for (const embeddingItem of embeddingData) {
+        await generateAndStoreEmbedding(embeddingItem);
+      }
+
+      toast({
+        title: "Pages Embedded Successfully",
+        description: `${data.pages.length} Notion pages have been embedded into the vector store.`,
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Embedding error:", error);
+      toast({
+        title: "Embedding Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setEmbeddingLoading(false);
+    }
+  };
+
   return (
     <Card className="bg-gray-800/50 border-gray-700">
       <CardHeader>
@@ -115,21 +156,39 @@ export const NotionTest = () => {
           Test your Notion integration by fetching pages from your workspace.
         </p>
 
-        <Button
-          onClick={testNotionConnection}
-          disabled={loading}
-          className="w-full bg-purple-600 hover:bg-purple-700 transition-colors"
-          aria-label="Test Notion connection"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Fetching Pages...
-            </>
-          ) : (
-            "Test Notion Connection"
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={testNotionConnection}
+            disabled={loading}
+            className="flex-1 bg-purple-600 hover:bg-purple-700 transition-colors"
+            aria-label="Test Notion connection"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Fetching Pages...
+              </>
+            ) : (
+              "Test Notion Connection"
+            )}
+          </Button>
+
+          <Button
+            onClick={embedPages}
+            disabled={embeddingLoading || !data?.pages || data.pages.length === 0}
+            className="bg-purple-600 hover:bg-purple-700 transition-colors"
+            aria-label="Embed pages into vector store"
+          >
+            {embeddingLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Embedding...
+              </>
+            ) : (
+              "Embed Data"
+            )}
+          </Button>
+        </div>
 
         {data && (
           <div className="mt-4 space-y-4">

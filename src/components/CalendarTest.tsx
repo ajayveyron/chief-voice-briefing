@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +14,10 @@ import {
   User,
 } from "lucide-react";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
+import {
+  generateAndStoreEmbedding,
+  formatCalendarForEmbedding,
+} from "@/utils/embeddingUtils";
 
 interface CalendarEvent {
   id: string;
@@ -47,6 +50,7 @@ export const CalendarTest = () => {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
+  const [embeddingLoading, setEmbeddingLoading] = useState(false);
   const { toast } = useToast();
 
   const testCalendarConnection = async () => {
@@ -160,6 +164,42 @@ export const CalendarTest = () => {
     setExpandedEvent(expandedEvent === id ? null : id);
   };
 
+  const embedEvents = async () => {
+    if (events.length === 0) {
+      toast({
+        title: "No Data to Embed",
+        description: "Please fetch calendar events first before embedding.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEmbeddingLoading(true);
+    try {
+      const embeddingData = formatCalendarForEmbedding(events);
+      
+      for (const data of embeddingData) {
+        await generateAndStoreEmbedding(data);
+      }
+
+      toast({
+        title: "Events Embedded Successfully",
+        description: `${events.length} calendar events have been embedded into the vector store.`,
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Embedding error:", error);
+      toast({
+        title: "Embedding Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setEmbeddingLoading(false);
+    }
+  };
+
   return (
     <Card className="bg-gray-800/50 border-gray-700">
       <CardHeader>
@@ -173,21 +213,39 @@ export const CalendarTest = () => {
           Test your Google Calendar integration by fetching upcoming events.
         </p>
 
-        <Button
-          onClick={testCalendarConnection}
-          disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 transition-colors"
-          aria-label="Test Calendar connection"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Fetching Events...
-            </>
-          ) : (
-            "Test Calendar Connection"
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={testCalendarConnection}
+            disabled={loading}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 transition-colors"
+            aria-label="Test Calendar connection"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Fetching Events...
+              </>
+            ) : (
+              "Test Calendar Connection"
+            )}
+          </Button>
+
+          <Button
+            onClick={embedEvents}
+            disabled={embeddingLoading || events.length === 0}
+            className="bg-purple-600 hover:bg-purple-700 transition-colors"
+            aria-label="Embed events into vector store"
+          >
+            {embeddingLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Embedding...
+              </>
+            ) : (
+              "Embed Data"
+            )}
+          </Button>
+        </div>
 
         {events.length > 0 && (
           <div className="mt-4 space-y-3">

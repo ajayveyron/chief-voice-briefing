@@ -13,6 +13,10 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import {
+  generateAndStoreEmbedding,
+  formatSlackForEmbedding,
+} from "@/utils/embeddingUtils";
 
 interface SlackMessage {
   ts: string;
@@ -46,6 +50,7 @@ export const SlackTest = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<SlackResponse | null>(null);
   const [expandedMessage, setExpandedMessage] = useState<string | null>(null);
+  const [embeddingLoading, setEmbeddingLoading] = useState(false);
   const { toast } = useToast();
 
   const testSlackConnection = async () => {
@@ -125,6 +130,42 @@ export const SlackTest = () => {
     return { text: type || "Message", color: "text-gray-400 bg-gray-400/10" };
   };
 
+  const embedMessages = async () => {
+    if (!data?.messages || data.messages.length === 0) {
+      toast({
+        title: "No Data to Embed",
+        description: "Please fetch Slack messages first before embedding.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEmbeddingLoading(true);
+    try {
+      const embeddingData = formatSlackForEmbedding(data.messages);
+      
+      for (const embeddingItem of embeddingData) {
+        await generateAndStoreEmbedding(embeddingItem);
+      }
+
+      toast({
+        title: "Messages Embedded Successfully",
+        description: `${data.messages.length} Slack messages have been embedded into the vector store.`,
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Embedding error:", error);
+      toast({
+        title: "Embedding Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setEmbeddingLoading(false);
+    }
+  };
+
   return (
     <Card className="bg-gray-800/50 border-gray-700">
       <CardHeader>
@@ -139,21 +180,39 @@ export const SlackTest = () => {
           workspace.
         </p>
 
-        <Button
-          onClick={testSlackConnection}
-          disabled={loading}
-          className="w-full bg-green-600 hover:bg-green-700 transition-colors"
-          aria-label="Test Slack connection"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Fetching Messages...
-            </>
-          ) : (
-            "Test Slack Connection"
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={testSlackConnection}
+            disabled={loading}
+            className="flex-1 bg-green-600 hover:bg-green-700 transition-colors"
+            aria-label="Test Slack connection"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Fetching Messages...
+              </>
+            ) : (
+              "Test Slack Connection"
+            )}
+          </Button>
+
+          <Button
+            onClick={embedMessages}
+            disabled={embeddingLoading || !data?.messages || data.messages.length === 0}
+            className="bg-purple-600 hover:bg-purple-700 transition-colors"
+            aria-label="Embed messages into vector store"
+          >
+            {embeddingLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Embedding...
+              </>
+            ) : (
+              "Embed Data"
+            )}
+          </Button>
+        </div>
 
         {data?.workspace && (
           <div className="text-xs text-gray-300 bg-gray-700/50 px-3 py-2 rounded">
