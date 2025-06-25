@@ -419,7 +419,7 @@ function getNextWeekday(targetDay: number): Date {
 async function fetchEmails(supabase: any, userId: string, limit = 10): Promise<Email[]> {
   const { data, error } = await supabase
     .from('raw_events')
-    .select('content, timestamp, source_id')
+    .select('content, timestamp, id')
     .eq('user_id', userId)
     .eq('source', 'gmail')
     .eq('event_type', 'email')
@@ -434,7 +434,7 @@ async function fetchEmails(supabase: any, userId: string, limit = 10): Promise<E
   return (data || []).map(event => {
     const content = typeof event.content === 'string' ? JSON.parse(event.content) : event.content;
     return {
-      id: event.source_id || content.id || 'unknown',
+      id: event.id || content.id || 'unknown',
       subject: content.subject || 'No Subject',
       from: content.from || 'Unknown Sender',
       snippet: content.snippet || content.body?.substring(0, 100) || '',
@@ -451,7 +451,7 @@ async function fetchCalendarEvents(supabase: any, userId: string, days = 7): Pro
   
   const { data, error } = await supabase
     .from('raw_events')
-    .select('content, timestamp, source_id')
+    .select('content, timestamp, id')
     .eq('user_id', userId)
     .eq('source', 'calendar')
     .eq('event_type', 'event')
@@ -467,7 +467,7 @@ async function fetchCalendarEvents(supabase: any, userId: string, days = 7): Pro
   return (data || []).map(event => {
     const content = typeof event.content === 'string' ? JSON.parse(event.content) : event.content;
     return {
-      id: event.source_id || content.id || 'unknown',
+      id: event.id || content.id || 'unknown',
       title: content.summary || content.title || 'No Title',
       description: content.description || '',
       start_time: content.start || event.timestamp || new Date().toISOString(),
@@ -684,7 +684,12 @@ serve(async (req) => {
           vectorContext += `\n   ${item.body.substring(0, 200)}${item.body.length > 200 ? '...' : ''}`;
           vectorContext += `\n   (Relevance: ${(item.similarity * 100).toFixed(1)}%)\n`;
         });
+        console.log('✅ Vector context added to response');
+      } else {
+        console.log('ℹ️ No similar content found in vector store');
       }
+    } else {
+      console.log('⚠️ Could not generate query embedding');
     }
 
     // Extract calendar event BEFORE calling OpenAI
