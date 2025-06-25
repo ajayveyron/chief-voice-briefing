@@ -478,6 +478,117 @@ async function fetchCalendarEvents(supabase: any, userId: string, days = 7): Pro
   });
 }
 
+// Function to generate embeddings for search query
+async function generateQueryEmbedding(query: string) {
+  try {
+    console.log('🔍 Generating embedding for query:', query);
+    
+    // Use OpenAI to generate embedding for the search query
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      console.warn('OpenAI API key not available for embedding generation');
+      return null;
+    }
+
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: query,
+        encoding_format: 'float'
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to generate embedding:', response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.data[0].embedding;
+  } catch (error) {
+    console.error('Error generating query embedding:', error);
+    return null;
+  }
+}
+
+// Function to search similar embeddings from the vector store
+async function searchSimilarContent(supabase: any, queryEmbedding: number[], limit = 5) {
+  try {
+    console.log('🔍 Searching for similar content in vector store...');
+    
+    // Convert embedding array to string for the query
+    const embeddingString = JSON.stringify(queryEmbedding);
+    
+    // Query the posts table for similar embeddings
+    // Note: This is a simplified approach. In production, you'd use pgvector extension for proper similarity search
+    const { data, error } = await supabase
+      .from('posts')
+      .select('title, body, embedding')
+      .limit(limit);
+
+    if (error) {
+      console.error('Error searching vector store:', error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      console.log('No embeddings found in vector store');
+      return [];
+    }
+
+    console.log(`✅ Found ${data.length} potential matches in vector store`);
+    
+    // Calculate cosine similarity (simplified approach)
+    const resultsWithSimilarity = data
+      .map(item => {
+        try {
+          const storedEmbedding = JSON.parse(item.embedding);
+          const similarity = cosineSimilarity(queryEmbedding, storedEmbedding);
+          return {
+            ...item,
+            similarity
+          };
+        } catch (e) {
+          console.warn('Failed to parse embedding for item:', item.title);
+          return null;
+        }
+      })
+      .filter(item => item !== null)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit);
+
+    console.log('📊 Top similar content found:', resultsWithSimilarity.map(r => ({ title: r.title, similarity: r.similarity })));
+    
+    return resultsWithSimilarity;
+  } catch (error) {
+    console.error('Error in similarity search:', error);
+    return [];
+  }
+}
+
+// Simple cosine similarity calculation
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0;
+  
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  
+  const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
+  return magnitude === 0 ? 0 : dotProduct / magnitude;
+}
+
 // Function to format context for AI prompt
 function formatContext(
   recentEmails: Email[],
@@ -561,6 +672,21 @@ serve(async (req) => {
     const { message, includeContext = true }: ChatRequest = await req.json();
     console.log(`🤖 Chief AI chat for user: ${user.id}, message: ${message}`);
 
+    // Generate embedding for the user's message and search for similar content
+    let vectorContext = '';
+    const queryEmbedding = await generateQueryEmbedding(message);
+    if (queryEmbedding) {
+      const similarContent = await searchSimilarContent(supabase, queryEmbedding, 3);
+      if (similarContent.length > 0) {
+        vectorContext += '\n\n=== Relevant Information from Your Data ===';
+        similarContent.forEach((item, index) => {
+          vectorContext += `\n${index + 1}. ${item.title}`;
+          vectorContext += `\n   ${item.body.substring(0, 200)}${item.body.length > 200 ? '...' : ''}`;
+          vectorContext += `\n   (Relevance: ${(item.similarity * 100).toFixed(1)}%)\n`;
+        });
+      }
+    }
+
     // Extract calendar event BEFORE calling OpenAI
     const calendarEvent = extractCalendarEvent(message);
     let calendarResult = null;
@@ -637,7 +763,8 @@ serve(async (req) => {
         pendingActions: actionItems || [],
         recentEmails,
         upcomingEvents,
-        calendarEventCreated: calendarResult?.success ? 'Successfully created calendar event' : null
+        calendarEventCreated: calendarResult?.success ? 'Successfully created calendar event' : null,
+        vectorContext: vectorContext || null
       };
     }
 
@@ -650,7 +777,7 @@ serve(async (req) => {
     let systemPrompt = `You are Chief, a highly capable personal assistant. You have access to the user's emails, calendar, and other productivity tools. Your role is to:
 
 1. Understand and fulfill user requests efficiently
-2. Provide context-aware responses
+2. Provide context-aware responses using relevant information from their data
 3. Handle email and calendar management
 4. Be proactive in suggesting actions
 5. Maintain a professional yet friendly tone
@@ -658,7 +785,7 @@ serve(async (req) => {
 When handling requests:
 - For emails: Confirm details before sending
 - For meetings: Verify time, attendees, and purpose
-- For information: Provide concise, accurate answers
+- For information: Provide concise, accurate answers using relevant context
 - For tasks: Offer to create reminders or action items
 
 Current time: ${new Date().toLocaleString()}`;
@@ -673,14 +800,14 @@ Current time: ${new Date().toLocaleString()}`;
       systemPrompt += `\n\nNOTE: Failed to create calendar event: ${calendarResult.error}`;
     }
 
-    // Format context information
+    // Format context information including vector search results
     const contextInfo = includeContext ? formatContext(
       context.recentEmails,
       context.upcomingEvents,
       context.recentUpdates,
       context.pendingActions,
       context.conversationHistory
-    ) : '';
+    ) + (vectorContext || '') : '';
 
     const messages = [
       { role: 'system', content: systemPrompt },
