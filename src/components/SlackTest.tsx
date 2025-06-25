@@ -1,371 +1,158 @@
-import { useState } from "react";
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  MessageSquare,
-  Loader2,
-  Hash,
-  User,
-  Clock,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import {
-  generateAndStoreEmbedding,
-  formatSlackForEmbedding,
-} from "@/utils/embeddingUtils";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, MessageCircle, Database, Hash } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { embedData } from '../utils/embeddingUtils';
 
 interface SlackMessage {
-  ts: string;
+  id: string;
+  channel: string;
+  user: string;
   text: string;
-  user?: string;
-  username?: string;
-  channel?: string;
-  channel_name?: string;
-  type?: string;
-  subtype?: string;
-  reactions?: Array<{
-    name: string;
-    count: number;
-    users: string[];
-  }>;
-  attachments?: Array<{
-    title?: string;
-    text?: string;
-    image_url?: string;
-    thumb_url?: string;
-  }>;
+  timestamp: string;
 }
 
-interface SlackResponse {
-  messages: SlackMessage[];
-  workspace?: string;
-  error?: string;
-}
-
-export const SlackTest = () => {
+const SlackTest = () => {
+  const [messages, setMessages] = useState<SlackMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<SlackResponse | null>(null);
-  const [expandedMessage, setExpandedMessage] = useState<string | null>(null);
-  const [embeddingLoading, setEmbeddingLoading] = useState(false);
-  const { toast } = useToast();
+  const [error, setError] = useState<string | null>(null);
+  const [embedLoading, setEmbedLoading] = useState(false);
 
-  const testSlackConnection = async () => {
+  const fetchMessages = async () => {
     setLoading(true);
-    setData(null);
-    setExpandedMessage(null);
-
+    setError(null);
     try {
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
-      if (sessionError || !sessionData.session) {
-        throw new Error(sessionError?.message || "No active session");
-      }
-
-      const { data, error } = await supabase.functions.invoke<SlackResponse>(
-        "fetch-slack-messages",
-        {
-          headers: {
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-        }
-      );
+      const { data, error } = await supabase.functions.invoke('test-slack', {
+        body: { action: 'fetch' }
+      });
 
       if (error) throw error;
-      if (data.error) throw new Error(data.error);
-
-      setData(data);
-
-      toast({
-        title: "Slack Connection Successful",
-        description: `Fetched ${data.messages?.length || 0} recent messages.`,
-      });
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      console.error("Slack test error:", error);
-      toast({
-        title: "Slack Connection Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      setMessages(data.messages || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch Slack messages');
     } finally {
       setLoading(false);
     }
   };
 
-  const formatTimestamp = (ts: string) => {
-    try {
-      const timestamp = parseFloat(ts) * 1000;
-      return formatDistanceToNow(new Date(timestamp), { addSuffix: true });
-    } catch {
-      return "Unknown time";
-    }
-  };
-
-  const formatMessageText = (text: string) => {
-    if (!text) return "";
-    return text
-      .replace(/<@U[A-Z0-9]+>/g, "@user")
-      .replace(/<#C[A-Z0-9]+\|([^>]+)>/g, "#$1")
-      .replace(/<([^|>]+)\|([^>]+)>/g, "$2")
-      .replace(/<([^>]+)>/g, "$1")
-      .trim();
-  };
-
-  const toggleExpandMessage = (ts: string) => {
-    setExpandedMessage(expandedMessage === ts ? null : ts);
-  };
-
-  const getMessageTypeInfo = (type?: string, subtype?: string) => {
-    if (subtype === "bot_message")
-      return { text: "Bot Message", color: "text-purple-400 bg-purple-400/10" };
-    if (subtype === "channel_join")
-      return { text: "User Joined", color: "text-green-400 bg-green-400/10" };
-    if (type === "message")
-      return { text: "Message", color: "text-blue-400 bg-blue-400/10" };
-    return { text: type || "Message", color: "text-gray-400 bg-gray-400/10" };
-  };
-
-  const embedMessages = async () => {
-    if (!data?.messages || data.messages.length === 0) {
-      toast({
-        title: "No Data to Embed",
-        description: "Please fetch Slack messages first before embedding.",
-        variant: "destructive",
-      });
+  const handleEmbedData = async () => {
+    if (messages.length === 0) {
+      setError('No messages to embed. Please fetch messages first.');
       return;
     }
 
-    setEmbeddingLoading(true);
-    try {
-      const embeddingData = formatSlackForEmbedding(data.messages);
-      
-      for (const embeddingItem of embeddingData) {
-        await generateAndStoreEmbedding(embeddingItem);
-      }
+    setEmbedLoading(true);
+    setError(null);
 
-      toast({
-        title: "Messages Embedded Successfully",
-        description: `${data.messages.length} Slack messages have been embedded into the vector store.`,
-      });
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      console.error("Embedding error:", error);
-      toast({
-        title: "Embedding Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    try {
+      await embedData(messages, 'slack');
+      // Show success message or update UI
+    } catch (err: any) {
+      setError(err.message || 'Failed to embed data');
     } finally {
-      setEmbeddingLoading(false);
+      setEmbedLoading(false);
     }
   };
 
+  const formatTimestamp = (timestamp: string) => {
+    return new Date(timestamp).toLocaleString();
+  };
+
   return (
-    <Card className="bg-gray-800/50 border-gray-700">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-gray-100">
-          <MessageSquare className="h-5 w-5 text-green-500" />
-          <span>Slack Integration</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-gray-400">
-          Test your Slack integration by fetching recent messages from your
-          workspace.
-        </p>
+    <div className="space-y-6">
+      <div className="flex gap-3">
+        <Button 
+          onClick={fetchMessages} 
+          disabled={loading}
+          className="flex items-center gap-2"
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <MessageCircle className="h-4 w-4" />
+          )}
+          {loading ? 'Fetching...' : 'Fetch Messages'}
+        </Button>
 
-        <div className="flex gap-2">
-          <Button
-            onClick={testSlackConnection}
-            disabled={loading}
-            className="flex-1 bg-green-600 hover:bg-green-700 transition-colors"
-            aria-label="Test Slack connection"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Fetching Messages...
-              </>
-            ) : (
-              "Test Slack Connection"
-            )}
-          </Button>
+        <Button
+          onClick={handleEmbedData}
+          disabled={embedLoading || messages.length === 0}
+          variant="outline"
+          className="flex items-center gap-2"
+        >
+          {embedLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Database className="h-4 w-4" />
+          )}
+          {embedLoading ? 'Embedding...' : 'Embed Data'}
+        </Button>
+      </div>
 
-          <Button
-            onClick={embedMessages}
-            disabled={embeddingLoading || !data?.messages || data.messages.length === 0}
-            className="bg-purple-600 hover:bg-purple-700 transition-colors"
-            aria-label="Embed messages into vector store"
-          >
-            {embeddingLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Embedding...
-              </>
-            ) : (
-              "Embed Data"
-            )}
-          </Button>
-        </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        {data?.workspace && (
-          <div className="text-xs text-gray-300 bg-gray-700/50 px-3 py-2 rounded">
-            Connected to:{" "}
-            <span className="font-medium text-green-400">{data.workspace}</span>
-          </div>
-        )}
-
-        {data?.messages && data.messages.length > 0 && (
-          <div className="mt-4 space-y-3">
-            <h4 className="font-medium text-sm text-gray-300">
-              Recent Messages ({data.messages.length})
-            </h4>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {data.messages.map((message, index) => {
-                const typeInfo = getMessageTypeInfo(
-                  message.type,
-                  message.subtype
-                );
-                return (
-                  <Card
-                    key={`${message.ts}-${index}`}
-                    className="bg-gray-700/50 border-gray-600 hover:border-gray-500 transition-colors"
-                  >
-                    <CardContent className="p-4">
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {message.channel_name && (
-                              <div className="flex items-center text-xs text-gray-300 bg-gray-800/50 px-2 py-1 rounded">
-                                <Hash className="h-3 w-3 mr-1" />
-                                <span>{message.channel_name}</span>
-                              </div>
-                            )}
-                            {message.username && (
-                              <div className="flex items-center text-xs text-gray-300 bg-gray-800/50 px-2 py-1 rounded">
-                                <User className="h-3 w-3 mr-1" />
-                                <span>{message.username}</span>
-                              </div>
-                            )}
-                            <div
-                              className={`text-xs px-2 py-1 rounded ${typeInfo.color}`}
-                            >
-                              {typeInfo.text}
+      {messages.length > 0 && (
+        <Card>
+          <CardContent className="p-0">
+            <div className="p-4 border-b">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Recent Messages</h3>
+                <Badge variant="secondary">{messages.length} messages</Badge>
+              </div>
+            </div>
+            
+            <ScrollArea className="h-[400px]">
+              <div className="p-4 space-y-4">
+                {messages.map((message, index) => (
+                  <div key={message.id}>
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{message.user}</span>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Hash className="h-3 w-3" />
+                              <span>{message.channel}</span>
                             </div>
                           </div>
-                          <button
-                            onClick={() => toggleExpandMessage(message.ts)}
-                            className="text-gray-400 hover:text-gray-300 transition-colors"
-                            aria-label={
-                              expandedMessage === message.ts
-                                ? "Collapse message"
-                                : "Expand message"
-                            }
-                          >
-                            {expandedMessage === message.ts ? (
-                              <ChevronUp className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                          </button>
+                          <p className="text-sm mt-1">{message.text}</p>
                         </div>
-
-                        <div className="flex items-center text-xs text-gray-400">
-                          <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
-                          <span>{formatTimestamp(message.ts)}</span>
-                        </div>
-
-                        {message.text && (
-                          <p
-                            className={`text-sm text-gray-200 ${
-                              expandedMessage === message.ts
-                                ? "whitespace-pre-line"
-                                : "line-clamp-3"
-                            }`}
-                          >
-                            {formatMessageText(message.text)}
-                          </p>
-                        )}
-
-                        {expandedMessage === message.ts && (
-                          <div className="mt-2 pt-2 border-t border-gray-600 space-y-3">
-                            {message.attachments?.map((attachment, idx) => (
-                              <div
-                                key={idx}
-                                className="bg-gray-800/50 p-3 rounded"
-                              >
-                                {attachment.title && (
-                                  <h5 className="font-medium text-sm text-gray-300 mb-1">
-                                    {attachment.title}
-                                  </h5>
-                                )}
-                                {attachment.text && (
-                                  <p className="text-xs text-gray-400 whitespace-pre-line">
-                                    {formatMessageText(attachment.text)}
-                                  </p>
-                                )}
-                                {(attachment.image_url ||
-                                  attachment.thumb_url) && (
-                                  <div className="mt-2">
-                                    <img
-                                      src={
-                                        attachment.image_url ||
-                                        attachment.thumb_url
-                                      }
-                                      alt={
-                                        attachment.title || "Slack attachment"
-                                      }
-                                      className="max-w-full h-auto rounded border border-gray-700"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-
-                            {message.reactions?.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {message.reactions.map((reaction, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="flex items-center text-xs bg-gray-800/50 px-2 py-1 rounded"
-                                  >
-                                    <span className="mr-1">
-                                      {reaction.name}
-                                    </span>
-                                    <span className="text-gray-300">
-                                      {reaction.count}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <Badge variant="outline" className="text-xs">
+                          {formatTimestamp(message.timestamp)}
+                        </Badge>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                    </div>
+                    {index < messages.length - 1 && <Separator className="mt-4" />}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
 
-        {(!data || data.messages?.length === 0) && !loading && (
-          <div className="text-center py-8 text-gray-400">
-            <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">
-              No messages to display. Click "Test Slack Connection" to fetch
-              recent messages.
+      {!loading && messages.length === 0 && !error && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <MessageCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground">No messages loaded yet</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Click "Fetch Messages" to load your Slack messages
             </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 };
+
+export default SlackTest;
