@@ -93,3 +93,6 @@ verify_jwt = false
 
 [functions.chief-data-cleanup]
 verify_jwt = false
+
+[functions.chief-integration-cron]
+verify_jwt = false

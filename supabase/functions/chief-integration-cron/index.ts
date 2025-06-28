@@ -176,16 +176,14 @@ async function processIntegration(integration: UserIntegration, processor: Integ
       }
     }
 
-    // Create a mock user session for the function call
-    const mockSession = {
-      access_token: validToken,
-      user: { id: integration.user_id }
-    };
-
     // Call the integration function
     const { data, error } = await supabase.functions.invoke(processor.functionName, {
+      body: { 
+        user_id: integration.user_id,
+        access_token: validToken 
+      },
       headers: {
-        Authorization: `Bearer ${validToken}`,
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
         'Content-Type': 'application/json'
       }
     });
