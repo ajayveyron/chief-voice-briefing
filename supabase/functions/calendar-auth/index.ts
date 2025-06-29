@@ -8,84 +8,172 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    console.log('=== DEBUG: Starting auth test ===');
-    console.log('Method:', req.method);
-    console.log('Headers:', Object.fromEntries(req.headers.entries()));
-
-    // Check environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
-    
-    console.log('Env vars:', {
-      SUPABASE_URL: supabaseUrl ? 'present' : 'missing',
-      SUPABASE_ANON_KEY: supabaseAnonKey ? 'present' : 'missing'
-    });
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return new Response(
-        JSON.stringify({ error: 'Missing environment variables' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Validate required environment variables
+    const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'GOOGLE_CLIENT_ID'];
+    for (const envVar of requiredEnvVars) {
+      if (!Deno.env.get(envVar)) {
+        console.error(`Missing required environment variable: ${envVar}`);
+        return new Response(
+          JSON.stringify({ error: 'Server configuration error' }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
     }
 
-    // Get auth header
+    // Extract and validate Authorization header
     const authHeader = req.headers.get('Authorization');
-    console.log('Auth header:', authHeader ? 'present' : 'missing');
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(
         JSON.stringify({ error: 'Missing or invalid authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
       );
     }
 
-    // Initialize Supabase client
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: authHeader } }
-    });
+    // Initialize Supabase client with proper auth configuration
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false
+        },
+        global: {
+          headers: {
+            Authorization: authHeader
+          }
+        }
+      }
+    );
 
-    console.log('Supabase client created');
-
-    // Test auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    console.log('Auth result:', {
-      user: user ? { id: user.id, email: user.email } : null,
-      error: authError?.message || null
-    });
+    // Verify user authentication
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
 
     if (authError || !user) {
+      console.error('Authentication error:', {
+        error: authError?.message,
+        user: user ? 'present' : 'missing',
+        authHeader: authHeader ? 'present' : 'missing'
+      });
       return new Response(
         JSON.stringify({ 
-          error: 'Authentication failed',
-          details: authError?.message 
+          error: 'Unauthorized',
+          debug: process.env.NODE_ENV === 'development' ? authError?.message : undefined
         }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
       );
     }
 
+    // Handle POST requests
+    if (req.method === 'POST') {
+      // Generate secure state token
+      const state = crypto.randomUUID();
+      const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/calendar-callback`;
+      
+      console.log('Creating OAuth state for user:', user.id);
+      
+      // Clean up old OAuth states for this user (optional security measure)
+      await supabaseClient
+        .from('oauth_states')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('integration_type', 'calendar')
+        .lt('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString()); // Remove states older than 10 minutes
+
+      // Store OAuth state in database with expiration
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+      const { error: dbError } = await supabaseClient
+        .from('oauth_states')
+        .insert({
+          user_id: user.id,
+          integration_type: 'calendar',
+          state_token: state,
+          redirect_uri: redirectUri,
+          created_at: new Date().toISOString(),
+          expires_at: expiresAt.toISOString()
+        });
+
+      if (dbError) {
+        console.error('Database error storing OAuth state:', dbError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to initialize OAuth flow' }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // Construct Google OAuth URL with proper scopes
+      const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      const params = {
+        client_id: Deno.env.get('GOOGLE_CLIENT_ID')!,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: [
+          'https://www.googleapis.com/auth/calendar.readonly',
+          'https://www.googleapis.com/auth/userinfo.email'
+        ].join(' '),
+        state: state,
+        access_type: 'offline',
+        prompt: 'consent',
+        include_granted_scopes: 'true'
+      };
+
+      // Set URL parameters
+      Object.entries(params).forEach(([key, value]) => {
+        authUrl.searchParams.set(key, value);
+      });
+
+      console.log('Generated auth URL for user:', user.email);
+      
+      return new Response(
+        JSON.stringify({ 
+          authUrl: authUrl.toString(),
+          stateToken: state,
+          expiresAt: expiresAt.toISOString()
+        }), 
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Handle unsupported methods
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        user: { id: user.id, email: user.email }
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'Method not allowed' }),
+      {
+        status: 405,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     );
 
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('Error in calendar-auth:', error);
     return new Response(
       JSON.stringify({ 
-        error: 'Internal server error',
-        details: error.message 
+        error: 'Internal server error'
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     );
   }
 });
