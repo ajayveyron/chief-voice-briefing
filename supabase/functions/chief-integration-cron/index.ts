@@ -18,19 +18,6 @@ interface UserIntegration {
   is_active: boolean;
 }
 
-interface IntegrationProcessor {
-  type: string;
-  functionName: string;
-  needsTokenRefresh: boolean;
-}
-
-const INTEGRATION_PROCESSORS: IntegrationProcessor[] = [
-  { type: 'gmail', functionName: 'fetch-gmail-emails', needsTokenRefresh: true },
-  { type: 'calendar', functionName: 'fetch-calendar-events', needsTokenRefresh: true },
-  { type: 'slack', functionName: 'fetch-slack-messages', needsTokenRefresh: true },
-  { type: 'notion', functionName: 'fetch-notion-pages', needsTokenRefresh: false },
-];
-
 async function refreshGoogleToken(integration: UserIntegration, supabase: any): Promise<string | null> {
   if (!integration.refresh_token) {
     console.error(`No refresh token available for user ${integration.user_id}, integration ${integration.integration_type}`);
@@ -162,42 +149,240 @@ async function ensureValidToken(integration: UserIntegration, supabase: any): Pr
   return integration.access_token;
 }
 
-async function processIntegration(integration: UserIntegration, processor: IntegrationProcessor, supabase: any) {
+async function fetchGmailData(integration: UserIntegration, validToken: string) {
   try {
-    console.log(`🔄 Processing ${processor.type} for user ${integration.user_id}`);
-
-    // Ensure we have a valid token
-    let validToken = integration.access_token;
-    if (processor.needsTokenRefresh) {
-      validToken = await ensureValidToken(integration, supabase);
-      if (!validToken) {
-        console.error(`❌ Failed to get valid token for user ${integration.user_id}, integration ${processor.type}`);
-        return;
-      }
-    }
-
-    // Call the integration function
-    const { data, error } = await supabase.functions.invoke(processor.functionName, {
-      body: { 
-        user_id: integration.user_id,
-        access_token: validToken 
-      },
+    const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=-category:{promotions updates forums social}&labelIds=INBOX', {
       headers: {
-        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Authorization': `Bearer ${validToken}`,
         'Content-Type': 'application/json'
       }
     });
 
-    if (error) {
-      console.error(`❌ Error calling ${processor.functionName} for user ${integration.user_id}:`, error);
+    if (!gmailResponse.ok) {
+      throw new Error(`Gmail API error: ${gmailResponse.status}`);
+    }
+
+    const messagesData = await gmailResponse.json();
+    const emails = [];
+
+    // Fetch details for each message
+    for (const message of messagesData.messages || []) {
+      const detailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`, {
+        headers: {
+          'Authorization': `Bearer ${validToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (detailResponse.ok) {
+        const emailDetail = await detailResponse.json();
+        
+        // Extract subject and sender
+        const headers = emailDetail.payload?.headers || [];
+        const subject = headers.find((h: any) => h.name === 'Subject')?.value || 'No Subject';
+        const from = headers.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
+        const date = headers.find((h: any) => h.name === 'Date')?.value || '';
+        
+        // Extract body text
+        let body = '';
+        if (emailDetail.payload?.body?.data) {
+          body = atob(emailDetail.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+        } else if (emailDetail.payload?.parts) {
+          const textPart = emailDetail.payload.parts.find((part: any) => part.mimeType === 'text/plain');
+          if (textPart?.body?.data) {
+            body = atob(textPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+          }
+        }
+
+        emails.push({
+          id: message.id,
+          subject,
+          from,
+          date,
+          snippet: emailDetail.snippet || '',
+          body: body.substring(0, 500) // Limit body length
+        });
+      }
+    }
+
+    return emails;
+  } catch (error) {
+    console.error(`Error fetching Gmail data:`, error);
+    return [];
+  }
+}
+
+async function fetchCalendarData(integration: UserIntegration, validToken: string) {
+  try {
+    const now = new Date();
+    const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const calendarResponse = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+      `timeMin=${now.toISOString()}&` +
+      `timeMax=${oneWeekFromNow.toISOString()}&` +
+      `maxResults=10&` +
+      `singleEvents=true&` +
+      `orderBy=startTime`,
+      {
+        headers: {
+          'Authorization': `Bearer ${validToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!calendarResponse.ok) {
+      throw new Error(`Calendar API error: ${calendarResponse.status}`);
+    }
+
+    const calendarData = await calendarResponse.json();
+    
+    // Format events
+    const events = calendarData.items?.map((event: any) => ({
+      id: event.id,
+      summary: event.summary || 'No title',
+      start: event.start?.dateTime || event.start?.date,
+      end: event.end?.dateTime || event.end?.date,
+      description: event.description || '',
+      location: event.location || '',
+      attendees: event.attendees?.map((attendee: any) => attendee.email) || [],
+      htmlLink: event.htmlLink
+    })) || [];
+
+    return events;
+  } catch (error) {
+    console.error(`Error fetching Calendar data:`, error);
+    return [];
+  }
+}
+
+async function fetchSlackData(integration: UserIntegration, validToken: string) {
+  try {
+    // Fetch messages directly from Slack API - simplified approach
+    const messagesResponse = await fetch('https://slack.com/api/conversations.list?types=public_channel,private_channel&exclude_archived=false&limit=20', {
+      headers: {
+        'Authorization': `Bearer ${validToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!messagesResponse.ok) {
+      throw new Error(`Slack API error: ${messagesResponse.status}`);
+    }
+
+    const channelsData = await messagesResponse.json();
+    if (!channelsData.ok) {
+      throw new Error(`Slack API error: ${channelsData.error}`);
+    }
+
+    const messages = [];
+    const channels = channelsData.channels || [];
+
+    // Get recent messages from accessible channels only
+    for (const channel of channels.slice(0, 5)) {
+      if (channel.is_member) {
+        try {
+          const historyResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}&limit=10`, {
+            headers: {
+              'Authorization': `Bearer ${validToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (historyResponse.ok) {
+            const historyData = await historyResponse.json();
+            if (historyData.ok && historyData.messages) {
+              for (const message of historyData.messages) {
+                if (message.text && !message.bot_id) {
+                  messages.push({
+                    id: message.ts,
+                    text: message.text,
+                    user: message.user || 'Unknown',
+                    channel: `#${channel.name}`,
+                    timestamp: new Date(parseFloat(message.ts) * 1000).toISOString()
+                  });
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Error fetching messages from channel ${channel.name}:`, error);
+        }
+      }
+    }
+
+    return messages;
+  } catch (error) {
+    console.error(`Error fetching Slack data:`, error);
+    return [];
+  }
+}
+
+async function processIntegration(integration: UserIntegration, supabase: any) {
+  try {
+    console.log(`🔄 Processing ${integration.integration_type} for user ${integration.user_id}`);
+
+    // Ensure we have a valid token
+    const validToken = await ensureValidToken(integration, supabase);
+    if (!validToken) {
+      console.error(`❌ Failed to get valid token for user ${integration.user_id}, integration ${integration.integration_type}`);
       return;
     }
 
+    let data = [];
+
+    // Fetch data based on integration type
+    switch (integration.integration_type) {
+      case 'gmail':
+        data = await fetchGmailData(integration, validToken);
+        break;
+      case 'calendar':
+        data = await fetchCalendarData(integration, validToken);
+        break;
+      case 'slack':
+        data = await fetchSlackData(integration, validToken);
+        break;
+      default:
+        console.log(`⚠️ No data fetching logic for integration type: ${integration.integration_type}`);
+        return;
+    }
+
     // Log the output as requested
-    console.log(`THIS_IS_INTEGRATIONS_DATA ${processor.type} ${integration.user_id}:`, JSON.stringify(data));
+    console.log(`THIS_IS_INTEGRATIONS_DATA ${integration.integration_type} ${integration.user_id}:`, JSON.stringify(data));
+
+    // Store raw events in the database
+    for (const item of data) {
+      const contentHash = btoa(JSON.stringify(item) + integration.integration_type + integration.user_id);
+      
+      // Check if we already have this content
+      const { data: existing } = await supabase
+        .from('raw_events')
+        .select('id')
+        .eq('content_hash', contentHash)
+        .single();
+
+      if (!existing) {
+        // Store new raw event
+        await supabase
+          .from('raw_events')
+          .insert({
+            integration_id: integration.id,
+            user_id: integration.user_id,
+            source: integration.integration_type,
+            event_type: integration.integration_type === 'gmail' ? 'email' : integration.integration_type === 'calendar' ? 'event' : 'message',
+            content: JSON.stringify(item),
+            content_hash: contentHash,
+            timestamp: new Date().toISOString(),
+            status: 'raw'
+          });
+      }
+    }
+
+    console.log(`✅ Successfully processed ${data.length} items for ${integration.integration_type} user ${integration.user_id}`);
 
   } catch (error) {
-    console.error(`❌ Error processing ${processor.type} for user ${integration.user_id}:`, error);
+    console.error(`❌ Error processing ${integration.integration_type} for user ${integration.user_id}:`, error);
   }
 }
 
@@ -238,25 +423,11 @@ serve(async (req) => {
       });
     }
 
-    // Group integrations by user and type for processing
-    const integrationsByType = integrations.reduce((acc, integration) => {
-      const key = `${integration.user_id}-${integration.integration_type}`;
-      acc[key] = integration;
-      return acc;
-    }, {} as Record<string, UserIntegration>);
-
     let processedCount = 0;
 
     // Process each integration
-    for (const [key, integration] of Object.entries(integrationsByType)) {
-      const processor = INTEGRATION_PROCESSORS.find(p => p.type === integration.integration_type);
-      
-      if (!processor) {
-        console.log(`⚠️ No processor found for integration type: ${integration.integration_type}`);
-        continue;
-      }
-
-      await processIntegration(integration, processor, supabase);
+    for (const integration of integrations) {
+      await processIntegration(integration, supabase);
       processedCount++;
     }
 
