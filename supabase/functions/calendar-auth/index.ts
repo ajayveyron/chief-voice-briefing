@@ -44,6 +44,7 @@ serve(async (req) => {
     // Initialize Supabase client with proper auth configuration
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
+      console.log('Supabase URL:', Deno.env.get('SUPABASE_URL')),
       Deno.env.get('SUPABASE_ANON_KEY')!,
       {
         auth: {
@@ -84,6 +85,7 @@ serve(async (req) => {
       // Generate secure state token
       const state = crypto.randomUUID();
       const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/calendar-callback`;;
+      console.log(redirectUri);
       
       console.log('Creating OAuth state for user:', user.id);
       
