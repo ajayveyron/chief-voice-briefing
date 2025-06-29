@@ -1,5 +1,5 @@
 import { useState } from "react";
-import ChiefInterface from "@/components/ChiefInterface";
+import { ChiefInterface } from "/dev-server/src/components/ChiefInterface";
 
 const ChatPage = () => {
   return <ChiefInterface />;
