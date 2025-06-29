@@ -83,7 +83,7 @@ serve(async (req) => {
     if (req.method === 'POST') {
       // Generate secure state token
       const state = crypto.randomUUID();
-      const redirectUri = `https://preview--chief-executive-assistant.lovable.app/functions/v1/calendar-callback`;
+      const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/gmail-callback`;;
       
       console.log('Creating OAuth state for user:', user.id);
       
