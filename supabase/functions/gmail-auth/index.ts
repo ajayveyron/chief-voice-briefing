@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -36,11 +37,10 @@ serve(async (req) => {
     if (req.method === "POST") {
       const state = crypto.randomUUID();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes expiry
-      const redirectUri =
-        "https://preview--chief-executive-assistant.lovable.app" + "/";
+      const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/gmail-callback`;
 
       console.log("Creating OAuth state for user:", user.id);
-      console.log("Redirect URI (home screen):", redirectUri);
+      console.log("Gmail callback URI:", redirectUri);
 
       const { error: stateInsertError } = await supabaseClient
         .from("oauth_states")
@@ -78,7 +78,7 @@ serve(async (req) => {
       authUrl.searchParams.set("prompt", "consent");
       authUrl.searchParams.set("include_granted_scopes", "true");
 
-      console.log("Generated auth URL:", authUrl.toString());
+      console.log("Generated Gmail auth URL:", authUrl.toString());
 
       return new Response(JSON.stringify({ authUrl: authUrl.toString() }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

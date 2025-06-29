@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -41,9 +42,8 @@ serve(async (req) => {
       stateValue: state,
     });
 
-    // Always use the home screen as the frontend URL for redirects
-    const frontendUrl =
-      "https://preview--chief-executive-assistant.lovable.app" + "/";
+    // Use the frontend URL for final redirect
+    const frontendUrl = "https://preview--chief-executive-assistant.lovable.app";
 
     if (error) {
       console.error("OAuth error from Google:", error);
@@ -69,21 +69,13 @@ serve(async (req) => {
       serviceRoleKey: !!serviceRoleKey,
       clientId: !!clientId,
       clientSecret: !!clientSecret,
-      supabaseUrlPrefix: supabaseUrl?.substring(0, 20),
     });
 
     if (!supabaseUrl || !serviceRoleKey || !clientId || !clientSecret) {
-      console.error("Missing environment variables:", {
-        SUPABASE_URL: !!supabaseUrl,
-        SUPABASE_SERVICE_ROLE_KEY: !!serviceRoleKey,
-        GOOGLE_CLIENT_ID: !!clientId,
-        GOOGLE_CLIENT_SECRET: !!clientSecret,
-      });
+      console.error("Missing environment variables");
       return redirectWithError(frontendUrl, "config_error");
     }
 
-    // Create Supabase admin client with service role key (bypasses RLS)
-    console.log("Creating Supabase admin client");
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
@@ -91,7 +83,7 @@ serve(async (req) => {
       },
     });
 
-    // Verify state token using admin client (also check if not expired)
+    // Verify state token
     console.log("Looking up OAuth state:", state);
     const { data: oauthState, error: stateError } = await supabase
       .from("oauth_states")
@@ -101,13 +93,8 @@ serve(async (req) => {
       .gt("expires_at", new Date().toISOString())
       .single();
 
-    if (stateError) {
-      console.error("Error looking up OAuth state:", stateError);
-      return redirectWithError(frontendUrl, "invalid_state");
-    }
-
-    if (!oauthState) {
-      console.error("Invalid state token - no matching record found:", state);
+    if (stateError || !oauthState) {
+      console.error("Invalid state token:", stateError?.message || "State not found");
       return redirectWithError(frontendUrl, "invalid_state");
     }
 
@@ -125,7 +112,7 @@ serve(async (req) => {
         client_secret: clientSecret,
         code,
         grant_type: "authorization_code",
-        redirect_uri: oauthState.redirect_uri || "",
+        redirect_uri: `${supabaseUrl}/functions/v1/gmail-callback`,
       }),
     });
 
@@ -145,15 +132,11 @@ serve(async (req) => {
     });
 
     if (tokens.error) {
-      console.error(
-        "OAuth token error:",
-        tokens.error,
-        tokens.error_description
-      );
+      console.error("OAuth token error:", tokens.error, tokens.error_description);
       return redirectWithError(frontendUrl, "token_error");
     }
 
-    // Test Gmail API access with the new token
+    // Test Gmail API access
     console.log("Testing Gmail API access");
     const gmailTestResponse = await fetch(
       "https://gmail.googleapis.com/gmail/v1/users/me/profile",
@@ -167,23 +150,16 @@ serve(async (req) => {
 
     if (!gmailTestResponse.ok) {
       const errorText = await gmailTestResponse.text();
-      console.error(
-        "Gmail API test failed:",
-        gmailTestResponse.status,
-        errorText
-      );
+      console.error("Gmail API test failed:", gmailTestResponse.status, errorText);
       return redirectWithError(frontendUrl, "gmail_api_failed");
     }
 
     const gmailProfile = await gmailTestResponse.json();
-    console.log(
-      "Gmail API test successful, profile email:",
-      gmailProfile.emailAddress
-    );
+    console.log("Gmail API test successful, profile email:", gmailProfile.emailAddress);
 
-    // Store integration using admin client with better error handling
+    // Store integration
     console.log("Storing integration for user:", oauthState.user_id);
-    const { data: existingIntegration, error: checkError } = await supabase
+    const { data: existingIntegration } = await supabase
       .from("user_integrations")
       .select("*")
       .eq("user_id", oauthState.user_id)
@@ -193,7 +169,6 @@ serve(async (req) => {
     let insertError = null;
 
     if (existingIntegration) {
-      // Update existing integration
       const { error: updateError } = await supabase
         .from("user_integrations")
         .update({
@@ -210,7 +185,6 @@ serve(async (req) => {
 
       insertError = updateError;
     } else {
-      // Insert new integration
       const { error: createError } = await supabase
         .from("user_integrations")
         .insert({
@@ -234,20 +208,14 @@ serve(async (req) => {
 
     console.log("Integration stored successfully");
 
-    // Clean up state using admin client
-    console.log("Cleaning up OAuth state");
-    const { error: deleteError } = await supabase
+    // Clean up state
+    await supabase
       .from("oauth_states")
       .delete()
       .eq("id", oauthState.id);
 
-    if (deleteError) {
-      console.error("Error cleaning up state:", deleteError);
-      // Don't fail the request for cleanup errors
-    }
-
-    // Redirect back to home page with success message
-    const redirectUrl = `${frontendUrl}?connected=gmail`;
+    // Redirect to frontend with success
+    const redirectUrl = `${frontendUrl}/?connected=gmail`;
     console.log("Redirecting to:", redirectUrl);
     return new Response(null, {
       status: 302,
@@ -258,8 +226,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Unexpected error in gmail-callback:", error);
-    const frontendUrl =
-      "https://preview--chief-executive-assistant.lovable.app";
+    const frontendUrl = "https://preview--chief-executive-assistant.lovable.app";
     return redirectWithError(frontendUrl, "unexpected_error");
   }
 });
