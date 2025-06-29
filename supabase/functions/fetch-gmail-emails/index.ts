@@ -101,9 +101,7 @@ serve(async (req) => {
     const gmailQuery =
       "is:unread in:inbox -category:{promotions social updates forums}";
     const gmailResponse = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=${encodeURIComponent(
-        gmailQuery
-      )}`,
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30`,
       {
         headers: {
           Authorization: `Bearer ${integration.access_token}`,
