@@ -43,7 +43,7 @@ serve(async (req) => {
     // Handle OAuth errors from Google
     if (error) {
       console.error('OAuth error from Google:', error);
-      return redirectToFrontend(`/?error=oauth_error&details=${encodeURIComponent(error)}`);
+      return redirectToFrontend(`/?error=oauth_error&details`);
     }
 
     // Validate required parameters
