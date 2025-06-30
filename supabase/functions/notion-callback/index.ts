@@ -18,22 +18,54 @@ serve(async (req) => {
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     
-    // Get frontend URL from environment with fallback
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app';
-    console.log('frontendUrl:', frontendUrl);
+    // Get frontend URL from environment with multiple fallbacks
+    const envFrontendUrl = Deno.env.get('FRONTEND_URL');
+    const referer = req.headers.get('referer');
+    const origin = req.headers.get('origin');
+    
+    // Determine the correct frontend URL
+    let frontendUrl = envFrontendUrl;
+    
+    if (!frontendUrl) {
+      // Try to extract from referer or origin
+      if (referer) {
+        const refererUrl = new URL(referer);
+        frontendUrl = `${refererUrl.protocol}//${refererUrl.host}`;
+      } else if (origin) {
+        frontendUrl = origin;
+      } else {
+        // Final fallback to Lovable preview URL pattern
+        frontendUrl = 'https://preview--chief-executive-assistant.lovable.app';
+      }
+    }
+    
+    console.log('URL Detection Debug:', {
+      envFrontendUrl,
+      referer,
+      origin,
+      finalFrontendUrl: frontendUrl,
+      requestUrl: req.url,
+      requestHeaders: Object.fromEntries(req.headers.entries())
+    });
+    
     const redirectToFrontend = (path: string) => {
       const redirectUrl = new URL(path, frontendUrl);
-      console.log('redirectUrl:', redirectUrl.toString());
+      console.log('Redirect Debug:', {
+        frontendUrl,
+        path,
+        generatedRedirectUrl: redirectUrl.toString()
+      });
       
-      return new Response(null, {
+      const response = new Response(null, {
         status: 302,
         headers: { 
           ...corsHeaders,
           Location: redirectUrl.toString() 
         }
       });
-      console.log('redirectToFrontend response:', response);
-
+      
+      console.log('Response Headers:', Object.fromEntries(response.headers.entries()));
+      return response;
     };
 
     if (error) {
@@ -164,7 +196,32 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Unexpected error in notion-callback:', error);
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app';
-    return redirectToFrontend('/?error=unexpected_error');
+    
+    // Fallback URL detection for error cases
+    const envFrontendUrl = Deno.env.get('FRONTEND_URL');
+    const referer = req.headers.get('referer');
+    const origin = req.headers.get('origin');
+    
+    let frontendUrl = envFrontendUrl;
+    if (!frontendUrl) {
+      if (referer) {
+        const refererUrl = new URL(referer);
+        frontendUrl = `${refererUrl.protocol}//${refererUrl.host}`;
+      } else if (origin) {
+        frontendUrl = origin;
+      } else {
+        frontendUrl = 'https://preview--chief-executive-assistant.lovable.app';
+      }
+    }
+    
+    console.log('Error case URL detection:', { frontendUrl });
+    
+    return new Response(null, {
+      status: 302,
+      headers: { 
+        ...corsHeaders,
+        Location: `${frontendUrl}/?error=unexpected_error`
+      }
+    });
   }
 });
