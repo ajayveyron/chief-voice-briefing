@@ -14,6 +14,10 @@ export function Conversation() {
 
   const startConversation = useCallback(async () => {
     try {
+      if (conversation.status === 'connected' || conversation.status === 'connecting') {
+    console.warn('Conversation already started or connecting.');
+    return;
+  }
       // Request microphone permission
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
@@ -28,6 +32,10 @@ export function Conversation() {
   }, [conversation]);
 
   const stopConversation = useCallback(async () => {
+    if (conversation.status !== 'connected') {
+    console.warn('No active conversation to stop.');
+    return;
+  }
     await conversation.endSession();
   }, [conversation]);
 
