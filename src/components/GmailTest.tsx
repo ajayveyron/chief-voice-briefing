@@ -16,6 +16,7 @@ import {
   generateAndStoreEmbedding,
   formatGmailForEmbedding,
 } from "@/utils/embeddingUtils";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Email {
   id: string;
@@ -37,6 +38,7 @@ export const GmailTest = () => {
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
   const [embeddingLoading, setEmbeddingLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const testGmailConnection = async () => {
     setLoading(true);
@@ -63,6 +65,53 @@ export const GmailTest = () => {
       if (data.error) throw new Error(data.error);
 
       setEmails(data.emails || []);
+
+      // Automatically embed emails after fetching
+      if (data.emails && data.emails.length > 0 && user?.id) {
+        try {
+          for (const email of data.emails) {
+            await fetch(
+              "https://xxccvppbxnhowncdhvdi.functions.supabase.co/generate-embeddings",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${sessionData.session.access_token}`,
+                },
+                body: JSON.stringify({
+                  user_id: user.id,
+                  source_type: "gmail",
+                  source_id: email.id,
+                  content: `From: ${email.from}\nSubject: ${
+                    email.subject || "No Subject"
+                  }\n\n${email.snippet || email.body || ""}`,
+                  metadata: {
+                    subject: email.subject,
+                    from: email.from,
+                    date: email.date,
+                    snippet: email.snippet,
+                  },
+                }),
+              }
+            );
+          }
+          toast({
+            title: "Emails Embedded Successfully",
+            description: `${data.emails.length} emails have been embedded into the vector store.`,
+          });
+        } catch (embedError) {
+          const errorMessage =
+            embedError instanceof Error
+              ? embedError.message
+              : "Unknown error occurred";
+          console.error("Embedding error:", embedError);
+          toast({
+            title: "Embedding Failed",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        }
+      }
 
       toast({
         title: "Gmail Connection Successful",
@@ -117,7 +166,7 @@ export const GmailTest = () => {
     setEmbeddingLoading(true);
     try {
       const embeddingData = formatGmailForEmbedding(emails);
-      
+
       for (const data of embeddingData) {
         await generateAndStoreEmbedding(data);
       }
@@ -171,21 +220,7 @@ export const GmailTest = () => {
             )}
           </Button>
 
-          <Button
-            onClick={embedEmails}
-            disabled={embeddingLoading || emails.length === 0}
-            className="bg-purple-600 hover:bg-purple-700 transition-colors"
-            aria-label="Embed emails into vector store"
-          >
-            {embeddingLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Embedding...
-              </>
-            ) : (
-              "Embed Data"
-            )}
-          </Button>
+          {/* Removed Embed Data button for this workflow */}
         </div>
 
         {emails.length > 0 && (

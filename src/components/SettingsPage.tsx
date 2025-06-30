@@ -85,6 +85,21 @@ const SettingsPage = () => {
     fetchProfile();
   }, [user?.id]);
 
+  // Log access token when settings page loads
+  useEffect(() => {
+    const logAccessToken = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session?.access_token) {
+        console.log("🔑 Access Token:", sessionData.session.access_token);
+        console.log("👤 User ID:", user?.id);
+        console.log("📧 User Email:", user?.email);
+      } else {
+        console.log("❌ No access token found");
+      }
+    };
+    logAccessToken();
+  }, [user?.id, user?.email]);
+
   const handleSignOut = async () => {
     try {
       await signOut();

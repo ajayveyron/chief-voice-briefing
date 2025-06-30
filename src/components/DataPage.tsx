@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { GmailTest } from "@/components/GmailTest";
@@ -6,6 +5,7 @@ import { CalendarTest } from "@/components/CalendarTest";
 import { SlackTest } from "@/components/SlackTest";
 import { NotionTest } from "@/components/NotionTest";
 import EmbeddingTest from "@/components/EmbeddingTest";
+import { VectorSearchTest } from "@/components/VectorSearchTest";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const DataPage = () => {
@@ -39,7 +39,7 @@ const DataPage = () => {
                 <NotionTest />
               </div>
             </div>
-            
+
             {/* Embedding Test */}
             <div>
               <h2 className="text-lg font-semibold text-white mb-2">
@@ -47,7 +47,15 @@ const DataPage = () => {
               </h2>
               <EmbeddingTest />
             </div>
-            
+
+            {/* Vector Search Test */}
+            <div>
+              <h2 className="text-lg font-semibold text-white mb-2">
+                Vector Search
+              </h2>
+              <VectorSearchTest />
+            </div>
+
             {/* Data Overview */}
             <div>
               <h2 className="text-lg font-semibold text-white mb-2">
