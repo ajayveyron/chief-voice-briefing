@@ -33,8 +33,7 @@ serve(async (req) => {
     
     console.log('Frontend URL Debug:', {
       frontendUrl,
-      requestUrl: req.url,
-      envFrontendUrl: Deno.env.get('FRONTEND_URL')
+      requestUrl: req.url
     });
     
     const redirectToFrontend = (path: string) => {
