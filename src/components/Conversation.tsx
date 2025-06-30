@@ -23,7 +23,12 @@ export function Conversation() {
 
       // Start the conversation with your agent
       await conversation.startSession({
-        agentId: 'agent_01jyzste8mfkqamt8szwyjapb8', // Replace with your agent ID
+        agentId: 'agent_01jyzste8mfkqamt8szwyjapb8',// Replace with your agent ID
+        
+            dynamicVariables: {
+                user_first_name: 'Samantha',
+              system_prompt: 'You are Chief, a sharp, fast-talking executive assistant for busy founders. Keep responses concise, relevant, and direct. Use natural speech patterns like pauses, “uh”, or “so” when needed, but don’t overdo it. Summarize key info, suggest next steps, and never ramble. You have access to user emails, calendar, Slack, and notes. Prioritize what’s urgent or high-impact. If you don’t have enough info, say so. Never assume or fabricate details. You’re here to save time, not waste it.'
+            },
       });
 
     } catch (error) {
