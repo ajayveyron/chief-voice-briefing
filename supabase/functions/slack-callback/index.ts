@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -22,6 +23,20 @@ serve(async (req) => {
     const state = url.searchParams.get('state')
     const error = url.searchParams.get('error')
 
+    // Get frontend URL from environment with fallback
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app'
+    
+    const redirectToFrontend = (path: string) => {
+      const redirectUrl = new URL(path, frontendUrl)
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl.toString() 
+        }
+      })
+    }
+
     console.log('Callback parameters:', { 
       hasCode: !!code, 
       hasState: !!state, 
@@ -32,28 +47,12 @@ serve(async (req) => {
 
     if (error) {
       console.error('OAuth error from Slack:', error)
-      const frontendUrl = 'https://preview--chief-executive-assistant.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=oauth_error`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      return redirectToFrontend(`/?error=oauth_error&details=${encodeURIComponent(error)}`)
     }
 
     if (!code || !state) {
       console.error('Missing required parameters:', { hasCode: !!code, hasState: !!state })
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=missing_params`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      return redirectToFrontend('/?error=missing_params')
     }
 
     // Get environment variables
@@ -77,15 +76,7 @@ serve(async (req) => {
         SLACK_CLIENT_ID: !!clientId,
         SLACK_CLIENT_SECRET: !!clientSecret
       })
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=config_error`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      return redirectToFrontend('/?error=config_error')
     }
 
     // Create Supabase admin client with service role key (bypasses RLS)
@@ -108,28 +99,12 @@ serve(async (req) => {
 
     if (stateError) {
       console.error('Error looking up OAuth state:', stateError)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=invalid_state`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      return redirectToFrontend('/?error=invalid_state')
     }
 
     if (!oauthState) {
       console.error('Invalid state token - no matching record found:', state)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=invalid_state`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      return redirectToFrontend('/?error=invalid_state')
     }
 
     console.log('OAuth state found for user:', oauthState.user_id)
@@ -152,15 +127,7 @@ serve(async (req) => {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
       console.error('Token exchange failed:', tokenResponse.status, errorText)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=token_exchange_failed`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      return redirectToFrontend('/?error=token_exchange_failed')
     }
 
     const tokens = await tokenResponse.json()
@@ -173,15 +140,7 @@ serve(async (req) => {
 
     if (!tokens.ok || tokens.error) {
       console.error('Slack OAuth token error:', tokens.error)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=token_error`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      return redirectToFrontend('/?error=token_error')
     }
 
     // Test Slack API access with the new token
@@ -196,64 +155,17 @@ serve(async (req) => {
     if (!slackTestResponse.ok) {
       const errorText = await slackTestResponse.text()
       console.error('Slack API test failed:', slackTestResponse.status, errorText)
-      const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-      const redirectUrl = `${frontendUrl}?error=slack_api_failed`
-      return new Response(null, {
-        status: 302,
-        headers: { 
-          ...corsHeaders,
-          Location: redirectUrl 
-        }
-      })
+      return redirectToFrontend('/?error=slack_api_failed')
     }
 
     const slackProfile = await slackTestResponse.json()
     console.log('Slack API test successful, user:', slackProfile.user)
 
-    // First, check if an integration already exists for this user
-    console.log('Checking for existing integration for user:', oauthState.user_id)
-    const { data: existingIntegration } = await supabase
+    // Use upsert to handle existing integrations gracefully
+    console.log('Upserting integration for user:', oauthState.user_id)
+    const { error: upsertError } = await supabase
       .from('user_integrations')
-      .select('id')
-      .eq('user_id', oauthState.user_id)
-      .eq('integration_type', 'slack')
-      .single()
-
-    if (existingIntegration) {
-      // Update existing integration
-      console.log('Updating existing integration:', existingIntegration.id)
-      const { error: updateError } = await supabase
-        .from('user_integrations')
-        .update({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          is_active: true,
-          integration_data: {
-            team_id: tokens.team?.id,
-            team_name: tokens.team?.name,
-            user_id: tokens.authed_user?.id
-          },
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingIntegration.id)
-
-      if (updateError) {
-        console.error('Error updating integration:', updateError)
-        const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-        const redirectUrl = `${frontendUrl}?error=storage_error`
-        return new Response(null, {
-          status: 302,
-          headers: { 
-            ...corsHeaders,
-            Location: redirectUrl 
-          }
-        })
-      }
-      console.log('Integration updated successfully')
-    } else {
-      // Create new integration
-      console.log('Creating new integration for user:', oauthState.user_id)
-      const { error: insertError } = await supabase.from('user_integrations').insert({
+      .upsert({
         user_id: oauthState.user_id,
         integration_type: 'slack',
         access_token: tokens.access_token,
@@ -263,23 +175,18 @@ serve(async (req) => {
           team_id: tokens.team?.id,
           team_name: tokens.team?.name,
           user_id: tokens.authed_user?.id
-        }
+        },
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id,integration_type'
       })
 
-      if (insertError) {
-        console.error('Error creating integration:', insertError)
-        const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-        const redirectUrl = `${frontendUrl}?error=storage_error`
-        return new Response(null, {
-          status: 302,
-          headers: { 
-            ...corsHeaders,
-            Location: redirectUrl 
-          }
-        })
-      }
-      console.log('Integration created successfully')
+    if (upsertError) {
+      console.error('Error storing integration:', upsertError)
+      return redirectToFrontend('/?error=storage_error')
     }
+
+    console.log('Integration upserted successfully')
 
     // Clean up state using admin client
     console.log('Cleaning up OAuth state')
@@ -294,26 +201,17 @@ serve(async (req) => {
     }
 
     // Redirect back to home page with success message
-    const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-    const redirectUrl = `${frontendUrl}?connected=slack`
+    console.log('Redirecting to:', `${frontendUrl}/?connected=slack`)
+    return redirectToFrontend('/?connected=slack')
     
-    console.log('Redirecting to:', redirectUrl)
-    return new Response(null, {
-      status: 302,
-      headers: { 
-        ...corsHeaders,
-        Location: redirectUrl 
-      }
-    })
   } catch (error) {
     console.error('Unexpected error in slack-callback:', error)
-    const frontendUrl = 'https://preview--chief-voice-briefing.lovable.app'
-    const redirectUrl = `${frontendUrl}?error=unexpected_error`
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app'
     return new Response(null, {
       status: 302,
       headers: { 
         ...corsHeaders,
-        Location: redirectUrl 
+        Location: `${frontendUrl}/?error=unexpected_error`
       }
     })
   }

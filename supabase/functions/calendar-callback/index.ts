@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -159,8 +160,8 @@ serve(async (req) => {
       }
     };
 
-    // Upsert integration record
-    console.log('Storing integration for user:', oauthState.user_id);
+    // Use upsert to handle existing integrations gracefully
+    console.log('Upserting integration for user:', oauthState.user_id);
     const { error: upsertError } = await supabase
       .from('user_integrations')
       .upsert({
@@ -192,7 +193,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Unexpected error in calendar-callback:', error);
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://chief-voice-briefing.lovable.app';
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app';
     return new Response(null, {
       status: 302,
       headers: { 

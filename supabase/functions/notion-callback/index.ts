@@ -17,16 +17,29 @@ serve(async (req) => {
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://lovable.dev';
+    
+    // Get frontend URL from environment with fallback
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app';
+    
+    const redirectToFrontend = (path: string) => {
+      const redirectUrl = new URL(path, frontendUrl);
+      return new Response(null, {
+        status: 302,
+        headers: { 
+          ...corsHeaders,
+          Location: redirectUrl.toString() 
+        }
+      });
+    };
 
     if (error) {
       console.error('OAuth error:', error);
-      return Response.redirect(`${frontendUrl}/settings?error=oauth_error`);
+      return redirectToFrontend(`/?error=oauth_error&details=${encodeURIComponent(error)}`);
     }
 
     if (!code || !state) {
       console.error('Missing code or state parameters');
-      return Response.redirect(`${frontendUrl}/settings?error=missing_params`);
+      return redirectToFrontend('/?error=missing_params');
     }
 
     const supabase = createClient(
@@ -45,7 +58,7 @@ serve(async (req) => {
 
     if (stateError || !stateData) {
       console.error('Invalid or expired state token:', stateError);
-      return Response.redirect(`${frontendUrl}/settings?error=invalid_state`);
+      return redirectToFrontend('/?error=invalid_state');
     }
 
     const clientId = Deno.env.get('NOTION_CLIENT_ID');
@@ -54,7 +67,7 @@ serve(async (req) => {
 
     if (!clientId || !clientSecret || !supabaseUrl) {
       console.error('Missing Notion OAuth credentials');
-      return Response.redirect(`${frontendUrl}/settings?error=config_error`);
+      return redirectToFrontend('/?error=config_error');
     }
 
     const redirectUri = `${supabaseUrl}/functions/v1/notion-callback`;
@@ -76,14 +89,14 @@ serve(async (req) => {
 
     if (!tokenResponse.ok) {
       console.error('Token exchange failed:', await tokenResponse.text());
-      return Response.redirect(`${frontendUrl}/settings?error=token_exchange_failed`);
+      return redirectToFrontend('/?error=token_exchange_failed');
     }
 
     const tokenData = await tokenResponse.json();
 
     if (tokenData.error) {
       console.error('Token response error:', tokenData.error);
-      return Response.redirect(`${frontendUrl}/settings?error=token_error`);
+      return redirectToFrontend('/?error=token_error');
     }
 
     // Test Notion API access
@@ -104,11 +117,11 @@ serve(async (req) => {
 
     } catch (apiError) {
       console.error('Notion API test failed:', apiError);
-      return Response.redirect(`${frontendUrl}/settings?error=notion_api_failed`);
+      return redirectToFrontend('/?error=notion_api_failed');
     }
 
-    // Store integration data
-    const { error: insertError } = await supabase
+    // Use upsert to handle existing integrations gracefully
+    const { error: upsertError } = await supabase
       .from('user_integrations')
       .upsert({
         user_id: stateData.user_id,
@@ -125,12 +138,15 @@ serve(async (req) => {
           bot_id: tokenData.bot_id,
           owner: tokenData.owner
         },
-        is_active: true
+        is_active: true,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id,integration_type'
       });
 
-    if (insertError) {
-      console.error('Failed to store integration:', insertError);
-      return Response.redirect(`${frontendUrl}/settings?error=storage_error`);
+    if (upsertError) {
+      console.error('Failed to store integration:', upsertError);
+      return redirectToFrontend('/?error=storage_error');
     }
 
     // Clean up state token
@@ -140,11 +156,11 @@ serve(async (req) => {
       .eq('state_token', state);
 
     console.log('Notion integration successfully connected for user:', stateData.user_id);
-    return Response.redirect(`${frontendUrl}/settings?connected=notion`);
+    return redirectToFrontend('/?connected=notion');
 
   } catch (error) {
     console.error('Unexpected error in notion-callback:', error);
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://lovable.dev';
-    return Response.redirect(`${frontendUrl}/settings?error=unexpected_error`);
+    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app';
+    return redirectToFrontend('/?error=unexpected_error');
   }
 });
