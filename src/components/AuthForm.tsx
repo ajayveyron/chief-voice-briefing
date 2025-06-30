@@ -10,6 +10,8 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -29,9 +31,24 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
           description: "Successfully signed in.",
         });
       } else {
+        if (!firstName.trim() || !lastName.trim()) {
+          toast({
+            title: "Missing name",
+            description: "Please enter your first and last name.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
         const { error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              first_name: firstName,
+              last_name: lastName,
+            },
+          },
         });
         if (error) throw error;
         toast({
@@ -55,6 +72,15 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
     setLoading(true);
     try {
       // Create a simple demo account that bypasses email confirmation
+      if (!firstName.trim() || !lastName.trim()) {
+        toast({
+          title: "Missing name",
+          description: "Please enter your first and last name for demo mode.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
       const demoEmail = `demo-${Date.now()}@chief.app`;
       const demoPassword = "demo123456";
 
@@ -69,6 +95,8 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
             emailRedirectTo: window.location.origin,
             data: {
               demo_mode: true,
+              first_name: firstName,
+              last_name: lastName,
             },
           },
         });
@@ -136,6 +164,27 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
             Your Virtual assistant for staying updated
           </p>
         </div>
+
+        {/* First Name and Last Name Fields */}
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            placeholder="First Name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            required
+            className="w-1/2 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-white"
+          />
+          <input
+            type="text"
+            placeholder="Last Name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            required
+            className="w-1/2 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-white"
+          />
+        </div>
+
 
         {/* Demo Mode Button */}
         <button
