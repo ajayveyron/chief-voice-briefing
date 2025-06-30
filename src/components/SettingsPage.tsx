@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
 
 const integrationsItems = [
   {
@@ -49,6 +50,12 @@ const integrationsItems = [
   },
 ];
 
+// Profile type for local state
+type UserProfile = {
+  first_name: string;
+  last_name: string;
+};
+
 const SettingsPage = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
@@ -60,6 +67,23 @@ const SettingsPage = () => {
     refetch,
   } = useIntegrations();
   const [customInstructions, setCustomInstructions] = useState("");
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  // Fetch profile info on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user?.id) return;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("first_name, last_name")
+        .eq("user_id", user.id)
+        .single();
+      if (!error && data) {
+        setProfile({ first_name: data.first_name, last_name: data.last_name });
+      }
+    };
+    fetchProfile();
+  }, [user?.id]);
 
   const handleSignOut = async () => {
     try {
@@ -143,6 +167,14 @@ const SettingsPage = () => {
               <h2 className="text-lg font-semibold text-white mb-2">Account</h2>
               <div className="flex items-center justify-between bg-gray-800/80 rounded-lg p-4 mb-2">
                 <div>
+                  {profile && (
+                    <>
+                      <p className="text-sm font-medium text-white">Name</p>
+                      <p className="text-sm text-gray-400 mb-1">
+                        {profile.first_name} {profile.last_name}
+                      </p>
+                    </>
+                  )}
                   <p className="text-sm font-medium text-white">Email</p>
                   <p className="text-sm text-gray-400">{user?.email}</p>
                 </div>
