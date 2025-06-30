@@ -6,6 +6,29 @@ interface AuthFormProps {
   onAuthSuccess: () => void;
 }
 
+// Helper to upsert profile
+type ProfileUpsert = {
+  user_id: string;
+  first_name: string;
+  last_name: string;
+};
+
+async function upsertProfile({
+  user_id,
+  first_name,
+  last_name,
+}: ProfileUpsert) {
+  const { error } = await supabase.from("profiles").upsert([
+    {
+      user_id, // should match auth user id
+      first_name,
+      last_name,
+      updated_at: new Date().toISOString(),
+    },
+  ]);
+  if (error) throw error;
+}
+
 const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -26,6 +49,25 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
           password,
         });
         if (error) throw error;
+        // Upsert profile after login
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          try {
+            await upsertProfile({
+              user_id: user.id,
+              first_name: firstName || "",
+              last_name: lastName || "",
+            });
+          } catch (profileError: any) {
+            toast({
+              title: "Profile error",
+              description: profileError.message,
+              variant: "destructive",
+            });
+          }
+        }
         toast({
           title: "Welcome back!",
           description: "Successfully signed in.",
@@ -40,7 +82,7 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
           setLoading(false);
           return;
         }
-        const { error } = await supabase.auth.signUp({
+        const { data: signUpData, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -51,6 +93,22 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
           },
         });
         if (error) throw error;
+        // Upsert profile after sign up
+        if (signUpData.user) {
+          try {
+            await upsertProfile({
+              user_id: signUpData.user.id,
+              first_name: firstName,
+              last_name: lastName,
+            });
+          } catch (profileError: any) {
+            toast({
+              title: "Profile error",
+              description: profileError.message,
+              variant: "destructive",
+            });
+          }
+        }
         toast({
           title: "Account created!",
           description: "Please check your email to verify your account.",
@@ -94,7 +152,6 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
           options: {
             emailRedirectTo: window.location.origin,
             data: {
-              demo_mode: true,
               first_name: firstName,
               last_name: lastName,
             },
@@ -109,8 +166,20 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
       console.log("Demo account created, signing in...");
 
       // For demo mode, we'll use the session from signup if available
-      if (signUpData.session) {
-        console.log("Demo session available immediately");
+      if (signUpData.session && signUpData.user) {
+        try {
+          await upsertProfile({
+            user_id: signUpData.user.id,
+            first_name: firstName,
+            last_name: lastName,
+          });
+        } catch (profileError: any) {
+          toast({
+            title: "Profile error",
+            description: profileError.message,
+            variant: "destructive",
+          });
+        }
         toast({
           title: "Demo Mode Active",
           description: "You're now signed in as a demo user.",
@@ -133,7 +202,20 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
               "Demo account created but needs email confirmation. Please use regular sign up for now, or contact support to disable email confirmation.",
             variant: "destructive",
           });
-        } else {
+        } else if (signInData.user) {
+          try {
+            await upsertProfile({
+              user_id: signInData.user.id,
+              first_name: firstName,
+              last_name: lastName,
+            });
+          } catch (profileError: any) {
+            toast({
+              title: "Profile error",
+              description: profileError.message,
+              variant: "destructive",
+            });
+          }
           toast({
             title: "Demo Mode Active",
             description: "You're now signed in as a demo user.",
@@ -184,7 +266,6 @@ const AuthForm = ({ onAuthSuccess }: AuthFormProps) => {
             className="w-1/2 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-white"
           />
         </div>
-
 
         {/* Demo Mode Button */}
         <button
