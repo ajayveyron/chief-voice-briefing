@@ -178,25 +178,22 @@ serve(async (req) => {
     
 
 const { error: upsertError } = await supabase
-      .from('user_integrations')
-      .upsert({
-        user_id: stateData.user_id,
-        integration_type: 'calendar',
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token || null,
-        token_expires_at: tokenData.expires_in 
-          ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-          : null,
-        integration_data: {
-    calendar_id: profile.calendar_id,
-    email: profile.email,
-    timezone: profile.timezone,
-  },
-        is_active: true,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,integration_type'
-      });
+  .from('user_integrations')
+  .upsert({
+    user_id: oauthState.user_id,
+    integration_type: 'calendar',
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token || null,
+    token_expires_at: tokens.expires_in 
+      ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+      : null,
+    integration_data: integrationData.metadata, // Only if your schema supports this
+    is_active: true,
+    updated_at: new Date().toISOString()
+  }, {
+    onConflict: 'user_id,integration_type'
+  });
+
 
     if (upsertError) {
       console.error('Failed to store integration:', upsertError);
