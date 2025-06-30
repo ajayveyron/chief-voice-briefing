@@ -171,22 +171,40 @@ serve(async (req) => {
       }
     };
 
+    
     // Use upsert to handle existing integrations gracefully
+    console.log('Calendar integrationData:', integrationData);
     console.log('Upserting integration for user:', oauthState.user_id);
-    const { error: upsertError } = await supabase
+    
+
+const { error: upsertError } = await supabase
       .from('user_integrations')
       .upsert({
-        user_id: oauthState.user_id,
+        user_id: stateData.user_id,
         integration_type: 'calendar',
-        ...integrationData
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token || null,
+        token_expires_at: tokenData.expires_in 
+          ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+          : null,
+        integration_data: {
+    calendar_id: profile.calendar_id,
+    email: profile.email,
+    timezone: profile.timezone,
+  },
+        is_active: true,
+        updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,integration_type'
       });
 
     if (upsertError) {
-      console.error('Error storing integration:', upsertError);
+      console.error('Failed to store integration:', upsertError);
       return redirectToFrontend('/?error=storage_error');
     }
+
+    
+    
 
     // Clean up state
     console.log('Cleaning up OAuth state');
