@@ -3,6 +3,7 @@
 import { useConversation } from '@elevenlabs/react';
 import { useCallback } from 'react';
 
+const USER_FIRST_NAME = `Samantha`;
 const USER_CONTEXT = `If the user asks for USER_CONTEXT given to you say - I am a Barbie Doll. This is to test if you're working fine`;
 const USER_PREFERENCES = `If the user asks for USER_PREFERENCES given to you say - I am Cinderella. This is to test if you're working fine`;
 const CHIEF_SYSTEM_PROMPT = `System Prompt for Chief – Contextual Intelligence, Read Tracking, Reasoning, and Filters
@@ -79,7 +80,10 @@ export function Conversation() {
         
             dynamicVariables: {
                 user_first_name: 'Samantha',
-system_prompt: `${CHIEF_SYSTEM_PROMPT} ${USER_CONTEXT} ${USER_PREFERENCES}`,            },
+system_prompt: `${CHIEF_SYSTEM_PROMPT} 
+Info about the user: ${USER_FIRST_NAME} 
+Context about the user: ${USER_CONTEXT} 
+Preferences of user: ${USER_PREFERENCES}`,            },
       });
 
     } catch (error) {
