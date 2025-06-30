@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -18,34 +17,13 @@ serve(async (req) => {
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     
-    // Get frontend URL from environment with multiple fallbacks
-    const envFrontendUrl = Deno.env.get('FRONTEND_URL');
-    const referer = req.headers.get('referer');
-    const origin = req.headers.get('origin');
+    // Use the same approach as Gmail callback - hardcoded frontend URL
+    const frontendUrl = 'https://preview--chief-executive-assistant.lovable.app';
     
-    // Determine the correct frontend URL
-    let frontendUrl = envFrontendUrl;
-    
-    if (!frontendUrl) {
-      // Try to extract from referer or origin
-      if (referer) {
-        const refererUrl = new URL(referer);
-        frontendUrl = `${refererUrl.protocol}//${refererUrl.host}`;
-      } else if (origin) {
-        frontendUrl = origin;
-      } else {
-        // Final fallback to Lovable preview URL pattern
-        frontendUrl = 'https://preview--chief-executive-assistant.lovable.app';
-      }
-    }
-    
-    console.log('URL Detection Debug:', {
-      envFrontendUrl,
-      referer,
-      origin,
-      finalFrontendUrl: frontendUrl,
+    console.log('Frontend URL Debug:', {
+      frontendUrl,
       requestUrl: req.url,
-      requestHeaders: Object.fromEntries(req.headers.entries())
+      envFrontendUrl: Deno.env.get('FRONTEND_URL')
     });
     
     const redirectToFrontend = (path: string) => {
@@ -197,23 +175,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Unexpected error in notion-callback:', error);
     
-    // Fallback URL detection for error cases
-    const envFrontendUrl = Deno.env.get('FRONTEND_URL');
-    const referer = req.headers.get('referer');
-    const origin = req.headers.get('origin');
-    
-    let frontendUrl = envFrontendUrl;
-    if (!frontendUrl) {
-      if (referer) {
-        const refererUrl = new URL(referer);
-        frontendUrl = `${refererUrl.protocol}//${refererUrl.host}`;
-      } else if (origin) {
-        frontendUrl = origin;
-      } else {
-        frontendUrl = 'https://preview--chief-executive-assistant.lovable.app';
-      }
-    }
-    
+    const frontendUrl = 'https://preview--chief-executive-assistant.lovable.app';
     console.log('Error case URL detection:', { frontendUrl });
     
     return new Response(null, {

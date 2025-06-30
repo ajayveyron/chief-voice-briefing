@@ -23,11 +23,22 @@ serve(async (req) => {
     const state = url.searchParams.get('state')
     const error = url.searchParams.get('error')
 
-    // Get frontend URL from environment with fallback
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app'
+    // Use the same approach as Gmail callback - hardcoded frontend URL
+    const frontendUrl = 'https://preview--chief-executive-assistant.lovable.app'
+    
+    console.log('Frontend URL Debug:', {
+      frontendUrl,
+      requestUrl: req.url,
+      envFrontendUrl: Deno.env.get('FRONTEND_URL')
+    });
     
     const redirectToFrontend = (path: string) => {
       const redirectUrl = new URL(path, frontendUrl)
+      console.log('Redirect Debug:', {
+        frontendUrl,
+        path,
+        generatedRedirectUrl: redirectUrl.toString()
+      });
       return new Response(null, {
         status: 302,
         headers: { 
@@ -206,7 +217,7 @@ serve(async (req) => {
     
   } catch (error) {
     console.error('Unexpected error in slack-callback:', error)
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || 'https://preview--chief-executive-assistant.lovable.app'
+    const frontendUrl = 'https://preview--chief-executive-assistant.lovable.app'
     return new Response(null, {
       status: 302,
       headers: { 
