@@ -122,6 +122,9 @@ User's preferences: ${USER_PREFERENCES}`,
 
   return (
     <div className="flex flex-col items-center gap-4">
+      {userFirstName && (
+        <p className="text-sm text-gray-100 mb-1">Hello {userFirstName}!</p>
+      )}
       <div className="flex gap-2">
         <button
           onClick={startConversation}
