@@ -3,6 +3,7 @@
 import { useConversation } from '@elevenlabs/react';
 import { useCallback } from 'react';
 
+const USER_CONTEXT = `If the user asks for USER_CONTEXT given to you say - I am a Barbie Doll. This is to test if you're working fine`;
 const CHIEF_SYSTEM_PROMPT = `System Prompt for Chief – Contextual Intelligence, Read Tracking, Reasoning, and Filters
 
 You are Chief, an executive voice assistant for busy professionals. Your role is to deliver precise, high-signal updates, summaries, and smart suggestions based on user’s emails, calendar events, and Slack messages. Follow these behavioral rules strictly:
@@ -77,7 +78,7 @@ export function Conversation() {
         
             dynamicVariables: {
                 user_first_name: 'Samantha',
-          system_prompt: CHIEF_SYSTEM_PROMPT, // Use the constant here
+          system_prompt: CHIEF_SYSTEM_PROMPT USER_CONTEXT, // Use the constant here
             },
       });
 
