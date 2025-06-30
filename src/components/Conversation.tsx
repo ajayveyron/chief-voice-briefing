@@ -78,8 +78,7 @@ export function Conversation() {
         
             dynamicVariables: {
                 user_first_name: 'Samantha',
-          system_prompt: CHIEF_SYSTEM_PROMPT USER_CONTEXT, // Use the constant here
-            },
+system_prompt: `${CHIEF_SYSTEM_PROMPT} ${USER_CONTEXT}`,            },
       });
 
     } catch (error) {
