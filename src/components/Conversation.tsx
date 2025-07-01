@@ -56,8 +56,72 @@ Communication Style
 	•	Use natural tone but keep it actionable.
 	•	Never repeat already delivered summaries unless user requests recap.`;
 
+// Vector search function for voice assistant
+const performVectorSearch = async (query: string, user_id: string) => {
+  try {
+    const { data, error } = await supabase.functions.invoke("vector-search", {
+      body: {
+        query,
+        user_id,
+        topK: 3, // Get top 3 most relevant results for voice context
+      },
+    });
+
+    if (error) {
+      console.error("Vector search error:", error);
+      return [];
+    }
+
+    return data.results || [];
+  } catch (error) {
+    console.error("Vector search failed:", error);
+    return [];
+  }
+};
+
+// Fetch user preferences and contacts
+const fetchUserData = async (user_id: string) => {
+  try {
+    // Fetch user preferences
+    const { data: preferences, error: prefError } = await supabase
+      .from("user_preferences" as any)
+      .select("*")
+      .eq("user_id", user_id)
+      .single();
+
+    if (prefError && prefError.code !== "PGRST116") {
+      console.error("Error fetching preferences:", prefError);
+    }
+
+    // Fetch contacts
+    const { data: contacts, error: contactError } = await supabase
+      .from("contacts" as any)
+      .select("*")
+      .eq("user_id", user_id)
+      .order("frequency", { ascending: false })
+      .limit(10); // Get top 10 most frequent contacts
+
+    if (contactError) {
+      console.error("Error fetching contacts:", contactError);
+    }
+
+    return {
+      preferences: preferences || null,
+      contacts: contacts || [],
+    };
+  } catch (error) {
+    console.error("Error fetching user data:", error);
+    return { preferences: null, contacts: [] };
+  }
+};
+
 export function Conversation() {
   const [userFirstName, setUserFirstName] = useState("Samantha");
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [userPreferences, setUserPreferences] = useState(null);
+  const [userContacts, setUserContacts] = useState([]);
+  const [isLoadingUserData, setIsLoadingUserData] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -75,6 +139,26 @@ export function Conversation() {
       }
     };
     fetchProfile();
+  }, [user?.id]);
+
+  // Fetch user preferences and contacts
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!user?.id) return;
+
+      setIsLoadingUserData(true);
+      try {
+        const userData = await fetchUserData(user.id);
+        setUserPreferences(userData.preferences);
+        setUserContacts(userData.contacts);
+      } catch (error) {
+        console.error("Error loading user data:", error);
+      } finally {
+        setIsLoadingUserData(false);
+      }
+    };
+
+    loadUserData();
   }, [user?.id]);
 
   const conversation = useConversation({
@@ -96,21 +180,84 @@ export function Conversation() {
       // Request microphone permission
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
+      // Format user preferences for context
+      const preferencesContext = userPreferences
+        ? `
+User Communication Preferences:
+- Writing Style: ${userPreferences.writing_style}
+- Tone: ${userPreferences.tone}
+- Length Preference: ${userPreferences.length_preference}
+- Formality Level: ${userPreferences.formality_level}
+- Communication Patterns: ${
+            userPreferences.communication_patterns?.join(", ") ||
+            "None identified"
+          }
+- Common Topics: ${
+            userPreferences.common_topics?.join(", ") || "None identified"
+          }`
+        : "";
+
+      // Format contacts for context
+      const contactsContext =
+        userContacts.length > 0
+          ? `
+Key Contacts (${userContacts.length}):
+${userContacts
+  .slice(0, 5)
+  .map(
+    (contact, index) =>
+      `${index + 1}. ${contact.name} (${contact.email})${
+        contact.role ? ` - ${contact.role}` : ""
+      }${contact.company ? ` at ${contact.company}` : ""}${
+        contact.context ? ` - ${contact.context}` : ""
+      }`
+  )
+  .join("\n")}`
+          : "";
+
+      // Format search results for context
+      const searchContext =
+        searchResults.length > 0
+          ? `\n\nRecent Search Results:\n${searchResults
+              .map(
+                (result, index) =>
+                  `${index + 1}. ${
+                    result.source_type
+                  }: ${result.content.substring(0, 100)}... (Similarity: ${(
+                    result.similarity * 100
+                  ).toFixed(1)}%)`
+              )
+              .join("\n")}`
+          : "";
+
       // Start the conversation with your agent
       await conversation.startSession({
         agentId: "agent_01jz5w4tjdf6ga5ch4ve62f9xf", // Replace with your agent ID
 
         dynamicVariables: {
           system_prompt: `${CHIEF_SYSTEM_PROMPT} 
+
 User's first name: ${userFirstName} 
 User's context: ${USER_CONTEXT} 
-User's preferences: ${USER_PREFERENCES}`,
+User's preferences: ${USER_PREFERENCES}
+
+${preferencesContext}
+
+${contactsContext}
+
+${searchContext}`,
         },
       });
     } catch (error) {
       console.error("Failed to start conversation:", error);
     }
-  }, [conversation, userFirstName]);
+  }, [
+    conversation,
+    userFirstName,
+    searchResults,
+    userPreferences,
+    userContacts,
+  ]);
 
   const stopConversation = useCallback(async () => {
     if (conversation.status !== "connected") {
@@ -145,6 +292,33 @@ User's preferences: ${USER_PREFERENCES}`,
       <div className="flex flex-col items-center">
         <p>Status: {conversation.status}</p>
         <p>Agent is {conversation.isSpeaking ? "speaking" : "listening"}</p>
+        {isSearching && (
+          <div className="flex items-center gap-2 text-yellow-400">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
+            <span>Searching your data...</span>
+          </div>
+        )}
+        {isLoadingUserData && (
+          <div className="flex items-center gap-2 text-blue-400">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+            <span>Loading your preferences and contacts...</span>
+          </div>
+        )}
+        {userPreferences && !isLoadingUserData && (
+          <p className="text-green-400 text-sm">
+            ✓ Your communication preferences loaded
+          </p>
+        )}
+        {userContacts.length > 0 && !isLoadingUserData && (
+          <p className="text-green-400 text-sm">
+            ✓ {userContacts.length} contacts loaded
+          </p>
+        )}
+        {searchResults.length > 0 && !isSearching && (
+          <p className="text-green-400 text-sm">
+            ✓ Found {searchResults.length} relevant results
+          </p>
+        )}
       </div>
     </div>
   );
