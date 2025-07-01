@@ -10,6 +10,8 @@ import {
   User,
   ChevronDown,
   ChevronUp,
+  Users,
+  Settings,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -32,11 +34,38 @@ interface GmailResponse {
   error?: string;
 }
 
+interface Contact {
+  name: string;
+  email: string;
+  role?: string;
+  company?: string;
+  context?: string;
+  frequency: number;
+}
+
+interface UserPreferences {
+  writing_style: string;
+  tone: string;
+  length_preference: string;
+  formality_level: string;
+  communication_patterns: string[];
+  common_topics: string[];
+}
+
+interface AnalysisResult {
+  preferences: UserPreferences;
+  contacts: Contact[];
+}
+
 export const GmailTest = () => {
   const [loading, setLoading] = useState(false);
   const [emails, setEmails] = useState<Email[]>([]);
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
   const [embeddingLoading, setEmbeddingLoading] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
+    null
+  );
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -66,9 +95,20 @@ export const GmailTest = () => {
 
       setEmails(data.emails || []);
 
-      // Automatically embed emails after fetching
+      toast({
+        title: "Gmail Connection Successful",
+        description: `Fetched ${
+          data.emails?.length || 0
+        } emails from your inbox.`,
+      });
+
+      // Automatically analyze emails first, then embed
       if (data.emails && data.emails.length > 0 && user?.id) {
         try {
+          // First: Analyze emails for preferences and contacts
+          await callAnalyzeGmail(data.emails);
+
+          // Then: Embed emails into vector store
           for (const email of data.emails) {
             await fetch(
               "https://xxccvppbxnhowncdhvdi.functions.supabase.co/generate-embeddings",
@@ -99,26 +139,17 @@ export const GmailTest = () => {
             title: "Emails Embedded Successfully",
             description: `${data.emails.length} emails have been embedded into the vector store.`,
           });
-        } catch (embedError) {
+        } catch (error) {
           const errorMessage =
-            embedError instanceof Error
-              ? embedError.message
-              : "Unknown error occurred";
-          console.error("Embedding error:", embedError);
+            error instanceof Error ? error.message : "Unknown error occurred";
+          console.error("Processing error:", error);
           toast({
-            title: "Embedding Failed",
+            title: "Processing Failed",
             description: errorMessage,
             variant: "destructive",
           });
         }
       }
-
-      toast({
-        title: "Gmail Connection Successful",
-        description: `Fetched ${
-          data.emails?.length || 0
-        } emails from your inbox.`,
-      });
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";
@@ -151,6 +182,66 @@ export const GmailTest = () => {
 
   const toggleExpandEmail = (id: string) => {
     setExpandedEmail(expandedEmail === id ? null : id);
+  };
+
+  // Call the analyze-gmail function
+  const callAnalyzeGmail = async (emails: Email[]) => {
+    if (emails.length === 0) return;
+
+    setAnalysisLoading(true);
+    try {
+      // Separate sent emails (from user) and received emails
+      const sentEmails = emails.filter((email) =>
+        email.from.toLowerCase().includes("ajayveyron9@gmail.com")
+      );
+      const receivedEmails = emails.filter(
+        (email) => !email.from.toLowerCase().includes("ajayveyron9@gmail.com")
+      );
+
+      // Prepare data for analysis
+      const analysisData = {
+        sent_emails: sentEmails.map((email) => ({
+          subject: email.subject,
+          snippet: email.snippet,
+          body: email.body,
+          date: email.date,
+        })),
+        received_emails: receivedEmails.map((email) => ({
+          from: email.from,
+          subject: email.subject,
+          snippet: email.snippet,
+          body: email.body,
+          date: email.date,
+        })),
+      };
+
+      // Call the analyze-gmail function
+      const { data, error } = await supabase.functions.invoke("analyze-gmail", {
+        body: {
+          emails: analysisData,
+          user_id: user?.id,
+        },
+      });
+
+      if (error) throw error;
+
+      setAnalysisResult(data);
+      toast({
+        title: "Analysis Complete",
+        description: `Extracted ${data.contacts.length} contacts and user preferences from ${emails.length} emails.`,
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Analysis error:", error);
+      toast({
+        title: "Analysis Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setAnalysisLoading(false);
+    }
   };
 
   const embedEmails = async () => {
@@ -298,6 +389,142 @@ export const GmailTest = () => {
               No emails to display. Click "Test Gmail Connection" to fetch your
               recent emails.
             </p>
+          </div>
+        )}
+
+        {/* Analysis Results */}
+        {analysisLoading && (
+          <div className="mt-4 p-4 bg-blue-900/20 border border-blue-700 rounded">
+            <div className="flex items-center gap-2 text-blue-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Analyzing emails for preferences and contacts...</span>
+            </div>
+          </div>
+        )}
+
+        {analysisResult && (
+          <div className="mt-4 space-y-4">
+            {/* User Preferences */}
+            <Card className="bg-gray-700/50 border-gray-600">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gray-100 text-sm">
+                  <Settings className="h-4 w-4 text-blue-500" />
+                  <span>User Preferences</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-gray-400">Writing Style:</span>
+                    <p className="text-gray-200">
+                      {analysisResult.preferences.writing_style}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Tone:</span>
+                    <p className="text-gray-200">
+                      {analysisResult.preferences.tone}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Length Preference:</span>
+                    <p className="text-gray-200">
+                      {analysisResult.preferences.length_preference}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Formality Level:</span>
+                    <p className="text-gray-200">
+                      {analysisResult.preferences.formality_level}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-gray-400 text-xs">
+                    Communication Patterns:
+                  </span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {analysisResult.preferences.communication_patterns.map(
+                      (pattern, index) => (
+                        <span
+                          key={index}
+                          className="px-2 py-1 bg-gray-600 rounded text-xs text-gray-200"
+                        >
+                          {pattern}
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-gray-400 text-xs">Common Topics:</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {analysisResult.preferences.common_topics.map(
+                      (topic, index) => (
+                        <span
+                          key={index}
+                          className="px-2 py-1 bg-green-600/20 border border-green-600 rounded text-xs text-green-300"
+                        >
+                          {topic}
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Contacts */}
+            <Card className="bg-gray-700/50 border-gray-600">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gray-100 text-sm">
+                  <Users className="h-4 w-4 text-green-500" />
+                  <span>Contacts ({analysisResult.contacts.length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 max-h-60 overflow-y-auto">
+                  {analysisResult.contacts.map((contact, index) => (
+                    <div
+                      key={index}
+                      className="p-3 bg-gray-800/50 rounded border border-gray-600"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <h5 className="font-medium text-sm text-gray-100">
+                            {contact.name}
+                          </h5>
+                          <p className="text-xs text-gray-400">
+                            {contact.email}
+                          </p>
+                          {contact.role && (
+                            <p className="text-xs text-blue-400">
+                              Role: {contact.role}
+                            </p>
+                          )}
+                          {contact.company && (
+                            <p className="text-xs text-purple-400">
+                              Company: {contact.company}
+                            </p>
+                          )}
+                          {contact.context && (
+                            <p className="text-xs text-gray-300 mt-1">
+                              {contact.context}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {contact.frequency} email
+                          {contact.frequency !== 1 ? "s" : ""}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </CardContent>
