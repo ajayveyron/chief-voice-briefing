@@ -99,7 +99,7 @@ serve(async (req) => {
 
     // Improved Gmail query to get latest unread emails first
     const gmailQuery =
-      'in:inbox -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums} -from:(noreply@* OR no-reply@*)';
+      'in:(inbox OR sent) -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums} -from:(noreply@* OR no-reply@*)';
     const gmailResponse = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=${encodeURIComponent(
         gmailQuery
