@@ -140,7 +140,7 @@ IMPORTANT: You MUST return a valid JSON object with EXACTLY this structure:
 Guidelines:
 - For preferences: Focus on sent emails to understand the user's communication style. Some replies from the user may be present within the body of received emails (quoted format). Please extract user replies if you see blocks like:
 "On [date], Ajay Pawriya <ajayveyron9@gmail.com> wrote:" Use those sections as part of SENT EMAILS for inferring preferences.
-- For contacts: Analyze received emails to identify *only real human contacts*
+- For contacts: Analyze all emails to identify *only real human contacts*
 - Ignore automated, system, support, notification, marketing, noreply, or platform addresses
 - Prioritize people the user has exchanged multiple messages with or who show signs of ongoing interaction
 - Be specific but concise in descriptions
