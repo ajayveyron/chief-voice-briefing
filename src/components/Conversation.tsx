@@ -4,6 +4,8 @@ import { useConversation } from "@elevenlabs/react";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { mcpClient } from "@/lib/mcp-client";
+import { MCPTool } from "@/lib/mcp-config";
 
 const USER_CONTEXT = `If the user asks for USER_CONTEXT given to you say - I am a Cinderella. This is to test if you're working fine`;
 const USER_PREFERENCES = `If the user asks for USER_PREFERENCES given to you say - I am Princess. This is to test if you're working fine`;
@@ -52,7 +54,9 @@ You are Chief, an executive voice assistant for busy professionals. Your role is
 ⸻
 
 Communication Style
-	•	Be short, crisp, and executive. Prioritize clarity over completeness.
+	•	Be extremely short, crisp, concise and executive.
+  - Talk like a real human assistant and not like an AI assistant.
+  - Avoid asking for confirmation unless it is a destructive or construtive command like "Do you want me to delete the file?" "Do you want me to cancel the meeting?" "Do you want meto send the email?"
 	•	Use natural tone but keep it actionable.
 	•	Never repeat already delivered summaries unless user requests recap.`;
 
@@ -122,6 +126,8 @@ export function Conversation() {
   const [userPreferences, setUserPreferences] = useState(null);
   const [userContacts, setUserContacts] = useState([]);
   const [isLoadingUserData, setIsLoadingUserData] = useState(false);
+  const [availableTools, setAvailableTools] = useState<MCPTool[]>([]);
+  const [isLoadingTools, setIsLoadingTools] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -161,6 +167,24 @@ export function Conversation() {
     loadUserData();
   }, [user?.id]);
 
+  // Load MCP tools on mount
+  useEffect(() => {
+    loadMCPTools();
+  }, []);
+
+  const loadMCPTools = useCallback(async () => {
+    setIsLoadingTools(true);
+    try {
+      const tools = await mcpClient.discoverAllTools();
+      setAvailableTools(tools);
+      console.log("🔧 Loaded MCP tools:", tools.length);
+    } catch (error) {
+      console.error("Failed to load MCP tools:", error);
+    } finally {
+      setIsLoadingTools(false);
+    }
+  }, []);
+
   const conversation = useConversation({
     onConnect: () => console.log("Connected"),
     onDisconnect: () => console.log("Disconnected"),
@@ -169,16 +193,14 @@ export function Conversation() {
   });
 
   const startConversation = useCallback(async () => {
+    if (conversation.status === "connected") {
+      console.warn("Conversation already connected.");
+      return;
+    }
+
     try {
-      if (
-        conversation.status === "connected" ||
-        conversation.status === "connecting"
-      ) {
-        console.warn("Conversation already started or connecting.");
-        return;
-      }
-      // Request microphone permission
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      setIsLoadingUserData(true);
+      setIsSearching(true);
 
       // Format user preferences for context
       const preferencesContext = userPreferences
@@ -234,8 +256,8 @@ ${userContacts
       await conversation.startSession({
         agentId: "agent_01jz5w4tjdf6ga5ch4ve62f9xf", // Replace with your agent ID
 
-        dynamicVariables: {
-          system_prompt: `${CHIEF_SYSTEM_PROMPT} 
+      // Enhanced system prompt with MCP tools
+      const enhancedSystemPrompt = `${CHIEF_SYSTEM_PROMPT} 
 
 User's first name: ${userFirstName} 
 User's context: ${USER_CONTEXT} 
@@ -245,11 +267,26 @@ ${preferencesContext}
 
 ${contactsContext}
 
-${searchContext}`,
+${searchContext}
+
+AVAILABLE TOOLS:
+${toolsDescription}
+
+You have access to various tools through MCP servers. When users request actions that can be performed by these tools, you can suggest using them or ask for more specific details to execute the appropriate tool.`;
+
+      // Start the conversation with your agent
+      await conversation.startSession({
+        agentId: "agent_01jz5w4tjdf6ga5ch4ve62f9xf", // Replace with your agent ID
+
+        dynamicVariables: {
+          system_prompt: enhancedSystemPrompt,
         },
       });
     } catch (error) {
       console.error("Failed to start conversation:", error);
+    } finally {
+      setIsLoadingUserData(false);
+      setIsSearching(false);
     }
   }, [
     conversation,
@@ -304,6 +341,12 @@ ${searchContext}`,
             <span>Loading your preferences and contacts...</span>
           </div>
         )}
+        {isLoadingTools && (
+          <div className="flex items-center gap-2 text-purple-400">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-400"></div>
+            <span>Loading MCP tools...</span>
+          </div>
+        )}
         {userPreferences && !isLoadingUserData && (
           <p className="text-green-400 text-sm">
             ✓ Your communication preferences loaded
@@ -314,9 +357,9 @@ ${searchContext}`,
             ✓ {userContacts.length} contacts loaded
           </p>
         )}
-        {searchResults.length > 0 && !isSearching && (
+        {availableTools.length > 0 && !isLoadingTools && (
           <p className="text-green-400 text-sm">
-            ✓ Found {searchResults.length} relevant results
+            ✓ {availableTools.length} MCP tools available
           </p>
         )}
       </div>
