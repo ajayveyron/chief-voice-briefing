@@ -45,7 +45,7 @@ export const checkEmbeddingExists = async (
   return data && data.length > 0;
 };
 
-const generateOpenAIEmbedding = async (text: string): Promise<number[]> => {
+const generateEmbedding = async (text: string): Promise<number[]> => {
   console.log("🔄 Generating OpenAI embedding...");
 
   const response = await fetch("https://api.openai.com/v1/embeddings", {
@@ -82,7 +82,7 @@ export const generateAndStoreEmbedding = async (
 
   try {
     // Generate embedding using OpenAI API
-    const embeddingArray = await generateOpenAIEmbedding(data.content);
+    const embeddingArray = await generateEmbedding(data.content);
     console.log("✅ Embedding generated:", embeddingArray.length, "dimensions");
 
     // Store the vector in the embeddings table using upsert to handle duplicates
