@@ -99,5 +99,8 @@ verify_jwt = false
 [functions.analyze-gmail]
 verify_jwt = false
 
+[functions.generate-embeddings]
+verify_jwt = false
+
 [functions.test-chief-cron]
 verify_jwt = false

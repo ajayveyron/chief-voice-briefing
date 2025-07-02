@@ -74,29 +74,61 @@ serve(async (req) => {
 
     const { data, error } = await supabase
       .from("embeddings")
-      .insert([
+      .upsert(
+        [
+          {
+            user_id,
+            source_type,
+            source_id,
+            content,
+            metadata,
+            embedding,
+          },
+        ],
         {
-          user_id,
-          source_type,
-          source_id,
-          content,
-          metadata,
-          embedding,
-        },
-      ])
+          onConflict: "user_id,source_type,source_id",
+        }
+      )
       .select();
 
     if (error) {
+      // Check if it's a duplicate key error
+      if (
+        error.code === "23505" &&
+        error.message.includes("duplicate key value violates unique constraint")
+      ) {
+        console.log("⚠️ Skipping duplicate entry:", source_id);
+        return new Response(
+          JSON.stringify({
+            message: "Duplicate entry skipped",
+            source_id,
+            skipped: true,
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      console.error("Database error:", error);
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ embedding: data?.[0] }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        embedding: data?.[0],
+        embeddingDimensions: embedding.length,
+        message: "Embedding stored successfully",
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   } catch (err) {
     return new Response(
       JSON.stringify({ error: "Internal error", details: String(err) }),

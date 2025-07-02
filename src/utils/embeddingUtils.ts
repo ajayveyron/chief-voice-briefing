@@ -1,11 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-
-// OpenAI Configuration
-const OPENAI_API_KEY =  Deno.env.get("OPENAI_API_KEY");
-const OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 
 export interface EmbeddingData {
   user_id: string;
@@ -48,87 +41,46 @@ export const checkEmbeddingExists = async (
   return data && data.length > 0;
 };
 
-const generateEmbedding = async (text: string): Promise<number[]> => {
-  console.log("🔄 Generating OpenAI embedding...");
-
-  const response = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENAI_EMBEDDING_MODEL,
-      input: text,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  const embedding = data.data?.[0]?.embedding;
-  
-  if (!embedding) {
-    throw new Error("No embedding returned from OpenAI");
-  }
-
-  return embedding;
-};
-
 export const generateAndStoreEmbedding = async (
   data: EmbeddingData
 ): Promise<EmbeddingResult> => {
   console.log("🔄 Generating embedding for text...");
 
   try {
-    // Generate embedding using OpenAI API
-    const embeddingArray = await generateEmbedding(data.content);
-    console.log("✅ Embedding generated:", embeddingArray.length, "dimensions");
-
-    // Store the vector in the embeddings table using upsert to handle duplicates
-    const { data: insertData, error: insertError } = await (supabase as any)
-      .from("embeddings")
-      .upsert(
-        {
+    // Call Supabase Edge Function to generate and store embedding
+    const { data: result, error } = await supabase.functions.invoke(
+      "generate-embeddings",
+      {
+        body: {
           user_id: data.user_id,
           source_type: data.source_type,
           source_id: data.source_id,
           content: data.content,
           metadata: data.metadata || {},
-          embedding: embeddingArray,
         },
-        {
-          onConflict: "user_id,source_type,source_id",
-        }
-      );
-
-    if (insertError) {
-      // Check if it's a duplicate key error and handle gracefully
-      if (
-        insertError.code === "23505" &&
-        insertError.message.includes(
-          "duplicate key value violates unique constraint"
-        )
-      ) {
-        console.log("⚠️ Skipping duplicate entry:", data.source_id);
-        return {
-          ...data,
-          embeddingDimensions: embeddingArray.length,
-          skipped: true,
-          reason: "duplicate",
-        };
       }
-      throw insertError;
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    // Check if the result indicates a skipped duplicate
+    if (result?.skipped) {
+      console.log("⚠️ Skipping duplicate entry:", data.source_id);
+      return {
+        ...data,
+        embeddingDimensions: 0,
+        skipped: true,
+        reason: "duplicate",
+      };
     }
 
     console.log("✅ Embedding stored successfully");
     return {
       ...data,
-      embeddingDimensions: embeddingArray.length,
-      data: insertData,
+      embeddingDimensions: result?.embeddingDimensions || 0,
+      data: result,
     };
   } catch (error) {
     console.error("Error generating or storing embedding:", error);
