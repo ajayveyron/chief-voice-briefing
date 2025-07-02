@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -119,7 +120,13 @@ export const NotionTest = () => {
 
     setEmbeddingLoading(true);
     try {
-      const embeddingData = formatNotionForEmbedding(data.pages);
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        throw new Error(sessionError?.message || "No active session");
+      }
+
+      const embeddingData = formatNotionForEmbedding(data.pages, sessionData.session.user.id);
       
       for (const embeddingItem of embeddingData) {
         await generateAndStoreEmbedding(embeddingItem);

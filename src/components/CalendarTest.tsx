@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,7 +177,13 @@ export const CalendarTest = () => {
 
     setEmbeddingLoading(true);
     try {
-      const embeddingData = formatCalendarForEmbedding(events);
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        throw new Error(sessionError?.message || "No active session");
+      }
+
+      const embeddingData = formatCalendarForEmbedding(events, sessionData.session.user.id);
       
       for (const data of embeddingData) {
         await generateAndStoreEmbedding(data);
