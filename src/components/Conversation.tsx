@@ -252,9 +252,18 @@ ${userContacts
               .join("\n")}`
           : "";
 
-      // Start the conversation with your agent
-      await conversation.startSession({
-        agentId: "agent_01jz5w4tjdf6ga5ch4ve62f9xf", // Replace with your agent ID
+      // Format available tools for context
+      const toolsDescription =
+        availableTools.length > 0
+          ? availableTools
+              .map(
+                (tool, idx) =>
+                  `${idx + 1}. ${tool.name}${
+                    tool.description ? `: ${tool.description}` : ""
+                  }`
+              )
+              .join("\n")
+          : "No tools available.";
 
       // Enhanced system prompt with MCP tools
       const enhancedSystemPrompt = `${CHIEF_SYSTEM_PROMPT} 
@@ -277,7 +286,6 @@ You have access to various tools through MCP servers. When users request actions
       // Start the conversation with your agent
       await conversation.startSession({
         agentId: "agent_01jz5w4tjdf6ga5ch4ve62f9xf", // Replace with your agent ID
-
         dynamicVariables: {
           system_prompt: enhancedSystemPrompt,
         },
@@ -294,6 +302,7 @@ You have access to various tools through MCP servers. When users request actions
     searchResults,
     userPreferences,
     userContacts,
+    availableTools,
   ]);
 
   const stopConversation = useCallback(async () => {
