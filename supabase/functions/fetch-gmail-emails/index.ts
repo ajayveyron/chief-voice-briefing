@@ -97,12 +97,11 @@ serve(async (req) => {
 
     await refreshTokenIfExpired();
 
-    // Improved Gmail query to get latest unread emails first
-    const gmailQuery =
-      'in:(inbox OR sent) -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums} -from:(noreply@* OR no-reply@*)';
-    const gmailResponse = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=${encodeURIComponent(
-        gmailQuery
+    // Fetch sent emails first
+    const sentQuery = 'in:sent -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums}';
+    const sentResponse = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=${encodeURIComponent(
+        sentQuery
       )}`,
       {
         headers: {
@@ -112,13 +111,29 @@ serve(async (req) => {
       }
     );
 
-    if (!gmailResponse.ok) {
-      if (gmailResponse.status === 401) {
+    // Fetch received emails  
+    const inboxQuery = 'in:inbox -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums} -from:(noreply@* OR no-reply@*)';
+    const inboxResponse = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=${encodeURIComponent(
+        inboxQuery
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${integration.access_token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!sentResponse.ok || !inboxResponse.ok) {
+      if (sentResponse.status === 401 || inboxResponse.status === 401) {
         // Try to refresh token and retry once
         await refreshTokenIfExpired();
-        const retryResponse = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q=${encodeURIComponent(
-            gmailQuery
+        
+        // Retry both requests
+        const retrySentResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=${encodeURIComponent(
+            sentQuery
           )}`,
           {
             headers: {
@@ -128,31 +143,68 @@ serve(async (req) => {
           }
         );
 
-        if (!retryResponse.ok) {
+        const retryInboxResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=${encodeURIComponent(
+            inboxQuery
+          )}`,
+          {
+            headers: {
+              Authorization: `Bearer ${integration.access_token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (!retrySentResponse.ok || !retryInboxResponse.ok) {
           throw new Error(
-            `Gmail API error after refresh: ${retryResponse.status}`
+            `Gmail API error after refresh: ${retrySentResponse.status} ${retryInboxResponse.status}`
           );
         }
 
-        const messagesData = await retryResponse.json();
-        const emails = await processMessages(
-          messagesData.messages || [],
-          integration.access_token
+        const sentData = await retrySentResponse.json();
+        const inboxData = await retryInboxResponse.json();
+        
+        const sentEmails = await processMessages(
+          sentData.messages || [],
+          integration.access_token,
+          true // mark as sent emails
         );
-        return new Response(JSON.stringify({ emails }), {
+        
+        const receivedEmails = await processMessages(
+          inboxData.messages || [],
+          integration.access_token,
+          false // mark as received emails
+        );
+
+        return new Response(JSON.stringify({ 
+          sent_emails: sentEmails,
+          received_emails: receivedEmails 
+        }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      throw new Error(`Gmail API error: ${gmailResponse.status}`);
+      throw new Error(`Gmail API error: ${sentResponse.status} ${inboxResponse.status}`);
     }
 
-    const messagesData = await gmailResponse.json();
-    const emails = await processMessages(
-      messagesData.messages || [],
-      integration.access_token
+    const sentData = await sentResponse.json();
+    const inboxData = await inboxResponse.json();
+    
+    const sentEmails = await processMessages(
+      sentData.messages || [],
+      integration.access_token,
+      true // mark as sent emails
+    );
+    
+    const receivedEmails = await processMessages(
+      inboxData.messages || [],
+      integration.access_token,
+      false // mark as received emails
     );
 
-    return new Response(JSON.stringify({ emails }), {
+    return new Response(JSON.stringify({ 
+      sent_emails: sentEmails,
+      received_emails: receivedEmails 
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
@@ -165,7 +217,7 @@ serve(async (req) => {
 });
 
 // Helper function to process messages and extract relevant data
-async function processMessages(messages: any[], accessToken: string) {
+async function processMessages(messages: any[], accessToken: string, isSent: boolean = false) {
   const emails = [];
 
   // Process messages in parallel for better performance

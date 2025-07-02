@@ -35,13 +35,13 @@ export const DEFAULT_MCP_SERVERS: MCPServerConfig[] = [
   {
     id: "local-tools",
     name: "Local Tools",
-    description: "Built-in tools for email, calendar, and messaging",
-    url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mcp-server`,
+    description: "Built-in tools for vector search and data analysis",
+    url: "https://xxccvppbxnhowncdhvdi.supabase.co/functions/v1",
     auth: {
       type: "bearer",
-      value: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4Y2N2cHBieG5ob3duY2RodmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxMzQ2NjcsImV4cCI6MjA2NDcxMDY2N30.2oUeqsJA5_do6jsqzZfuzDv4fj9tr1Cl3cFvAXPOc_Q",
     },
-    enabled: true,
+    enabled: true, // Enable now that we have the MCP server
   },
   {
     id: "github-tools",
