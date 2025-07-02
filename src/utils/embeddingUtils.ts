@@ -1,5 +1,8 @@
-import { pipeline } from "@huggingface/transformers";
 import { supabase } from "@/integrations/supabase/client";
+
+// OpenAI Configuration
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "your-openai-api-key";
+const OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 
 export interface EmbeddingData {
   user_id: string;
@@ -42,71 +45,92 @@ export const checkEmbeddingExists = async (
   return data && data.length > 0;
 };
 
+const generateOpenAIEmbedding = async (text: string): Promise<number[]> => {
+  console.log("🔄 Generating OpenAI embedding...");
+
+  const response = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OPENAI_EMBEDDING_MODEL,
+      input: text,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  const embedding = data.data?.[0]?.embedding;
+  
+  if (!embedding) {
+    throw new Error("No embedding returned from OpenAI");
+  }
+
+  return embedding;
+};
+
 export const generateAndStoreEmbedding = async (
   data: EmbeddingData
 ): Promise<EmbeddingResult> => {
-  console.log("🔄 Initializing embedding pipeline...");
-
-  // Generate embedding using Hugging Face transformers
-  const generateEmbedding = await pipeline(
-    "feature-extraction",
-    "Supabase/gte-small"
-  );
-
   console.log("🔄 Generating embedding for text...");
 
-  // Generate a vector using Transformers.js
-  const output = await generateEmbedding(data.content, {
-    pooling: "mean",
-    normalize: true,
-  });
+  try {
+    // Generate embedding using OpenAI API
+    const embeddingArray = await generateOpenAIEmbedding(data.content);
+    console.log("✅ Embedding generated:", embeddingArray.length, "dimensions");
 
-  // Extract the embedding output and convert to array
-  const embeddingArray = Array.from(output.data);
-  console.log("✅ Embedding generated:", embeddingArray.length, "dimensions");
+    // Store the vector in the embeddings table using upsert to handle duplicates
+    const { data: insertData, error: insertError } = await (supabase as any)
+      .from("embeddings")
+      .upsert(
+        {
+          user_id: data.user_id,
+          source_type: data.source_type,
+          source_id: data.source_id,
+          content: data.content,
+          metadata: data.metadata || {},
+          embedding: embeddingArray,
+        },
+        {
+          onConflict: "user_id,source_type,source_id",
+        }
+      );
 
-  // Store the vector in the embeddings table using upsert to handle duplicates
-  const { data: insertData, error: insertError } = await (supabase as any)
-    .from("embeddings")
-    .upsert(
-      {
-        user_id: data.user_id,
-        source_type: data.source_type,
-        source_id: data.source_id,
-        content: data.content,
-        metadata: data.metadata || {},
-        embedding: embeddingArray,
-      },
-      {
-        onConflict: "user_id,source_type,source_id",
+    if (insertError) {
+      // Check if it's a duplicate key error and handle gracefully
+      if (
+        insertError.code === "23505" &&
+        insertError.message.includes(
+          "duplicate key value violates unique constraint"
+        )
+      ) {
+        console.log("⚠️ Skipping duplicate entry:", data.source_id);
+        return {
+          ...data,
+          embeddingDimensions: embeddingArray.length,
+          skipped: true,
+          reason: "duplicate",
+        };
       }
-    );
-
-  if (insertError) {
-    // Check if it's a duplicate key error and handle gracefully
-    if (
-      insertError.code === "23505" &&
-      insertError.message.includes(
-        "duplicate key value violates unique constraint"
-      )
-    ) {
-      console.log("⚠️ Skipping duplicate email:", data.source_id);
-      return {
-        ...data,
-        embeddingDimensions: embeddingArray.length,
-        skipped: true,
-        reason: "duplicate",
-      };
+      throw insertError;
     }
-    throw insertError;
-  }
 
-  console.log("✅ Embedding stored successfully");
-  return {
-    ...data,
-    embeddingDimensions: embeddingArray.length,
-    data: insertData,
-  };
+    console.log("✅ Embedding stored successfully");
+    return {
+      ...data,
+      embeddingDimensions: embeddingArray.length,
+      data: insertData,
+    };
+  } catch (error) {
+    console.error("Error generating or storing embedding:", error);
+    throw error;
+  }
 };
 
 export const formatGmailForEmbedding = (
