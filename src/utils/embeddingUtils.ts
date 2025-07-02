@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
 // OpenAI Configuration
-const OPENAI_API_KEY =  Deno.env.get("OPENAI_API_KEY") || "your-openai-api-key";
+const OPENAI_API_KEY =  Deno.env.get("OPENAI_API_KEY");
 const OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 
 export interface EmbeddingData {
