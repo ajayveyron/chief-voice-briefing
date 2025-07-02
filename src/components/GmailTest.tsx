@@ -30,7 +30,8 @@ interface Email {
 }
 
 interface GmailResponse {
-  emails: Email[];
+  sent_emails: Email[];
+  received_emails: Email[];
   error?: string;
 }
 
@@ -93,23 +94,23 @@ export const GmailTest = () => {
       if (error) throw error;
       if (data.error) throw new Error(data.error);
 
-      setEmails(data.emails || []);
+      // Combine sent and received emails
+      const allEmails = [...(data.sent_emails || []), ...(data.received_emails || [])];
+      setEmails(allEmails);
 
       toast({
         title: "Gmail Connection Successful",
-        description: `Fetched ${
-          data.emails?.length || 0
-        } emails from your inbox.`,
+        description: `Fetched ${data.sent_emails?.length || 0} sent and ${data.received_emails?.length || 0} received emails.`,
       });
 
       // Automatically analyze emails first, then embed
-      if (data.emails && data.emails.length > 0 && user?.id) {
+      if (allEmails.length > 0 && user?.id) {
         try {
           // First: Analyze emails for preferences and contacts
-          await callAnalyzeGmail(data.emails);
+          await callAnalyzeGmail(data.sent_emails || [], data.received_emails || []);
 
           // Then: Embed emails into vector store
-          for (const email of data.emails) {
+          for (const email of allEmails) {
             await fetch(
               "https://xxccvppbxnhowncdhvdi.functions.supabase.co/generate-embeddings",
               {
@@ -137,7 +138,7 @@ export const GmailTest = () => {
           }
           toast({
             title: "Emails Embedded Successfully",
-            description: `${data.emails.length} emails have been embedded into the vector store.`,
+            description: `${allEmails.length} emails have been embedded into the vector store.`,
           });
         } catch (error) {
           const errorMessage =
@@ -185,18 +186,11 @@ export const GmailTest = () => {
   };
 
   // Call the analyze-gmail function
-  const callAnalyzeGmail = async (emails: Email[]) => {
-    if (emails.length === 0) return;
+  const callAnalyzeGmail = async (sentEmails: Email[], receivedEmails: Email[]) => {
+    if (sentEmails.length === 0 && receivedEmails.length === 0) return;
 
     setAnalysisLoading(true);
     try {
-      // Separate sent emails (from user) and received emails
-      const sentEmails = emails.filter((email) =>
-        email.from.toLowerCase().includes("ajayveyron9@gmail.com")
-      );
-      const receivedEmails = emails.filter(
-        (email) => !email.from.toLowerCase().includes("ajayveyron9@gmail.com")
-      );
 
       // Prepare data for analysis
       const analysisData = {
@@ -228,7 +222,7 @@ export const GmailTest = () => {
       setAnalysisResult(data);
       toast({
         title: "Analysis Complete",
-        description: `Extracted ${data.contacts.length} contacts and user preferences from ${emails.length} emails.`,
+        description: `Extracted ${data.contacts.length} contacts and user preferences from ${sentEmails.length + receivedEmails.length} emails.`,
       });
     } catch (error: unknown) {
       const errorMessage =
