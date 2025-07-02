@@ -23,9 +23,9 @@ interface AnalysisData {
 interface Contact {
   name: string;
   email: string;
-  role?: string;
-  company?: string;
-  context?: string;
+  role?: string | null;
+  company?: string | null;
+  context?: string | null;
   frequency: number;
 }
 
@@ -262,6 +262,62 @@ Guidelines:
       }
     }
 
+    // Validate and clean contacts data
+    if (analysisResult.contacts && Array.isArray(analysisResult.contacts)) {
+      analysisResult.contacts = analysisResult.contacts
+        .filter((contact) => {
+          // Filter out contacts without required fields
+          if (!contact.name || !contact.email) {
+            console.log("Skipping contact without required fields:", contact);
+            return false;
+          }
+
+          // Filter out automated/non-human contacts
+          const email = contact.email.toLowerCase();
+          const automatedPatterns = [
+            "noreply",
+            "no-reply",
+            "donotreply",
+            "do-not-reply",
+            "support",
+            "help",
+            "info",
+            "admin",
+            "system",
+            "notifications",
+            "alerts",
+            "updates",
+            "newsletter",
+            "marketing",
+            "sales",
+            "billing",
+            "security",
+          ];
+
+          if (automatedPatterns.some((pattern) => email.includes(pattern))) {
+            console.log("Skipping automated contact:", contact.email);
+            return false;
+          }
+
+          return true;
+        })
+        .map((contact) => ({
+          name: contact.name.trim(),
+          email: contact.email.trim().toLowerCase(),
+          role: contact.role?.trim() || null,
+          company: contact.company?.trim() || null,
+          context: contact.context?.trim() || null,
+          frequency: Math.max(1, contact.frequency || 1),
+        }));
+
+      console.log(
+        `Validated ${analysisResult.contacts.length} contacts for insertion`
+      );
+    } else {
+      analysisResult.contacts = [];
+      console.log("No valid contacts found in analysis result");
+    }
+
     // Store results in Supabase if tables exist
     try {
       const supabaseClient = createClient(
@@ -278,6 +334,21 @@ Guidelines:
         "Service role key:",
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ? "Set" : "Not set"
       );
+
+      // Test database connection
+      try {
+        const { data: testResult, error: testError } = await supabaseClient.rpc(
+          "test_db_connection"
+        );
+
+        if (testError) {
+          console.error("Database connection test failed:", testError);
+        } else {
+          console.log("Database connection test successful:", testResult);
+        }
+      } catch (testError) {
+        console.error("Database connection test exception:", testError);
+      }
 
       // Store preferences - bypass RLS for service role
       const { data: prefData, error: prefError } = await supabaseClient
@@ -318,44 +389,84 @@ Guidelines:
         "contacts"
       );
 
-      // First, delete existing contacts for this user to avoid duplicates
-      const { error: deleteError } = await supabaseClient
-        .from("contacts")
-        .delete()
-        .eq("user_id", user_id);
-
-      if (deleteError) {
-        console.error("Error deleting existing contacts:", deleteError);
-      } else {
-        console.log("Deleted existing contacts for user:", user_id);
-      }
-
-      // Insert new contacts
       if (analysisResult.contacts.length > 0) {
-        const contactsToInsert = analysisResult.contacts.map((contact) => ({
-          user_id: user_id,
-          name: contact.name,
-          email: contact.email,
-          role: contact.role || null,
-          company: contact.company || null,
-          context: contact.context || null,
-          frequency: contact.frequency || 1,
-          updated_at: new Date().toISOString(),
-        }));
+        // Log the contacts data being processed
+        console.log(
+          "Contacts to be inserted:",
+          JSON.stringify(analysisResult.contacts, null, 2)
+        );
 
-        const { data: contactsData, error: contactsError } =
-          await supabaseClient.from("contacts").insert(contactsToInsert);
+        // Use the safer database function for inserting contacts
+        const { data: contactsResult, error: contactsError } =
+          await supabaseClient.rpc("insert_contacts_safe", {
+            p_user_id: user_id,
+            p_contacts: analysisResult.contacts,
+          });
 
         if (contactsError) {
-          console.error("Error storing contacts:", contactsError);
+          console.error("Error calling insert_contacts_safe:", contactsError);
           console.error("Error details:", {
             code: contactsError.code,
             message: contactsError.message,
             details: contactsError.details,
             hint: contactsError.hint,
           });
+
+          // Fallback to manual insertion if the function fails
+          console.log("Falling back to manual contact insertion...");
+          try {
+            // First, delete existing contacts for this user to avoid duplicates
+            const { error: deleteError } = await supabaseClient
+              .from("contacts")
+              .delete()
+              .eq("user_id", user_id);
+
+            if (deleteError) {
+              console.error("Error deleting existing contacts:", deleteError);
+            } else {
+              console.log("Deleted existing contacts for user:", user_id);
+            }
+
+            // Insert new contacts manually
+            const contactsToInsert = analysisResult.contacts.map((contact) => ({
+              user_id: user_id,
+              name: contact.name,
+              email: contact.email,
+              role: contact.role || null,
+              company: contact.company || null,
+              context: contact.context || null,
+              frequency: contact.frequency || 1,
+              updated_at: new Date().toISOString(),
+            }));
+
+            const { data: contactsData, error: manualContactsError } =
+              await supabaseClient.from("contacts").insert(contactsToInsert);
+
+            if (manualContactsError) {
+              console.error(
+                "Error in manual contact insertion:",
+                manualContactsError
+              );
+              console.error("Manual insertion error details:", {
+                code: manualContactsError.code,
+                message: manualContactsError.message,
+                details: manualContactsError.details,
+                hint: manualContactsError.hint,
+              });
+            } else {
+              console.log(
+                "Successfully stored contacts manually:",
+                contactsData
+              );
+            }
+          } catch (fallbackError) {
+            console.error("Fallback contact insertion failed:", fallbackError);
+          }
         } else {
-          console.log("Successfully stored contacts:", contactsData);
+          console.log(
+            "Successfully stored contacts using safe function:",
+            contactsResult
+          );
         }
       } else {
         console.log("No contacts to store");
