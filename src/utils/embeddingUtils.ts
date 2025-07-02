@@ -1,3 +1,4 @@
+
 import { pipeline } from "@huggingface/transformers";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -30,8 +31,8 @@ export const generateAndStoreEmbedding = async (data: EmbeddingData) => {
   const embeddingArray = Array.from(output.data);
   console.log("✅ Embedding generated:", embeddingArray.length, "dimensions");
 
-  // Store the vector in the embeddings table
-  const { data: insertData, error: insertError } = await supabase
+  // Store the vector in the embeddings table using any type to bypass type checking
+  const { data: insertData, error: insertError } = await (supabase as any)
     .from("embeddings")
     .insert({
       user_id: data.user_id,
@@ -74,31 +75,59 @@ export const formatGmailForEmbedding = (
   }));
 };
 
-export const formatCalendarForEmbedding = (events: any[]): EmbeddingData[] => {
+export const formatCalendarForEmbedding = (
+  events: any[],
+  user_id: string
+): EmbeddingData[] => {
   return events.map((event) => ({
-    title: `Calendar: ${event.summary || "Untitled Event"}`,
-    body: `Event: ${event.summary || "Untitled Event"}\nLocation: ${
+    user_id,
+    source_type: "calendar",
+    source_id: event.id || event.summary || "unknown",
+    content: `Event: ${event.summary || "Untitled Event"}\nLocation: ${
       event.location || "No location"
     }\nDescription: ${event.description || "No description"}`,
+    metadata: {
+      summary: event.summary,
+      location: event.location,
+      description: event.description,
+    },
   }));
 };
 
-export const formatSlackForEmbedding = (messages: any[]): EmbeddingData[] => {
+export const formatSlackForEmbedding = (
+  messages: any[],
+  user_id: string
+): EmbeddingData[] => {
   return messages.map((message) => ({
-    title: `Slack: ${
-      message.channel_name ? `#${message.channel_name}` : "Direct Message"
-    }`,
-    body: `Channel: ${message.channel_name || "Direct Message"}\nUser: ${
+    user_id,
+    source_type: "slack",
+    source_id: message.id || message.ts || "unknown",
+    content: `Channel: ${message.channel_name || "Direct Message"}\nUser: ${
       message.username || "Unknown"
     }\nMessage: ${message.text || ""}`,
+    metadata: {
+      channel_name: message.channel_name,
+      username: message.username,
+      text: message.text,
+    },
   }));
 };
 
-export const formatNotionForEmbedding = (pages: any[]): EmbeddingData[] => {
+export const formatNotionForEmbedding = (
+  pages: any[],
+  user_id: string
+): EmbeddingData[] => {
   return pages.map((page) => ({
-    title: `Notion: ${page.title || "Untitled Page"}`,
-    body: `Page: ${page.title || "Untitled Page"}\nCreated: ${
+    user_id,
+    source_type: "notion",
+    source_id: page.id,
+    content: `Page: ${page.title || "Untitled Page"}\nCreated: ${
       page.created_time
     }\nArchived: ${page.archived ? "Yes" : "No"}`,
+    metadata: {
+      title: page.title,
+      created_time: page.created_time,
+      archived: page.archived,
+    },
   }));
 };
