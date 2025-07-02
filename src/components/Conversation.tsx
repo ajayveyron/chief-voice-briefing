@@ -98,7 +98,7 @@ export function Conversation() {
 
       // Start the conversation with your agent
       await conversation.startSession({
-        agentId: "agent_01jyzste8mfkqamt8szwyjapb8", // Replace with your agent ID
+        agentId: "agent_01jz5w4tjdf6ga5ch4ve62f9xf", // Replace with your agent ID
 
         dynamicVariables: {
           system_prompt: `${CHIEF_SYSTEM_PROMPT} 
