@@ -269,8 +269,10 @@ Guidelines:
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
       );
 
+      console.log("Attempting to store preferences for user:", user_id);
+
       // Store preferences
-      const { error: prefError } = await supabaseClient
+      const { data: prefData, error: prefError } = await supabaseClient
         .from("user_preferences")
         .upsert({
           user_id: user_id,
@@ -286,11 +288,14 @@ Guidelines:
 
       if (prefError) {
         console.error("Error storing preferences:", prefError);
+      } else {
+        console.log("Successfully stored preferences:", prefData);
       }
 
       // Store contacts
+      console.log("Attempting to store", analysisResult.contacts.length, "contacts");
       for (const contact of analysisResult.contacts) {
-        const { error: contactError } = await supabaseClient
+        const { data: contactData, error: contactError } = await supabaseClient
           .from("contacts")
           .upsert({
             user_id: user_id,
@@ -304,7 +309,9 @@ Guidelines:
           });
 
         if (contactError) {
-          console.error("Error storing contact:", contactError);
+          console.error("Error storing contact:", contact.email, contactError);
+        } else {
+          console.log("Successfully stored contact:", contact.email, contactData);
         }
       }
 
