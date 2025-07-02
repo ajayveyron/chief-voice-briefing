@@ -120,7 +120,7 @@ const fetchUserData = async (user_id: string) => {
 };
 
 export function Conversation() {
-  const [userFirstName, setUserFirstName] = useState("Samantha");
+  const [userFirstName, setUserFirstName] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [userPreferences, setUserPreferences] = useState(null);
