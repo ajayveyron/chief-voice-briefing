@@ -141,7 +141,7 @@ export function Conversation() {
       if (!error && data?.first_name) {
         setUserFirstName(data.first_name);
       } else {
-        setUserFirstName("Samantha");
+        setUserFirstName("");
       }
     };
     fetchProfile();
@@ -269,8 +269,6 @@ ${userContacts
       const enhancedSystemPrompt = `${CHIEF_SYSTEM_PROMPT} 
 
 User's first name: ${userFirstName} 
-User's context: ${USER_CONTEXT} 
-User's preferences: ${USER_PREFERENCES}
 
 ${preferencesContext}
 
