@@ -270,54 +270,105 @@ Guidelines:
       );
 
       console.log("Attempting to store preferences for user:", user_id);
+      console.log(
+        "Supabase URL:",
+        Deno.env.get("SUPABASE_URL") ? "Set" : "Not set"
+      );
+      console.log(
+        "Service role key:",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ? "Set" : "Not set"
+      );
 
-      // Store preferences
+      // Store preferences - bypass RLS for service role
       const { data: prefData, error: prefError } = await supabaseClient
         .from("user_preferences")
-        .upsert({
-          user_id: user_id,
-          writing_style: analysisResult.preferences.writing_style,
-          tone: analysisResult.preferences.tone,
-          length_preference: analysisResult.preferences.length_preference,
-          formality_level: analysisResult.preferences.formality_level,
-          communication_patterns:
-            analysisResult.preferences.communication_patterns,
-          common_topics: analysisResult.preferences.common_topics,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(
+          {
+            user_id: user_id,
+            writing_style: analysisResult.preferences.writing_style,
+            tone: analysisResult.preferences.tone,
+            length_preference: analysisResult.preferences.length_preference,
+            formality_level: analysisResult.preferences.formality_level,
+            communication_patterns:
+              analysisResult.preferences.communication_patterns,
+            common_topics: analysisResult.preferences.common_topics,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "user_id",
+          }
+        );
 
       if (prefError) {
         console.error("Error storing preferences:", prefError);
+        console.error("Error details:", {
+          code: prefError.code,
+          message: prefError.message,
+          details: prefError.details,
+          hint: prefError.hint,
+        });
       } else {
         console.log("Successfully stored preferences:", prefData);
       }
 
-      // Store contacts
-      console.log("Attempting to store", analysisResult.contacts.length, "contacts");
-      for (const contact of analysisResult.contacts) {
-        const { data: contactData, error: contactError } = await supabaseClient
-          .from("contacts")
-          .upsert({
-            user_id: user_id,
-            name: contact.name,
-            email: contact.email,
-            role: contact.role,
-            company: contact.company,
-            context: contact.context,
-            frequency: contact.frequency,
-            updated_at: new Date().toISOString(),
-          });
+      // Store contacts - bypass RLS for service role
+      console.log(
+        "Attempting to store",
+        analysisResult.contacts.length,
+        "contacts"
+      );
 
-        if (contactError) {
-          console.error("Error storing contact:", contact.email, contactError);
+      // First, delete existing contacts for this user to avoid duplicates
+      const { error: deleteError } = await supabaseClient
+        .from("contacts")
+        .delete()
+        .eq("user_id", user_id);
+
+      if (deleteError) {
+        console.error("Error deleting existing contacts:", deleteError);
+      } else {
+        console.log("Deleted existing contacts for user:", user_id);
+      }
+
+      // Insert new contacts
+      if (analysisResult.contacts.length > 0) {
+        const contactsToInsert = analysisResult.contacts.map((contact) => ({
+          user_id: user_id,
+          name: contact.name,
+          email: contact.email,
+          role: contact.role || null,
+          company: contact.company || null,
+          context: contact.context || null,
+          frequency: contact.frequency || 1,
+          updated_at: new Date().toISOString(),
+        }));
+
+        const { data: contactsData, error: contactsError } =
+          await supabaseClient.from("contacts").insert(contactsToInsert);
+
+        if (contactsError) {
+          console.error("Error storing contacts:", contactsError);
+          console.error("Error details:", {
+            code: contactsError.code,
+            message: contactsError.message,
+            details: contactsError.details,
+            hint: contactsError.hint,
+          });
         } else {
-          console.log("Successfully stored contact:", contact.email, contactData);
+          console.log("Successfully stored contacts:", contactsData);
         }
+      } else {
+        console.log("No contacts to store");
       }
 
       console.log("Analysis results stored successfully");
     } catch (dbError) {
       console.error("Database error:", dbError);
+      console.error("Database error details:", {
+        name: dbError.name,
+        message: dbError.message,
+        stack: dbError.stack,
+      });
       // Continue even if database storage fails
     }
 

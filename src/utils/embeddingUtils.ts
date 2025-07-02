@@ -1,4 +1,3 @@
-
 import { pipeline } from "@huggingface/transformers";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -10,7 +9,42 @@ export interface EmbeddingData {
   metadata?: any;
 }
 
-export const generateAndStoreEmbedding = async (data: EmbeddingData) => {
+export interface EmbeddingResult {
+  user_id: string;
+  source_type: string;
+  source_id: string;
+  content: string;
+  metadata?: any;
+  embeddingDimensions: number;
+  data?: any;
+  skipped?: boolean;
+  reason?: string;
+}
+
+export const checkEmbeddingExists = async (
+  user_id: string,
+  source_type: string,
+  source_id: string
+): Promise<boolean> => {
+  const { data, error } = await supabase
+    .from("embeddings")
+    .select("id")
+    .eq("user_id", user_id)
+    .eq("source_type", source_type)
+    .eq("source_id", source_id)
+    .limit(1);
+
+  if (error) {
+    console.error("Error checking embedding existence:", error);
+    return false;
+  }
+
+  return data && data.length > 0;
+};
+
+export const generateAndStoreEmbedding = async (
+  data: EmbeddingData
+): Promise<EmbeddingResult> => {
   console.log("🔄 Initializing embedding pipeline...");
 
   // Generate embedding using Hugging Face transformers
@@ -31,19 +65,39 @@ export const generateAndStoreEmbedding = async (data: EmbeddingData) => {
   const embeddingArray = Array.from(output.data);
   console.log("✅ Embedding generated:", embeddingArray.length, "dimensions");
 
-  // Store the vector in the embeddings table using any type to bypass type checking
+  // Store the vector in the embeddings table using upsert to handle duplicates
   const { data: insertData, error: insertError } = await (supabase as any)
     .from("embeddings")
-    .insert({
-      user_id: data.user_id,
-      source_type: data.source_type,
-      source_id: data.source_id,
-      content: data.content,
-      metadata: data.metadata || {},
-      embedding: embeddingArray,
-    });
+    .upsert(
+      {
+        user_id: data.user_id,
+        source_type: data.source_type,
+        source_id: data.source_id,
+        content: data.content,
+        metadata: data.metadata || {},
+        embedding: embeddingArray,
+      },
+      {
+        onConflict: "user_id,source_type,source_id",
+      }
+    );
 
   if (insertError) {
+    // Check if it's a duplicate key error and handle gracefully
+    if (
+      insertError.code === "23505" &&
+      insertError.message.includes(
+        "duplicate key value violates unique constraint"
+      )
+    ) {
+      console.log("⚠️ Skipping duplicate email:", data.source_id);
+      return {
+        ...data,
+        embeddingDimensions: embeddingArray.length,
+        skipped: true,
+        reason: "duplicate",
+      };
+    }
     throw insertError;
   }
 

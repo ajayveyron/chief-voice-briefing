@@ -47,6 +47,10 @@ CREATE POLICY "Users can insert their own preferences" ON user_preferences
 CREATE POLICY "Users can update their own preferences" ON user_preferences
   FOR UPDATE USING (auth.uid() = user_id);
 
+-- Allow service role to bypass RLS for preferences
+CREATE POLICY "Service role can manage preferences" ON user_preferences
+  FOR ALL USING (auth.role() = 'service_role');
+
 CREATE POLICY "Users can view their own contacts" ON contacts
   FOR SELECT USING (auth.uid() = user_id);
 
@@ -54,4 +58,8 @@ CREATE POLICY "Users can insert their own contacts" ON contacts
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update their own contacts" ON contacts
-  FOR UPDATE USING (auth.uid() = user_id); 
+  FOR UPDATE USING (auth.uid() = user_id);
+
+-- Allow service role to bypass RLS for contacts
+CREATE POLICY "Service role can manage contacts" ON contacts
+  FOR ALL USING (auth.role() = 'service_role'); 

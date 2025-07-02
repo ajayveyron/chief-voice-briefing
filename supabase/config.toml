@@ -1,4 +1,3 @@
-
 project_id = "xxccvppbxnhowncdhvdi"
 
 [functions.slack-auth]
@@ -95,6 +94,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.chief-integration-cron]
+verify_jwt = false
+
+[functions.analyze-gmail]
 verify_jwt = false
 
 [functions.test-chief-cron]

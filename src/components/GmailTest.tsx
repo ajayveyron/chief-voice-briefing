@@ -17,6 +17,7 @@ import { formatDistanceToNow } from "date-fns";
 import {
   generateAndStoreEmbedding,
   formatGmailForEmbedding,
+  checkEmbeddingExists,
 } from "@/utils/embeddingUtils";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -95,50 +96,80 @@ export const GmailTest = () => {
       if (data.error) throw new Error(data.error);
 
       // Combine sent and received emails
-      const allEmails = [...(data.sent_emails || []), ...(data.received_emails || [])];
+      const allEmails = [
+        ...(data.sent_emails || []),
+        ...(data.received_emails || []),
+      ];
       setEmails(allEmails);
 
       toast({
         title: "Gmail Connection Successful",
-        description: `Fetched ${data.sent_emails?.length || 0} sent and ${data.received_emails?.length || 0} received emails.`,
+        description: `Fetched ${data.sent_emails?.length || 0} sent and ${
+          data.received_emails?.length || 0
+        } received emails.`,
       });
 
       // Automatically analyze emails first, then embed
       if (allEmails.length > 0 && user?.id) {
         try {
           // First: Analyze emails for preferences and contacts
-          await callAnalyzeGmail(data.sent_emails || [], data.received_emails || []);
+          await callAnalyzeGmail(
+            data.sent_emails || [],
+            data.received_emails || []
+          );
 
           // Then: Embed emails into vector store
+          let embeddedCount = 0;
+          let skippedCount = 0;
+
           for (const email of allEmails) {
-            await fetch(
-              "https://xxccvppbxnhowncdhvdi.functions.supabase.co/generate-embeddings",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${sessionData.session.access_token}`,
-                },
-                body: JSON.stringify({
-                  user_id: user.id,
-                  source_type: "gmail",
-                  source_id: email.id,
-                  content: `From: ${email.from}\nSubject: ${
-                    email.subject || "No Subject"
-                  }\n\n${email.snippet || email.body || ""}`,
-                  metadata: {
-                    subject: email.subject,
-                    from: email.from,
-                    date: email.date,
-                    snippet: email.snippet,
-                  },
-                }),
+            try {
+              // Check if embedding already exists
+              const exists = await checkEmbeddingExists(
+                user.id,
+                "gmail",
+                email.id
+              );
+              if (exists) {
+                console.log("⚠️ Skipping existing email:", email.id);
+                skippedCount++;
+                continue;
               }
-            );
+
+              const result = await generateAndStoreEmbedding({
+                user_id: user.id,
+                source_type: "gmail",
+                source_id: email.id,
+                content: `From: ${email.from}\nSubject: ${
+                  email.subject || "No Subject"
+                }\n\n${email.snippet || email.body || ""}`,
+                metadata: {
+                  subject: email.subject,
+                  from: email.from,
+                  date: email.date,
+                  snippet: email.snippet,
+                },
+              });
+
+              if (result.skipped) {
+                skippedCount++;
+              } else {
+                embeddedCount++;
+              }
+            } catch (error) {
+              console.error("Failed to embed email:", email.id, error);
+              // Continue with other emails even if one fails
+            }
           }
+
+          const message =
+            skippedCount > 0
+              ? `${embeddedCount} emails embedded, ${skippedCount} duplicates skipped.`
+              : `${embeddedCount} emails embedded successfully.`;
+
           toast({
-            title: "Emails Embedded Successfully",
-            description: `${allEmails.length} emails have been embedded into the vector store.`,
+            title: "Emails Processed",
+            description: message,
           });
         } catch (error) {
           const errorMessage =
@@ -186,12 +217,14 @@ export const GmailTest = () => {
   };
 
   // Call the analyze-gmail function
-  const callAnalyzeGmail = async (sentEmails: Email[], receivedEmails: Email[]) => {
+  const callAnalyzeGmail = async (
+    sentEmails: Email[],
+    receivedEmails: Email[]
+  ) => {
     if (sentEmails.length === 0 && receivedEmails.length === 0) return;
 
     setAnalysisLoading(true);
     try {
-
       // Prepare data for analysis
       const analysisData = {
         sent_emails: sentEmails.map((email) => ({
@@ -222,7 +255,11 @@ export const GmailTest = () => {
       setAnalysisResult(data);
       toast({
         title: "Analysis Complete",
-        description: `Extracted ${data.contacts.length} contacts and user preferences from ${sentEmails.length + receivedEmails.length} emails.`,
+        description: `Extracted ${
+          data.contacts.length
+        } contacts and user preferences from ${
+          sentEmails.length + receivedEmails.length
+        } emails.`,
       });
     } catch (error: unknown) {
       const errorMessage =
@@ -250,15 +287,57 @@ export const GmailTest = () => {
 
     setEmbeddingLoading(true);
     try {
-      const embeddingData = formatGmailForEmbedding(emails);
+      let embeddedCount = 0;
+      let skippedCount = 0;
 
-      for (const data of embeddingData) {
-        await generateAndStoreEmbedding(data);
+      for (const email of emails) {
+        try {
+          // Check if embedding already exists
+          const exists = await checkEmbeddingExists(
+            user?.id || "",
+            "gmail",
+            email.id
+          );
+          if (exists) {
+            console.log("⚠️ Skipping existing email:", email.id);
+            skippedCount++;
+            continue;
+          }
+
+          const result = await generateAndStoreEmbedding({
+            user_id: user?.id || "",
+            source_type: "gmail",
+            source_id: email.id,
+            content: `From: ${email.from}\nSubject: ${
+              email.subject || "No Subject"
+            }\n\n${email.snippet || email.body || ""}`,
+            metadata: {
+              subject: email.subject,
+              from: email.from,
+              date: email.date,
+              snippet: email.snippet,
+            },
+          });
+
+          if (result.skipped) {
+            skippedCount++;
+          } else {
+            embeddedCount++;
+          }
+        } catch (error) {
+          console.error("Failed to embed email:", email.id, error);
+          // Continue with other emails even if one fails
+        }
       }
 
+      const message =
+        skippedCount > 0
+          ? `${embeddedCount} emails embedded, ${skippedCount} duplicates skipped.`
+          : `${embeddedCount} emails embedded successfully.`;
+
       toast({
-        title: "Emails Embedded Successfully",
-        description: `${emails.length} emails have been embedded into the vector store.`,
+        title: "Emails Processed",
+        description: message,
       });
     } catch (error: unknown) {
       const errorMessage =
