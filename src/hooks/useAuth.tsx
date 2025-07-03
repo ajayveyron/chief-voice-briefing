@@ -6,13 +6,18 @@ import type { User } from "@supabase/supabase-js";
 // Helper to upsert profile for OAuth users
 async function upsertOAuthProfile(user: User) {
   try {
+    console.log("Creating OAuth profile for user:", user.id);
+    console.log("User metadata:", user.user_metadata);
+    
     // Extract name from user metadata
     const fullName = user.user_metadata?.full_name || user.user_metadata?.name || "";
     const nameParts = fullName.split(" ");
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || "";
 
-    const { error } = await supabase.from("profiles").upsert([
+    console.log("Extracted names:", { firstName, lastName });
+
+    const { data, error } = await supabase.from("profiles").upsert([
       {
         user_id: user.id,
         first_name: firstName,
@@ -20,8 +25,11 @@ async function upsertOAuthProfile(user: User) {
         updated_at: new Date().toISOString(),
       },
     ]);
+    
     if (error) {
       console.error("Profile upsert error:", error);
+    } else {
+      console.log("Profile created successfully:", data);
     }
   } catch (error) {
     console.error("OAuth profile creation error:", error);
