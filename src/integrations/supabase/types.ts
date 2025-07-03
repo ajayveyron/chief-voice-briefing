@@ -910,6 +910,10 @@ export type Database = {
         Args: { job_name: string; job_schedule: string; job_command: string }
         Returns: boolean
       }
+      test_db_connection: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
