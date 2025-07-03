@@ -8,8 +8,9 @@ async function upsertOAuthProfile(user: User) {
   try {
     // Extract name from user metadata
     const fullName = user.user_metadata?.full_name || user.user_metadata?.name || "";
-    const firstName = user.user_metadata?.given_name || fullName.split(" ")[0] || "";
-    const lastName = user.user_metadata?.family_name || fullName.split(" ").slice(1).join(" ") || "";
+    const nameParts = fullName.split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
 
     const { error } = await supabase.from("profiles").upsert([
       {
