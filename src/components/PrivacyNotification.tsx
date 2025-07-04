@@ -289,7 +289,7 @@ const PrivacyNotification: React.FC<PrivacyNotificationProps> = ({
           })}
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
           <Button
             onClick={handleViewPrivacyPolicy}
             variant="outline"
@@ -306,7 +306,7 @@ const PrivacyNotification: React.FC<PrivacyNotificationProps> = ({
             className="flex-1"
           >
             <ExternalLink className="h-4 w-4 mr-2" />
-            Terms & Conditions
+            Terms
           </Button>
           <Button
             onClick={handleDismiss}
