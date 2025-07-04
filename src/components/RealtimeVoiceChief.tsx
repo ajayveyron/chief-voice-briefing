@@ -17,7 +17,7 @@ const RealtimeVoiceChief = () => {
   const [callDuration, setCallDuration] = useState(0);
   const [isCallActive, setIsCallActive] = useState(false);
   const [showCaptions, setShowCaptions] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
 
   const {
     connectionState,
@@ -25,7 +25,15 @@ const RealtimeVoiceChief = () => {
     currentTranscript,
     connect,
     disconnect,
+    startRecording,
+    stopRecording,
+    sendTextMessage,
   } = useRealtimeVoiceChief();
+
+  // Sync recording state with conversation state
+  useEffect(() => {
+    setIsRecording(conversationState === "listening");
+  }, [conversationState]);
 
   // Timer effect for call duration
   useEffect(() => {
@@ -53,6 +61,35 @@ const RealtimeVoiceChief = () => {
     } else {
       connect();
       setIsCallActive(true);
+    }
+  };
+
+  const handleMicrophonePress = () => {
+    if (connectionState === "connected" && !isRecording) {
+      startRecording();
+    }
+  };
+
+  const handleMicrophoneRelease = () => {
+    if (connectionState === "connected" && isRecording) {
+      stopRecording();
+    }
+  };
+
+  const getStatusText = () => {
+    if (connectionState === "disconnected") return "Tap to start conversation with Chief";
+    if (connectionState === "connecting") return "Connecting to Chief...";
+    if (connectionState === "error") return "Connection error - tap to retry";
+    
+    switch (conversationState) {
+      case "listening":
+        return "Chief is listening...";
+      case "speaking":
+        return "Chief is speaking...";
+      case "thinking":
+        return "Chief is thinking...";
+      default:
+        return "Hold microphone to speak";
     }
   };
 
@@ -91,8 +128,14 @@ const RealtimeVoiceChief = () => {
                 🤖
               </AvatarFallback>
             </Avatar>
-            {connectionState === "connected" && (
+            {connectionState === "connected" && conversationState === "listening" && (
+              <div className="absolute inset-0 rounded-full border-4 border-red-400 animate-pulse" />
+            )}
+            {connectionState === "connected" && conversationState === "speaking" && (
               <div className="absolute inset-0 rounded-full border-4 border-blue-400 animate-pulse" />
+            )}
+            {connectionState === "connected" && conversationState === "thinking" && (
+              <div className="absolute inset-0 rounded-full border-4 border-yellow-400 animate-pulse" />
             )}
           </div>
 
@@ -100,10 +143,15 @@ const RealtimeVoiceChief = () => {
             <div className="text-4xl font-light text-white mb-2">
               {formatTime(callDuration)}
             </div>
-            {connectionState === "connected" && currentTranscript && (
-              <div className="text-center px-6">
-                <p className="text-white/80 text-sm">
-                  This is an example of live captions during the call.
+            <div className="text-center px-6 min-h-[60px] flex items-center justify-center">
+              <p className="text-white/80 text-sm">
+                {getStatusText()}
+              </p>
+            </div>
+            {currentTranscript && (
+              <div className="text-center px-6 mt-4">
+                <p className="text-white text-base bg-black/20 rounded-lg p-3">
+                  "{currentTranscript}"
                 </p>
               </div>
             )}
@@ -136,10 +184,17 @@ const RealtimeVoiceChief = () => {
               <Button
                 variant="outline"
                 size="lg"
-                className="w-14 h-14 rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20"
-                onClick={() => setIsMuted(!isMuted)}
+                className={`w-14 h-14 rounded-full border-white/20 text-white transition-colors ${
+                  isRecording 
+                    ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                    : 'bg-white/10 hover:bg-white/20'
+                }`}
+                onMouseDown={handleMicrophonePress}
+                onMouseUp={handleMicrophoneRelease}
+                onTouchStart={handleMicrophonePress}
+                onTouchEnd={handleMicrophoneRelease}
               >
-                {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                {isRecording ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
               </Button>
               
               <Button
