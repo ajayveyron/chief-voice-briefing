@@ -1,104 +1,80 @@
-import React, { useState, useEffect } from "react";
-import {
-  Phone,
-  PhoneOff,
-  Mic,
-  MicOff,
-  Volume2,
-} from "lucide-react";
+import React, { useState, useCallback } from "react";
+import { Phone, PhoneOff, Mic, MicOff, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useRealtimeVoiceChief } from "@/hooks/useRealtimeVoiceChief";
+import { useChiefConversation } from "@/hooks/useChiefConversation";
+import { useCallTimer } from "@/hooks/useCallTimer";
+import { ChiefLoadingIndicators } from "@/components/ChiefLoadingIndicators";
 import { useAuth } from "@/hooks/useAuth";
-
 
 const RealtimeVoiceChief = () => {
   const { user } = useAuth();
-  const [callDuration, setCallDuration] = useState(0);
-  const [isCallActive, setIsCallActive] = useState(false);
   const [showCaptions, setShowCaptions] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
 
   const {
-    connectionState,
-    conversationState,
-    currentTranscript,
-    connect,
-    disconnect,
-    startRecording,
-    stopRecording,
-    sendTextMessage,
-  } = useRealtimeVoiceChief();
+    conversation,
+    userFirstName,
+    userPreferences,
+    userContacts,
+    availableTools,
+    isLoadingUserData,
+    isLoadingTools,
+    startConversation,
+    stopConversation,
+    isReady,
+  } = useChiefConversation();
 
-  // Sync recording state with conversation state
-  useEffect(() => {
-    setIsRecording(conversationState === "listening");
-  }, [conversationState]);
+  const {
+    callDuration,
+    isCallActive,
+    setIsCallActive,
+    formatTime,
+    resetTimer,
+  } = useCallTimer();
 
-  // Timer effect for call duration
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isCallActive) {
-      interval = setInterval(() => {
-        setCallDuration(prev => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isCallActive]);
-
-  // Format timer display
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleCallAction = () => {
-    if (connectionState === "connected") {
-      disconnect();
+  const handleCallAction = useCallback(async () => {
+    if (conversation.status === "connected") {
+      await stopConversation();
       setIsCallActive(false);
-      setCallDuration(0);
+      resetTimer();
     } else {
-      connect();
+      await startConversation();
       setIsCallActive(true);
+      resetTimer();
     }
-  };
-
-  const handleMicrophonePress = () => {
-    if (connectionState === "connected" && !isRecording) {
-      startRecording();
-    }
-  };
-
-  const handleMicrophoneRelease = () => {
-    if (connectionState === "connected" && isRecording) {
-      stopRecording();
-    }
-  };
+  }, [
+    conversation.status,
+    startConversation,
+    stopConversation,
+    setIsCallActive,
+    resetTimer,
+  ]);
 
   const getStatusText = () => {
-    if (connectionState === "disconnected") return "Tap to start conversation with Chief";
-    if (connectionState === "connecting") return "Connecting to Chief...";
-    if (connectionState === "error") return "Connection error - tap to retry";
-    
-    switch (conversationState) {
-      case "listening":
-        return "Chief is listening...";
+    if (conversation.status === "disconnected")
+      return "Tap to start conversation with Chief";
+    if (conversation.status === "connecting") return "Connecting to Chief...";
+
+    switch (conversation.isSpeaking ? "speaking" : "listening") {
       case "speaking":
         return "Chief is speaking...";
-      case "thinking":
-        return "Chief is thinking...";
+      case "listening":
+        return "Chief is listening...";
       default:
-        return "Hold microphone to speak";
+        return "Conversation active";
     }
   };
 
-  const userName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
+  const userName =
+    userFirstName ||
+    user?.user_metadata?.full_name?.split(" ")[0] ||
+    user?.email?.split("@")[0] ||
+    "User";
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
+    <div className="w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden h-full flex flex-col">
       {/* Starfield background */}
-      <div className="absolute inset-0 opacity-30">
+      <div className="absolute inset-0 opacity-30 w-full h-full">
         {[...Array(50)].map((_, i) => (
           <div
             key={i}
@@ -112,7 +88,7 @@ const RealtimeVoiceChief = () => {
         ))}
       </div>
 
-      <div className="relative z-10 flex flex-col h-screen p-6">
+      <div className="relative z-10 flex flex-col h-full p-6">
         {/* Header */}
         <div className="text-center pt-8 mb-16">
           <h1 className="text-2xl font-medium text-white">
@@ -128,46 +104,51 @@ const RealtimeVoiceChief = () => {
                 🤖
               </AvatarFallback>
             </Avatar>
-            {connectionState === "connected" && conversationState === "listening" && (
-              <div className="absolute inset-0 rounded-full border-4 border-red-400 animate-pulse" />
-            )}
-            {connectionState === "connected" && conversationState === "speaking" && (
+            {conversation.status === "connected" &&
+              !conversation.isSpeaking && (
+                <div className="absolute inset-0 rounded-full border-4 border-red-400 animate-pulse" />
+              )}
+            {conversation.status === "connected" && conversation.isSpeaking && (
               <div className="absolute inset-0 rounded-full border-4 border-blue-400 animate-pulse" />
             )}
-            {connectionState === "connected" && conversationState === "thinking" && (
+            {conversation.status === "connecting" && (
               <div className="absolute inset-0 rounded-full border-4 border-yellow-400 animate-pulse" />
             )}
           </div>
 
           <div className="text-center">
-            <div className="text-4xl font-light text-white mb-2">
-              {formatTime(callDuration)}
-            </div>
-            <div className="text-center px-6 min-h-[60px] flex items-center justify-center">
-              <p className="text-white/80 text-sm">
-                {getStatusText()}
-              </p>
-            </div>
-            {currentTranscript && (
-              <div className="text-center px-6 mt-4">
-                <p className="text-white text-base bg-black/20 rounded-lg p-3">
-                  "{currentTranscript}"
-                </p>
+            {conversation.status !== "disconnected" && (
+              <div className="text-4xl font-light text-white mb-2">
+                {formatTime(callDuration)}
               </div>
             )}
+            {/* <div className="text-center px-6 min-h-[60px] flex items-center justify-center">
+              <p className="text-white/80 text-sm">{getStatusText()}</p>
+            </div> */}
           </div>
         </div>
 
+        {/* Loading indicators */}
+        <ChiefLoadingIndicators
+          isLoadingUserData={isLoadingUserData}
+          isLoadingTools={isLoadingTools}
+          userPreferences={userPreferences}
+          userContacts={userContacts}
+          availableTools={availableTools}
+          className="mb-4"
+        />
+
         {/* Bottom Controls */}
         <div className="pb-20">
-          {connectionState === "disconnected" ? (
+          {conversation.status === "disconnected" ? (
             // Call button when disconnected
             <Button
               onClick={handleCallAction}
-              className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-medium rounded-full mb-4"
+              disabled={!isReady}
+              className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-medium rounded-full mb-4 disabled:bg-gray-600"
             >
               <Phone className="w-6 h-6 mr-3" />
-              Call Chief
+              {!isReady ? "Loading..." : "Call Chief"}
             </Button>
           ) : (
             // In-call controls
@@ -180,23 +161,7 @@ const RealtimeVoiceChief = () => {
               >
                 CC
               </Button>
-              
-              <Button
-                variant="outline"
-                size="lg"
-                className={`w-14 h-14 rounded-full border-white/20 text-white transition-colors ${
-                  isRecording 
-                    ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
-                    : 'bg-white/10 hover:bg-white/20'
-                }`}
-                onMouseDown={handleMicrophonePress}
-                onMouseUp={handleMicrophoneRelease}
-                onTouchStart={handleMicrophonePress}
-                onTouchEnd={handleMicrophoneRelease}
-              >
-                {isRecording ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-              </Button>
-              
+
               <Button
                 variant="outline"
                 size="lg"
@@ -204,7 +169,7 @@ const RealtimeVoiceChief = () => {
               >
                 <Volume2 className="w-6 h-6" />
               </Button>
-              
+
               <Button
                 onClick={handleCallAction}
                 size="lg"

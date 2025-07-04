@@ -160,7 +160,7 @@ const SettingsPage = () => {
 
   // Modern UI Layout
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-[#0f2027] via-[#2c5364] to-[#232526] p-4">
+    <div className="flex flex-col h-full w-full bg-gradient-to-br from-[#0f2027] via-[#2c5364] to-[#232526] p-4">
       <Card className="w-full max-w-lg bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 flex flex-col items-center p-0">
         {/* Header */}
         <div className="flex flex-col items-center pt-8 pb-4">
@@ -199,7 +199,7 @@ const SettingsPage = () => {
                   variant="destructive"
                   className="flex items-center gap-2"
                 >
-                  <LogOut className="h-4 w-4" /> Sign Out
+                  <LogOut className="w-4 h-4 mr-1" /> Sign Out
                 </Button>
               </div>
             </div>
