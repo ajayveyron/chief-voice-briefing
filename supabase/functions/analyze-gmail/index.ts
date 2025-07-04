@@ -50,9 +50,31 @@ serve(async (req) => {
   }
 
   try {
-    const { emails, user_id } = await req.json();
+    // Get user from auth header
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        global: {
+          headers: { Authorization: req.headers.get("Authorization")! },
+        },
+      }
+    );
 
-    if (!emails || !user_id) {
+    const {
+      data: { user },
+    } = await supabaseClient.auth.getUser();
+    
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { emails } = await req.json();
+
+    if (!emails) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         {
@@ -62,10 +84,12 @@ serve(async (req) => {
       );
     }
 
+    const userEmail = user.email;
+
     // Extract user replies from received emails and add them to sent emails
     const extractedReplies = emails.received_emails.flatMap((email) => {
       const matches = email.body?.match(
-        /On .*?Ajay Pawriya <ajayveyron9@gmail\.com> wrote:\s*>((.|\n)*?)(\n>|\n--|\nOn|\n$)/
+        new RegExp(`On .*?<${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}> wrote:\\s*>((.|\\n)*?)(\\n>|\\n--|\\nOn|\\n$)`)
       );
       if (matches) {
         return [
@@ -74,7 +98,7 @@ serve(async (req) => {
             snippet: email.snippet,
             body: matches[1].replace(/^> ?/gm, "").trim(),
             date: email.date,
-            from: "ajayveyron9@gmail.com",
+            from: userEmail,
           },
         ];
       }
@@ -92,7 +116,7 @@ SENT EMAILS (analyze for user preferences when sending or replying to emails - w
 ${allSentEmails
   .map(
     (email) => `
-From: ajayveyron9@gmail.com
+From: ${userEmail}
 Subject: ${email.subject}
 Snippet: ${email.snippet}
 Body: ${email.body || ""}
@@ -139,7 +163,7 @@ IMPORTANT: You MUST return a valid JSON object with EXACTLY this structure:
 
 Guidelines:
 - For preferences: Focus on sent emails to understand the user's communication style. Some replies from the user may be present within the body of received emails (quoted format). Please extract user replies if you see blocks like:
-Example: "On [date], Ajay Pawriya <ajayveyron9@gmail.com> wrote:" Use those sections as part of SENT EMAILS for inferring preferences.
+Example: "On [date], User <${userEmail}> wrote:" Use those sections as part of SENT EMAILS for inferring preferences.
 - For contacts: Analyze all emails to identify *only real human contacts*
 - Ignore automated, system, support, notification, marketing, noreply, or platform addresses
 - Prioritize people the user has exchanged multiple messages with or who show signs of ongoing interaction
@@ -325,7 +349,7 @@ Example: "On [date], Ajay Pawriya <ajayveyron9@gmail.com> wrote:" Use those sect
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
       );
 
-      console.log("Attempting to store preferences for user:", user_id);
+      console.log("Attempting to store preferences for user:", user.id);
       console.log(
         "Supabase URL:",
         Deno.env.get("SUPABASE_URL") ? "Set" : "Not set"
@@ -355,7 +379,7 @@ Example: "On [date], Ajay Pawriya <ajayveyron9@gmail.com> wrote:" Use those sect
         .from("user_preferences")
         .upsert(
           {
-            user_id: user_id,
+            user_id: user.id,
             writing_style: analysisResult.preferences.writing_style,
             tone: analysisResult.preferences.tone,
             length_preference: analysisResult.preferences.length_preference,
@@ -399,7 +423,7 @@ Example: "On [date], Ajay Pawriya <ajayveyron9@gmail.com> wrote:" Use those sect
         // Use the safer database function for inserting contacts
         const { data: contactsResult, error: contactsError } =
           await supabaseClient.rpc("insert_contacts_safe", {
-            p_user_id: user_id,
+            p_user_id: user.id,
             p_contacts: analysisResult.contacts,
           });
 
@@ -419,17 +443,17 @@ Example: "On [date], Ajay Pawriya <ajayveyron9@gmail.com> wrote:" Use those sect
             const { error: deleteError } = await supabaseClient
               .from("contacts")
               .delete()
-              .eq("user_id", user_id);
+              .eq("user_id", user.id);
 
             if (deleteError) {
               console.error("Error deleting existing contacts:", deleteError);
             } else {
-              console.log("Deleted existing contacts for user:", user_id);
+              console.log("Deleted existing contacts for user:", user.id);
             }
 
             // Insert new contacts manually
             const contactsToInsert = analysisResult.contacts.map((contact) => ({
-              user_id: user_id,
+              user_id: user.id,
               name: contact.name,
               email: contact.email,
               role: contact.role || null,
