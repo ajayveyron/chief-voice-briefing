@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Phone, PhoneOff, Mic, MicOff, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -6,10 +6,12 @@ import { useChiefConversation } from "@/hooks/useChiefConversation";
 import { useCallTimer } from "@/hooks/useCallTimer";
 import { ChiefLoadingIndicators } from "@/components/ChiefLoadingIndicators";
 import { useAuth } from "@/hooks/useAuth";
+import { SoundEffects } from "@/utils/soundEffects";
 
 const RealtimeVoiceChief = () => {
   const { user } = useAuth();
   const [showCaptions, setShowCaptions] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   const {
     conversation,
@@ -34,10 +36,14 @@ const RealtimeVoiceChief = () => {
 
   const handleCallAction = useCallback(async () => {
     if (conversation.status === "connected") {
+      // Play call end sound
+      await SoundEffects.playCallEnd();
       await stopConversation();
       setIsCallActive(false);
       resetTimer();
     } else {
+      // Play call start sound
+      await SoundEffects.playCallStart();
       await startConversation();
       setIsCallActive(true);
       resetTimer();
@@ -71,6 +77,39 @@ const RealtimeVoiceChief = () => {
     user?.email?.split("@")[0] ||
     "User";
 
+  // Track previous status for sound effects
+  const previousStatusRef = useRef(conversation.status);
+
+  // Initialize sound effects on component mount
+  useEffect(() => {
+    SoundEffects.initialize();
+  }, []);
+
+  // Play sound effects for status changes
+  useEffect(() => {
+    const previousStatus = previousStatusRef.current;
+    const currentStatus = conversation.status;
+
+    // Only play sounds when status actually changes
+    if (previousStatus !== currentStatus) {
+      if (currentStatus === "connecting") {
+        SoundEffects.playConnection();
+      } else if (
+        currentStatus === "connected" &&
+        previousStatus === "connecting"
+      ) {
+        SoundEffects.playSuccess();
+      } else if (
+        currentStatus === "disconnected" &&
+        previousStatus === "connected"
+      ) {
+        SoundEffects.playDisconnect();
+      }
+    }
+
+    previousStatusRef.current = currentStatus;
+  }, [conversation.status]);
+
   return (
     <div className="w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden h-full flex flex-col">
       {/* Starfield background */}
@@ -94,6 +133,22 @@ const RealtimeVoiceChief = () => {
           <h1 className="text-2xl font-medium text-white">
             {userName}'s Chief
           </h1>
+          <div className="flex items-center justify-center mt-2">
+            <div className="flex space-x-1">
+              {[...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className="w-1 h-1 bg-white/60 rounded-full animate-pulse"
+                  style={{
+                    animationDelay: `${i * 0.1}s`,
+                  }}
+                />
+              ))}
+            </div>
+            <span className="text-xs text-white/60 ml-2">
+              Sound Effects Enabled
+            </span>
+          </div>
         </div>
 
         {/* Central Avatar and Timer */}
@@ -142,7 +197,13 @@ const RealtimeVoiceChief = () => {
           {conversation.status === "disconnected" ? (
             // Call button when disconnected
             <Button
-              onClick={handleCallAction}
+              onClick={async () => {
+                if (!isReady) {
+                  await SoundEffects.playError();
+                  return;
+                }
+                await handleCallAction();
+              }}
               disabled={!isReady}
               className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-medium rounded-full mb-4 disabled:bg-gray-600"
             >
@@ -156,7 +217,10 @@ const RealtimeVoiceChief = () => {
                 variant="outline"
                 size="lg"
                 className="w-14 h-14 rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20"
-                onClick={() => setShowCaptions(!showCaptions)}
+                onClick={async () => {
+                  await SoundEffects.playCaptionToggle();
+                  setShowCaptions(!showCaptions);
+                }}
               >
                 CC
               </Button>
@@ -165,6 +229,25 @@ const RealtimeVoiceChief = () => {
                 variant="outline"
                 size="lg"
                 className="w-14 h-14 rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+                onClick={async () => {
+                  await SoundEffects.playMuteToggle();
+                  setIsMuted(!isMuted);
+                }}
+              >
+                {isMuted ? (
+                  <MicOff className="w-6 h-6" />
+                ) : (
+                  <Mic className="w-6 h-6" />
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-14 h-14 rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+                onClick={async () => {
+                  await SoundEffects.playVolumeChange();
+                }}
               >
                 <Volume2 className="w-6 h-6" />
               </Button>
