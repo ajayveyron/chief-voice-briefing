@@ -6,6 +6,7 @@ import { useChiefConversation } from "@/hooks/useChiefConversation";
 import { useCallTimer } from "@/hooks/useCallTimer";
 import { ChiefLoadingIndicators } from "@/components/ChiefLoadingIndicators";
 import { useAuth } from "@/hooks/useAuth";
+import { Conversation } from "@/components/Conversation";
 
 const RealtimeVoiceChief = () => {
   const { user } = useAuth();
@@ -137,7 +138,7 @@ const RealtimeVoiceChief = () => {
           availableTools={availableTools}
           className="mb-4"
         />
-
+        <Conversation />
         {/* Bottom Controls */}
         <div className="pb-20">
           {conversation.status === "disconnected" ? (
