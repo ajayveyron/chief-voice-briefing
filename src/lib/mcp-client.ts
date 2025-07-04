@@ -4,6 +4,7 @@ import {
   MCPToolResult,
   MCPConfigManager,
 } from "./mcp-config";
+import { supabase } from "@/integrations/supabase/client";
 
 export class MCPClient {
   private configManager: MCPConfigManager;
@@ -13,7 +14,22 @@ export class MCPClient {
   }
 
   /**
-   * Discover and fetch tools from all enabled MCP servers
+   * Get the current user's JWT token
+   */
+  private async getUserToken(): Promise<string | null> {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      return session?.access_token || null;
+    } catch (error) {
+      console.error("Failed to get user token:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Discover all tools from all enabled servers
    */
   async discoverAllTools(): Promise<MCPTool[]> {
     const enabledServers = this.configManager.getEnabledServers();
@@ -21,24 +37,14 @@ export class MCPClient {
 
     for (const server of enabledServers) {
       try {
-        console.log(`🔍 Discovering tools from ${server.name}...`);
         const tools = await this.discoverToolsFromServer(server);
-
-        // Add server ID to each tool
-        const toolsWithServerId = tools.map((tool) => ({
-          ...tool,
-          serverId: server.id,
-        }));
-
-        this.configManager.setTools(server.id, toolsWithServerId);
-        allTools.push(...toolsWithServerId);
-
-        console.log(`✅ Found ${tools.length} tools from ${server.name}`);
+        tools.forEach((tool) => {
+          tool.serverId = server.id;
+        });
+        allTools.push(...tools);
+        this.configManager.setTools(server.id, tools);
       } catch (error) {
-        console.error(
-          `❌ Failed to discover tools from ${server.name}:`,
-          error
-        );
+        console.error(`Failed to discover tools from ${server.name}:`, error);
       }
     }
 
@@ -46,30 +52,22 @@ export class MCPClient {
   }
 
   /**
-   * Discover tools from a specific MCP server
+   * Discover tools from a specific MCP server (GET to root)
    */
   async discoverToolsFromServer(server: MCPServerConfig): Promise<MCPTool[]> {
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-
-      // Add authentication if configured
-      if (server.auth) {
-        switch (server.auth.type) {
-          case "bearer":
-            headers["Authorization"] = `Bearer ${server.auth.value}`;
-            break;
-          case "api_key":
-            headers["X-API-Key"] = server.auth.value || "";
-            break;
-          case "basic":
-            headers["Authorization"] = `Basic ${server.auth.value}`;
-            break;
-        }
+      const userToken = await this.getUserToken();
+      if (!userToken) {
+        throw new Error("User not authenticated");
       }
 
-      const response = await fetch(`${server.url}/tools`, {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${userToken}`,
+      };
+
+      // GET to root for tool discovery
+      const response = await fetch(`${server.url}`, {
         method: "GET",
         headers,
       });
@@ -87,7 +85,7 @@ export class MCPClient {
   }
 
   /**
-   * Execute a tool on a specific MCP server
+   * Execute a tool on a specific MCP server (POST to root)
    */
   async executeTool(
     serverId: string,
@@ -105,29 +103,26 @@ export class MCPClient {
     }
 
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-
-      // Add authentication if configured
-      if (server.auth) {
-        switch (server.auth.type) {
-          case "bearer":
-            headers["Authorization"] = `Bearer ${server.auth.value}`;
-            break;
-          case "api_key":
-            headers["X-API-Key"] = server.auth.value || "";
-            break;
-          case "basic":
-            headers["Authorization"] = `Basic ${server.auth.value}`;
-            break;
-        }
+      const userToken = await this.getUserToken();
+      if (!userToken) {
+        return {
+          success: false,
+          error: "User not authenticated",
+          serverId,
+          toolName,
+        };
       }
 
-      const response = await fetch(`${server.url}/tools/${toolName}`, {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${userToken}`,
+      };
+
+      // POST to root for tool execution
+      const response = await fetch(`${server.url}`, {
         method: "POST",
         headers,
-        body: JSON.stringify(parameters),
+        body: JSON.stringify({ tool: toolName, parameters }),
       });
 
       if (!response.ok) {
@@ -243,36 +238,28 @@ export class MCPClient {
   }
 
   /**
-   * Test connection to an MCP server
+   * Test connection to an MCP server (GET to root)
    */
   async testServerConnection(server: MCPServerConfig): Promise<boolean> {
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-
-      if (server.auth) {
-        switch (server.auth.type) {
-          case "bearer":
-            headers["Authorization"] = `Bearer ${server.auth.value}`;
-            break;
-          case "api_key":
-            headers["X-API-Key"] = server.auth.value || "";
-            break;
-          case "basic":
-            headers["Authorization"] = `Basic ${server.auth.value}`;
-            break;
-        }
+      const userToken = await this.getUserToken();
+      if (!userToken) {
+        return false;
       }
 
-      const response = await fetch(`${server.url}/health`, {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${userToken}`,
+      };
+
+      // GET to root for health check
+      const response = await fetch(`${server.url}`, {
         method: "GET",
         headers,
       });
 
       return response.ok;
     } catch (error) {
-      console.error(`Failed to test connection to ${server.name}:`, error);
       return false;
     }
   }

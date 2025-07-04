@@ -64,7 +64,7 @@ serve(async (req) => {
     const {
       data: { user },
     } = await supabaseClient.auth.getUser();
-    
+
     if (!user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -89,7 +89,12 @@ serve(async (req) => {
     // Extract user replies from received emails and add them to sent emails
     const extractedReplies = emails.received_emails.flatMap((email) => {
       const matches = email.body?.match(
-        new RegExp(`On .*?<${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}> wrote:\\s*>((.|\\n)*?)(\\n>|\\n--|\\nOn|\\n$)`)
+        new RegExp(
+          `On .*?<${userEmail.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          )}> wrote:\\s*>((.|\\n)*?)(\\n>|\\n--|\\nOn|\\n$)`
+        )
       );
       if (matches) {
         return [
@@ -181,7 +186,6 @@ Example: "On [date], User <${userEmail}> wrote:" Use those sections as part of S
     if (!openaiApiKey) {
       throw new Error("OpenAI API key not found in environment variables");
     }
-
     console.log("OpenAI API Key length:", openaiApiKey.length);
     console.log(
       "OpenAI API Key starts with:",

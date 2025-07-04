@@ -70,11 +70,133 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
   const [availableTools, setAvailableTools] = useState<MCPTool[]>([]);
   const [isLoadingTools, setIsLoadingTools] = useState(false);
 
+  // Create client tools for MCP tool execution
+  const createClientTools = useCallback(() => {
+    const clientTools: Record<string, (params: any) => Promise<any>> = {};
+
+    console.log(
+      "🔧 Creating client tools for",
+      availableTools.length,
+      "MCP tools:",
+      availableTools.map((t) => t.name)
+    );
+
+    availableTools.forEach((tool) => {
+      clientTools[tool.name] = async (params: any) => {
+        console.log(`🚀 CLIENT TOOL CALLED: ${tool.name}`);
+        console.log(`📋 Parameters received:`, params);
+        console.log(`⏰ Timestamp:`, new Date().toISOString());
+
+        try {
+          // Find the server that has this tool
+          const allServers = mcpClient["configManager"].getServers();
+          console.log(
+            `🔍 Looking for tool ${tool.name} in ${allServers.length} servers`
+          );
+
+          const serverWithTool = allServers.find((server) =>
+            mcpClient["configManager"]
+              .getToolsByServer(server.id)
+              .some((t) => t.name === tool.name)
+          );
+
+          if (!serverWithTool) {
+            console.error(`❌ No server found for tool: ${tool.name}`);
+            throw new Error(`No server found for tool: ${tool.name}`);
+          }
+
+          console.log(
+            `✅ Found tool ${tool.name} on server: ${serverWithTool.name} (${serverWithTool.id})`
+          );
+          console.log(`🔧 Executing MCP tool via client:`, {
+            serverId: serverWithTool.id,
+            toolName: tool.name,
+            parameters: params,
+          });
+
+          // Execute the tool using MCP client
+          const result = await mcpClient.executeTool(
+            serverWithTool.id,
+            tool.name,
+            params
+          );
+
+          console.log(`📤 MCP tool execution result:`, result);
+
+          if (result.success) {
+            console.log(`✅ Tool ${tool.name} executed successfully`);
+            console.log(`📊 Result data:`, result.result);
+
+            const response = {
+              success: true,
+              data: result.result,
+              message: `Successfully executed ${tool.name}`,
+              timestamp: new Date().toISOString(),
+            };
+
+            console.log(`📤 Returning to ElevenLabs:`, response);
+            return response;
+          } else {
+            console.error(`❌ Tool ${tool.name} failed:`, result.error);
+
+            const errorResponse = {
+              success: false,
+              error: result.error,
+              message: `Failed to execute ${tool.name}: ${result.error}`,
+              timestamp: new Date().toISOString(),
+            };
+
+            console.log(`📤 Returning error to ElevenLabs:`, errorResponse);
+            return errorResponse;
+          }
+        } catch (error) {
+          console.error(`💥 Exception in tool ${tool.name}:`, error);
+          console.error(
+            `📚 Error stack:`,
+            error instanceof Error ? error.stack : "No stack trace"
+          );
+
+          const exceptionResponse = {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+            message: `Error executing ${tool.name}`,
+            timestamp: new Date().toISOString(),
+          };
+
+          console.log(
+            `📤 Returning exception to ElevenLabs:`,
+            exceptionResponse
+          );
+          return exceptionResponse;
+        }
+      };
+    });
+
+    console.log(
+      `✅ Created ${Object.keys(clientTools).length} client tools:`,
+      Object.keys(clientTools)
+    );
+    return clientTools;
+  }, [availableTools]);
+
   const conversation = useConversation({
-    onConnect: () => console.log("Connected to ElevenLabs"),
-    onDisconnect: () => console.log("Disconnected from ElevenLabs"),
-    onMessage: (message) => console.log("Message:", message),
-    onError: (error) => console.error("Error:", error),
+    onConnect: () => {
+      console.log("🔗 Connected to ElevenLabs");
+      console.log(
+        "🛠️ Available tools at connection:",
+        availableTools.map((t) => t.name)
+      );
+    },
+    onDisconnect: () => {
+      console.log("🔌 Disconnected from ElevenLabs");
+    },
+    onMessage: (message) => {
+      console.log("📨 ElevenLabs message:", message);
+    },
+    onError: (error) => {
+      console.error("🚨 ElevenLabs error:", error);
+    },
+    clientTools: createClientTools(),
   });
 
   // Load user profile
@@ -134,17 +256,27 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
 
   const startConversation = useCallback(async () => {
     if (conversation.status === "connected") {
-      console.warn("Conversation already connected.");
+      console.warn("⚠️ Conversation already connected.");
       return;
     }
 
     try {
+      console.log("🚀 Starting conversation...");
+      console.log("👤 User first name:", userFirstName);
+      console.log(
+        "🛠️ Available tools:",
+        availableTools.length,
+        availableTools.map((t) => t.name)
+      );
+
       setIsLoadingUserData(true);
 
       // Format context using utility functions
       const preferencesContext = formatUserPreferencesContext(userPreferences);
       const contactsContext = formatContactsContext(userContacts);
       const toolsDescription = formatToolsDescription(availableTools);
+
+      console.log("📝 Tools description being sent:", toolsDescription);
 
       // Build enhanced system prompt
       const enhancedSystemPrompt = buildEnhancedSystemPrompt(
@@ -155,6 +287,15 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
         toolsDescription
       );
 
+      console.log(
+        "🎯 Enhanced system prompt (first 500 chars):",
+        enhancedSystemPrompt.substring(0, 500) + "..."
+      );
+      console.log(
+        "🔧 Client tools being registered:",
+        Object.keys(createClientTools())
+      );
+
       // Start the conversation with your agent
       await conversation.startSession({
         agentId: ELEVENLABS_AGENT_ID,
@@ -162,8 +303,14 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
           system_prompt: enhancedSystemPrompt,
         },
       });
+
+      console.log("✅ Conversation session started successfully");
     } catch (error) {
-      console.error("Failed to start conversation:", error);
+      console.error("❌ Failed to start conversation:", error);
+      console.error(
+        "📚 Error details:",
+        error instanceof Error ? error.stack : "No stack trace"
+      );
     } finally {
       setIsLoadingUserData(false);
     }
@@ -173,6 +320,7 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
     userPreferences,
     userContacts,
     availableTools,
+    createClientTools,
   ]);
 
   const stopConversation = useCallback(async () => {

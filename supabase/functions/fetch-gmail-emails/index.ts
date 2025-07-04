@@ -98,25 +98,27 @@ serve(async (req) => {
     await refreshTokenIfExpired();
 
     // Step 1: Calculate the timestamp for 7 days ago (in seconds)
-const now = Math.floor(Date.now() / 1000);
-const sevenDaysAgo = now - 7 * 24 * 60 * 60;
+    const now = Math.floor(Date.now() / 1000);
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60;
 
-// Step 2: Update the Gmail search query to include emails after this timestamp
-const sentQuery = `in:sent after:${sevenDaysAgo} -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums}`;
+    // Step 2: Update the Gmail search query to include emails after this timestamp
+    const sentQuery = `in:sent after:${sevenDaysAgo} -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums}`;
 
-// Step 3: Use the updated query in your fetch call
-const sentResponse = await fetch(
-  `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(sentQuery)}`,
-  {
-    headers: {
-      Authorization: `Bearer ${integration.access_token}`,
-      "Content-Type": "application/json",
-    },
-  }
-);
+    // Step 3: Use the updated query in your fetch call
+    const sentResponse = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(
+        sentQuery
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${integration.access_token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-    // Fetch received emails  
-    const inboxQuery = 'in:inbox after:${sevenDaysAgo} -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums} -from:(noreply@* OR no-reply@*)';
+    // Fetch received emails
+    const inboxQuery = `in:inbox after:${sevenDaysAgo} -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums} -from:(noreply@* OR no-reply@*)`;
     const inboxResponse = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(
         inboxQuery
@@ -133,7 +135,7 @@ const sentResponse = await fetch(
       if (sentResponse.status === 401 || inboxResponse.status === 401) {
         // Try to refresh token and retry once
         await refreshTokenIfExpired();
-        
+
         // Retry both requests
         const retrySentResponse = await fetch(
           `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=${encodeURIComponent(
@@ -167,50 +169,58 @@ const sentResponse = await fetch(
 
         const sentData = await retrySentResponse.json();
         const inboxData = await retryInboxResponse.json();
-        
+
         const sentEmails = await processMessages(
           sentData.messages || [],
           integration.access_token,
           true // mark as sent emails
         );
-        
+
         const receivedEmails = await processMessages(
           inboxData.messages || [],
           integration.access_token,
           false // mark as received emails
         );
 
-        return new Response(JSON.stringify({ 
-          sent_emails: sentEmails,
-          received_emails: receivedEmails 
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({
+            sent_emails: sentEmails,
+            received_emails: receivedEmails,
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
-      throw new Error(`Gmail API error: ${sentResponse.status} ${inboxResponse.status}`);
+      throw new Error(
+        `Gmail API error: ${sentResponse.status} ${inboxResponse.status}`
+      );
     }
 
     const sentData = await sentResponse.json();
     const inboxData = await inboxResponse.json();
-    
+
     const sentEmails = await processMessages(
       sentData.messages || [],
       integration.access_token,
       true // mark as sent emails
     );
-    
+
     const receivedEmails = await processMessages(
       inboxData.messages || [],
       integration.access_token,
       false // mark as received emails
     );
 
-    return new Response(JSON.stringify({ 
-      sent_emails: sentEmails,
-      received_emails: receivedEmails 
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        sent_emails: sentEmails,
+        received_emails: receivedEmails,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   } catch (error) {
     console.error("Error fetching Gmail emails:", error);
     return new Response(JSON.stringify({ error: error.message }), {
@@ -221,9 +231,12 @@ const sentResponse = await fetch(
 });
 
 // Helper function to process messages and extract relevant data
-async function processMessages(messages: any[], accessToken: string, isSent: boolean = false) {
-  const emails = [];
-
+async function processMessages(
+  messages: any[],
+  accessToken: string,
+  isSent: boolean = false
+) {
+  const emails: any[] = [];
   // Process messages in parallel for better performance
   await Promise.all(
     messages.map(async (message) => {
