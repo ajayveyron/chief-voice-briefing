@@ -18,6 +18,7 @@ import {
 import { useEffect, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
+import PrivacyNotification from "@/components/PrivacyNotification";
 
 const integrationsItems = [
   {
@@ -138,6 +139,15 @@ const SettingsPage = () => {
 
   const handleConnect = async (type) => {
     try {
+      // Show privacy notification for Google integrations
+      if (type === "gmail" || type === "calendar") {
+        // You can add a modal here if you want to show the privacy notice before connecting
+        // For now, we'll just proceed with the connection
+        console.log(
+          "Connecting Google integration - privacy notice shown in banner"
+        );
+      }
+
       await connectIntegration(type);
     } catch (error) {
       toast({
@@ -287,6 +297,11 @@ const SettingsPage = () => {
               );
             })}
           </div>
+        </div>
+
+        {/* Privacy & Data Usage Section */}
+        <div className="px-6 pb-6">
+          <PrivacyNotification variant="settings" />
         </div>
 
         {/* Chief's Instructions Section */}

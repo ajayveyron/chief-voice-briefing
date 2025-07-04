@@ -8,6 +8,7 @@ import ChatPage from "@/components/ChatPage";
 import DataPage from "@/components/DataPage";
 import SettingsPage from "@/components/SettingsPage";
 import { ActionConfirmationDialog } from "@/components/ActionConfirmationDialog";
+import PrivacyNotification from "@/components/PrivacyNotification";
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -109,6 +110,9 @@ const Index = () => {
 
   return (
     <div className="h-full flex-1 bg-black text-white flex flex-col max-w-md mx-auto  min-h-screen">
+      {/* Privacy Notification Banner */}
+      <PrivacyNotification variant="banner" />
+
       {/* Main content area */}
       <div className="flex-1 flex-col h-full pb-16">{renderActiveTab()}</div>
 
