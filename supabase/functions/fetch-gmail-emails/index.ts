@@ -97,24 +97,28 @@ serve(async (req) => {
 
     await refreshTokenIfExpired();
 
-    // Fetch sent emails first
-    const sentQuery = 'in:sent -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums}';
-    const sentResponse = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=${encodeURIComponent(
-        sentQuery
-      )}`,
-      {
-        headers: {
-          Authorization: `Bearer ${integration.access_token}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    // Step 1: Calculate the timestamp for 7 days ago (in seconds)
+const now = Math.floor(Date.now() / 1000);
+const sevenDaysAgo = now - 7 * 24 * 60 * 60;
+
+// Step 2: Update the Gmail search query to include emails after this timestamp
+const sentQuery = `in:sent after:${sevenDaysAgo} -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums}`;
+
+// Step 3: Use the updated query in your fetch call
+const sentResponse = await fetch(
+  `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(sentQuery)}`,
+  {
+    headers: {
+      Authorization: `Bearer ${integration.access_token}`,
+      "Content-Type": "application/json",
+    },
+  }
+);
 
     // Fetch received emails  
-    const inboxQuery = 'in:inbox -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums} -from:(noreply@* OR no-reply@*)';
+    const inboxQuery = 'in:inbox after:${sevenDaysAgo} -subject:(otp OR "login code" OR "verification code") -category:{promotions social updates forums} -from:(noreply@* OR no-reply@*)';
     const inboxResponse = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=${encodeURIComponent(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(
         inboxQuery
       )}`,
       {
