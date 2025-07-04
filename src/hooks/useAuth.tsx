@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -8,24 +7,30 @@ async function upsertOAuthProfile(user: User) {
   try {
     console.log("Creating OAuth profile for user:", user.id);
     console.log("User metadata:", user.user_metadata);
-    
+
     // Extract name from user metadata
-    const fullName = user.user_metadata?.full_name || user.user_metadata?.name || "";
+    const fullName =
+      user.user_metadata?.full_name || user.user_metadata?.name || "";
     const nameParts = fullName.split(" ");
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || "";
 
-    console.log("Extracted names:", { firstName, lastName });
+    // Extract profile picture from user metadata (Google OAuth provides this)
+    const avatarUrl =
+      user.user_metadata?.picture || user.user_metadata?.avatar_url || null;
+
+    console.log("Extracted profile data:", { firstName, lastName, avatarUrl });
 
     const { data, error } = await supabase.from("profiles").upsert([
       {
         user_id: user.id,
         first_name: firstName,
         last_name: lastName,
+        avatar_url: avatarUrl,
         updated_at: new Date().toISOString(),
       },
     ]);
-    
+
     if (error) {
       console.error("Profile upsert error:", error);
     } else {
@@ -53,11 +58,11 @@ export const useAuth = () => {
     } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
-      
+
       // Handle OAuth sign-in profile creation
-      if (event === 'SIGNED_IN' && session?.user) {
+      if (event === "SIGNED_IN" && session?.user) {
         // Check if this is an OAuth provider (Google, etc.)
-        const isOAuth = session.user.app_metadata?.provider !== 'email';
+        const isOAuth = session.user.app_metadata?.provider !== "email";
         if (isOAuth) {
           setTimeout(() => {
             upsertOAuthProfile(session.user);

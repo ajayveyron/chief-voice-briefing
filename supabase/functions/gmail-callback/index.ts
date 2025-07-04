@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -43,7 +42,8 @@ serve(async (req) => {
     });
 
     // Use the frontend URL for final redirect
-    const frontendUrl = "https://preview--chief-executive-assistant.lovable.app";
+    const frontendUrl =
+      "https://preview--chief-executive-assistant.lovable.app";
 
     if (error) {
       console.error("OAuth error from Google:", error);
@@ -94,7 +94,10 @@ serve(async (req) => {
       .single();
 
     if (stateError || !oauthState) {
-      console.error("Invalid state token:", stateError?.message || "State not found");
+      console.error(
+        "Invalid state token:",
+        stateError?.message || "State not found"
+      );
       return redirectWithError(frontendUrl, "invalid_state");
     }
 
@@ -132,7 +135,11 @@ serve(async (req) => {
     });
 
     if (tokens.error) {
-      console.error("OAuth token error:", tokens.error, tokens.error_description);
+      console.error(
+        "OAuth token error:",
+        tokens.error,
+        tokens.error_description
+      );
       return redirectWithError(frontendUrl, "token_error");
     }
 
@@ -150,12 +157,19 @@ serve(async (req) => {
 
     if (!gmailTestResponse.ok) {
       const errorText = await gmailTestResponse.text();
-      console.error("Gmail API test failed:", gmailTestResponse.status, errorText);
+      console.error(
+        "Gmail API test failed:",
+        gmailTestResponse.status,
+        errorText
+      );
       return redirectWithError(frontendUrl, "gmail_api_failed");
     }
 
     const gmailProfile = await gmailTestResponse.json();
-    console.log("Gmail API test successful, profile email:", gmailProfile.emailAddress);
+    console.log(
+      "Gmail API test successful, profile email:",
+      gmailProfile.emailAddress
+    );
 
     // Store integration
     console.log("Storing integration for user:", oauthState.user_id);
@@ -209,10 +223,7 @@ serve(async (req) => {
     console.log("Integration stored successfully");
 
     // Clean up state
-    await supabase
-      .from("oauth_states")
-      .delete()
-      .eq("id", oauthState.id);
+    await supabase.from("oauth_states").delete().eq("id", oauthState.id);
 
     // Redirect to frontend with success
     const redirectUrl = `${frontendUrl}/?connected=gmail`;
@@ -226,7 +237,8 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Unexpected error in gmail-callback:", error);
-    const frontendUrl = "https://preview--chief-executive-assistant.lovable.app";
+    const frontendUrl =
+      "https://preview--chief-executive-assistant.lovable.app";
     return redirectWithError(frontendUrl, "unexpected_error");
   }
 });
