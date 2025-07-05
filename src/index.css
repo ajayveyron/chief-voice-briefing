@@ -25,6 +25,17 @@
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
 }
 
+/* Microphone mute styles */
+.microphone-muted {
+  background: linear-gradient(45deg, #ef4444, #f87171);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.microphone-live {
+  background: linear-gradient(45deg, #10b981, #34d399);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

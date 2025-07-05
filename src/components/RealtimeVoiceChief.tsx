@@ -13,7 +13,6 @@ import { useAudioRouting } from "@/hooks/useAudioRouting";
 const RealtimeVoiceChief = () => {
   const { user } = useAuth();
   const [showCaptions, setShowCaptions] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
 
   // New hooks for proximity and audio routing
   const { isNearEar, setCallActive } = useProximitySensor();
@@ -31,6 +30,10 @@ const RealtimeVoiceChief = () => {
     startConversation,
     stopConversation,
     isReady,
+    // Microphone controls
+    isMuted,
+    toggleMute,
+    microphoneSupported,
   } = useChiefConversation();
 
   const {
@@ -202,6 +205,19 @@ const RealtimeVoiceChief = () => {
                 {audioRoute === "speaker" ? "Speaker" : "Earpiece"}
               </span>
             </div>
+
+            {microphoneSupported && (
+              <div className="flex items-center space-x-1">
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    isMuted ? "bg-red-400" : "bg-green-400"
+                  }`}
+                ></div>
+                <span className="text-xs text-white/60">
+                  {isMuted ? "Muted" : "Live"}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -213,13 +229,19 @@ const RealtimeVoiceChief = () => {
                 🤖
               </AvatarFallback>
             </Avatar>
+            {conversation.status === "connected" && isMuted && (
+              <div className="absolute inset-0 rounded-full border-4 border-gray-400 animate-pulse" />
+            )}
             {conversation.status === "connected" &&
-              !conversation.isSpeaking && (
+              !conversation.isSpeaking &&
+              !isMuted && (
                 <div className="absolute inset-0 rounded-full border-4 border-red-400 animate-pulse" />
               )}
-            {conversation.status === "connected" && conversation.isSpeaking && (
-              <div className="absolute inset-0 rounded-full border-4 border-blue-400 animate-pulse" />
-            )}
+            {conversation.status === "connected" &&
+              conversation.isSpeaking &&
+              !isMuted && (
+                <div className="absolute inset-0 rounded-full border-4 border-blue-400 animate-pulse" />
+              )}
             {conversation.status === "connecting" && (
               <div className="absolute inset-0 rounded-full border-4 border-yellow-400 animate-pulse" />
             )}
@@ -282,10 +304,12 @@ const RealtimeVoiceChief = () => {
               <Button
                 variant="outline"
                 size="lg"
-                className="w-14 h-14 rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+                className={`w-14 h-14 rounded-full border-white/20 text-white hover:bg-white/20 ${
+                  isMuted ? "bg-red-500/20" : "bg-white/10"
+                }`}
                 onClick={async () => {
                   await SoundEffects.playMuteToggle();
-                  setIsMuted(!isMuted);
+                  toggleMute();
                 }}
               >
                 {isMuted ? (

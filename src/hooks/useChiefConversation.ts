@@ -11,6 +11,7 @@ import {
   formatToolsDescription,
   buildEnhancedSystemPrompt,
 } from "@/lib/utils/conversation";
+import { useMicrophone } from "@/hooks/useMicrophone";
 
 // Fetch user preferences and contacts
 const fetchUserData = async (user_id: string) => {
@@ -59,6 +60,11 @@ export interface UseChiefConversationReturn {
   startConversation: () => Promise<void>;
   stopConversation: () => Promise<void>;
   isReady: boolean;
+  // Microphone controls
+  isMuted: boolean;
+  toggleMute: () => void;
+  setMuted: (muted: boolean) => void;
+  microphoneSupported: boolean;
 }
 
 export const useChiefConversation = (): UseChiefConversationReturn => {
@@ -69,6 +75,42 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
   const [isLoadingUserData, setIsLoadingUserData] = useState(false);
   const [availableTools, setAvailableTools] = useState<MCPTool[]>([]);
   const [isLoadingTools, setIsLoadingTools] = useState(false);
+
+  // Initialize microphone control
+  const {
+    isMuted,
+    toggleMute,
+    setMuted,
+    setCurrentStream,
+    resetMute,
+    isSupported: microphoneSupported,
+  } = useMicrophone();
+
+  // Hook into getUserMedia to register microphone streams
+  useEffect(() => {
+    const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(
+      navigator.mediaDevices
+    );
+
+    navigator.mediaDevices.getUserMedia = async (
+      constraints: MediaStreamConstraints
+    ) => {
+      const stream = await originalGetUserMedia(constraints);
+
+      // Register audio streams with the microphone hook
+      if (constraints.audio && stream.getAudioTracks().length > 0) {
+        setCurrentStream(stream);
+        console.log("🎤 Audio stream registered with microphone control");
+      }
+
+      return stream;
+    };
+
+    // Cleanup override on unmount
+    return () => {
+      navigator.mediaDevices.getUserMedia = originalGetUserMedia;
+    };
+  }, [setCurrentStream]);
 
   // Create client tools for MCP tool execution
   const createClientTools = useCallback(() => {
@@ -269,6 +311,9 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
         availableTools.map((t) => t.name)
       );
 
+      // Reset microphone mute state for new call
+      resetMute();
+
       setIsLoadingUserData(true);
 
       // Format context using utility functions
@@ -321,6 +366,7 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
     userContacts,
     availableTools,
     createClientTools,
+    resetMute,
   ]);
 
   const stopConversation = useCallback(async () => {
@@ -344,5 +390,10 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
     startConversation,
     stopConversation,
     isReady,
+    // Microphone controls
+    isMuted,
+    toggleMute,
+    setMuted,
+    microphoneSupported,
   };
 };
