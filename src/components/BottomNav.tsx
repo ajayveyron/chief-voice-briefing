@@ -1,18 +1,15 @@
-
 import { Home, MessageSquare, Settings, Database } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
-interface BottomNavProps {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
-}
-
-const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
+const BottomNav = () => {
+  const location = useLocation();
+  
   const tabs = [
-    { id: "home", label: "Home", icon: Home },
-    { id: "chat", label: "Chat", icon: MessageSquare },
-    { id: "data", label: "Data", icon: Database },
-    { id: "settings", label: "Settings", icon: Settings },
+    { id: "home", label: "Home", icon: Home, path: "/home" },
+    { id: "chat", label: "Chat", icon: MessageSquare, path: "/chat" },
+    { id: "data", label: "Data", icon: Database, path: "/data" },
+    { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
   ];
 
   return (
@@ -20,12 +17,12 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
       <div className="flex justify-around items-center h-16">
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
+          const isActive = location.pathname === tab.path;
           
           return (
-            <button
+            <Link
               key={tab.id}
-              onClick={() => onTabChange(tab.id)}
+              to={tab.path}
               className={cn(
                 "flex flex-col items-center justify-center flex-1 h-full transition-colors",
                 isActive ? "text-white" : "text-gray-400"
@@ -33,7 +30,7 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
             >
               <Icon size={20} />
               <span className="text-xs mt-1">{tab.label}</span>
-            </button>
+            </Link>
           );
         })}
       </div>
