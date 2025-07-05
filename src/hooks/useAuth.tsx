@@ -2,18 +2,18 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
-// Helper to upsert profile for OAuth users
-async function upsertOAuthProfile(user: User) {
+// Helper to upsert profile for all users
+async function upsertUserProfile(user: User) {
   try {
-    console.log("Creating OAuth profile for user:", user.id);
+    console.log("Creating/updating profile for user:", user.id);
     console.log("User metadata:", user.user_metadata);
 
     // Extract name from user metadata
     const fullName =
       user.user_metadata?.full_name || user.user_metadata?.name || "";
     const nameParts = fullName.split(" ");
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || "";
+    const firstName = nameParts[0] || user.user_metadata?.first_name || "";
+    const lastName = nameParts.slice(1).join(" ") || user.user_metadata?.last_name || "";
 
     // Extract profile picture from user metadata (Google OAuth provides this)
     const avatarUrl =
@@ -37,7 +37,7 @@ async function upsertOAuthProfile(user: User) {
       console.log("Profile created successfully:", data);
     }
   } catch (error) {
-    console.error("OAuth profile creation error:", error);
+    console.error("Profile creation error:", error);
   }
 }
 
@@ -59,15 +59,11 @@ export const useAuth = () => {
       setUser(session?.user ?? null);
       setLoading(false);
 
-      // Handle OAuth sign-in profile creation
+      // Handle profile creation for all signed-in users
       if (event === "SIGNED_IN" && session?.user) {
-        // Check if this is an OAuth provider (Google, etc.)
-        const isOAuth = session.user.app_metadata?.provider !== "email";
-        if (isOAuth) {
-          setTimeout(() => {
-            upsertOAuthProfile(session.user);
-          }, 0);
-        }
+        setTimeout(() => {
+          upsertUserProfile(session.user);
+        }, 0);
       }
     });
 
