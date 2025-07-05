@@ -7,11 +7,18 @@ import { useCallTimer } from "@/hooks/useCallTimer";
 import { ChiefLoadingIndicators } from "@/components/ChiefLoadingIndicators";
 import { useAuth } from "@/hooks/useAuth";
 import { SoundEffects } from "@/utils/soundEffects";
+import { useProximitySensor } from "@/hooks/useProximitySensor";
+import { useAudioRouting } from "@/hooks/useAudioRouting";
 
 const RealtimeVoiceChief = () => {
   const { user } = useAuth();
   const [showCaptions, setShowCaptions] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+
+  // New hooks for proximity and audio routing
+  const { isNearEar, setCallActive } = useProximitySensor();
+  const { audioRoute, switchToEarpiece, switchToSpeaker, toggleAudioRoute } =
+    useAudioRouting();
 
   const {
     conversation,
@@ -110,6 +117,32 @@ const RealtimeVoiceChief = () => {
     previousStatusRef.current = currentStatus;
   }, [conversation.status]);
 
+  // Manage call state for proximity detection
+  useEffect(() => {
+    const isCallActive = conversation.status === "connected";
+    setCallActive(isCallActive);
+  }, [conversation.status, setCallActive]);
+
+  // Handle screen dimming when phone is near ear
+  useEffect(() => {
+    if (isNearEar && conversation.status === "connected") {
+      document.body.className =
+        document.body.className.replace("proximity-normal", "") +
+        " proximity-dimmed";
+    } else {
+      document.body.className =
+        document.body.className.replace("proximity-dimmed", "") +
+        " proximity-normal";
+    }
+
+    // Cleanup on unmount
+    return () => {
+      document.body.className = document.body.className
+        .replace("proximity-dimmed", "")
+        .replace("proximity-normal", "");
+    };
+  }, [isNearEar, conversation.status]);
+
   return (
     <div className="w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden h-full flex flex-col">
       {/* Starfield background */}
@@ -148,6 +181,27 @@ const RealtimeVoiceChief = () => {
             <span className="text-xs text-white/60 ml-2">
               Sound Effects Enabled
             </span>
+          </div>
+
+          {/* Proximity and Audio Route Indicators */}
+          <div className="flex items-center justify-center mt-3 space-x-4">
+            {isNearEar && (
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-xs text-green-400">Near Ear</span>
+              </div>
+            )}
+
+            <div className="flex items-center space-x-1">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  audioRoute === "speaker" ? "bg-blue-400" : "bg-gray-400"
+                }`}
+              ></div>
+              <span className="text-xs text-white/60">
+                {audioRoute === "speaker" ? "Speaker" : "Earpiece"}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -244,8 +298,13 @@ const RealtimeVoiceChief = () => {
               <Button
                 variant="outline"
                 size="lg"
-                className="w-14 h-14 rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+                className={`w-14 h-14 rounded-full border-white/20 text-white hover:bg-white/20 ${
+                  audioRoute === "speaker"
+                    ? "audio-route-speaker"
+                    : "audio-route-earpiece"
+                }`}
                 onClick={async () => {
+                  await toggleAudioRoute();
                   await SoundEffects.playVolumeChange();
                 }}
               >
