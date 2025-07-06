@@ -28,9 +28,18 @@ const Onboarding = () => {
   };
 
   const handleStep3Complete = async () => {
+    console.log("Step 3 completion started...");
     const success = await completeOnboarding();
+    console.log("Onboarding completion result:", success);
+    
     if (success) {
-      navigate("/home", { replace: true });
+      console.log("Navigating to home...");
+      // Add a small delay to ensure database is updated
+      setTimeout(() => {
+        navigate("/home", { replace: true });
+      }, 100);
+    } else {
+      console.error("Failed to complete onboarding");
     }
   };
 

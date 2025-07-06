@@ -210,7 +210,10 @@ const OnboardingStep3 = ({ onComplete, loading = false }: OnboardingStep3Props) 
               )}
               
               <Button
-                onClick={onComplete}
+                onClick={async () => {
+                  console.log("Completing onboarding...");
+                  await onComplete();
+                }}
                 disabled={loading}
                 className="w-full h-14 bg-white text-black hover:bg-gray-100 text-lg font-medium"
               >

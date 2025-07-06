@@ -139,13 +139,19 @@ export const useOnboarding = () => {
     if (!user?.id) return false;
 
     try {
+      console.log("Completing onboarding for user:", user.id);
+      
       const { error } = await supabase
         .from("profiles")
         .update({ onboarding_completed: true })
         .eq("user_id", user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Database error completing onboarding:", error);
+        throw error;
+      }
       
+      console.log("Onboarding marked as completed in database");
       setIsOnboardingCompleted(true);
       return true;
     } catch (error) {
