@@ -49,10 +49,6 @@ const OnboardingStep3 = ({ onComplete, loading = false }: OnboardingStep3Props) 
       let contactsExtracted = 0;
       let emailsEmbedded = 0;
       
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
-
       let fetchedEmails = null;
 
       // Step 1: Fetch Gmail emails

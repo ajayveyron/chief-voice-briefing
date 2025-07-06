@@ -29,7 +29,10 @@ async function upsertUserProfile(user: User) {
         avatar_url: avatarUrl,
         updated_at: new Date().toISOString(),
       },
-    ]);
+    ], {
+      onConflict: 'user_id',
+      ignoreDuplicates: false
+    });
 
     if (error) {
       console.error("Profile upsert error:", error);
