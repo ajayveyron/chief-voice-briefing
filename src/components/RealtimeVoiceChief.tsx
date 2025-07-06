@@ -183,8 +183,8 @@ const RealtimeVoiceChief = () => {
             </div> */}
             {/* <span className="text-xs text-white/60 ml-2">
               Sound Effects Enabled
-            </span>
-          </div> */}
+            </span>*/}
+          </div> 
 
           {/* Proximity and Audio Route Indicators */}
           {/* <div className="flex items-center justify-center mt-3 space-x-4">
