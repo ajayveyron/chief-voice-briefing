@@ -29,6 +29,7 @@ const OnboardingStep3 = ({ onComplete, loading = false }: OnboardingStep3Props) 
   const [isProcessing, setIsProcessing] = useState(true);
   const [analysisStats, setAnalysisStats] = useState<AnalysisStats | null>(null);
   const [completed, setCompleted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const userName = user?.user_metadata?.full_name?.split(" ")[0] || 
                    user?.user_metadata?.first_name || 
@@ -37,62 +38,86 @@ const OnboardingStep3 = ({ onComplete, loading = false }: OnboardingStep3Props) 
 
   useEffect(() => {
     if (isProcessing) {
-      startDataAnalysis();
+      startRealDataAnalysis();
     }
   }, [isProcessing]);
 
-  const startDataAnalysis = async () => {
+  const startRealDataAnalysis = async () => {
     try {
-      // Step 1: Fetch Gmail data
-      setCurrentTask("Fetching your emails...");
-      setProgress(10);
+      console.log("Starting real data analysis...");
       
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
-      
-      // Step 2: Analyze email patterns
-      setCurrentTask("Analyzing your communication patterns...");
-      setProgress(35);
-      
-      await new Promise(resolve => setTimeout(resolve, 2500));
-      
-      // Step 3: Extract contacts
-      setCurrentTask("Extracting your frequent contacts...");
-      setProgress(60);
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Step 4: Create embeddings
-      setCurrentTask("Creating intelligent embeddings for quick access...");
-      setProgress(85);
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Step 5: Finalize
-      setCurrentTask("Finalizing your personalized Chief setup...");
-      setProgress(100);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock analysis results
-      setAnalysisStats({
-        totalEmails: 247,
-        contactsExtracted: 23,
-        preferencesAnalyzed: {
-          writingStyle: "Professional with friendly tone",
-          tone: "Collaborative and direct",
-          commonTopics: ["Project updates", "Meeting scheduling", "Technical discussions"]
-        }
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        throw new Error('Authentication required');
+      }
+
+      const SUPABASE_URL = "https://xxccvppbxnhowncdvdi.supabase.co"; // Project URL
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/onboarding-data-processor`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sessionData.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
       });
-      
-      setCompleted(true);
-      setIsProcessing(false);
-      
+
+      if (!response.ok) {
+        throw new Error('Failed to start data processing');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response stream available');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = new TextDecoder().decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              console.log('Progress update:', data);
+              
+              setCurrentTask(data.step);
+              setProgress(data.progress);
+
+              if (data.status === 'completed' && data.data) {
+                setAnalysisStats(data.data);
+                setCompleted(true);
+                setIsProcessing(false);
+              } else if (data.status === 'error') {
+                throw new Error(data.data?.error || 'Processing failed');
+              }
+            } catch (parseError) {
+              console.error('Error parsing progress data:', parseError);
+            }
+          }
+        }
+      }
+
     } catch (error) {
-      console.error("Error during data analysis:", error);
+      console.error("Error during real data analysis:", error);
+      setError(error instanceof Error ? error.message : 'Unknown error occurred');
+      
       toast({
         title: "Analysis Error",
         description: "There was an issue analyzing your data. You can continue and set this up later.",
         variant: "destructive"
+      });
+      
+      // Set minimal completion state
+      setAnalysisStats({
+        totalEmails: 0,
+        contactsExtracted: 0,
+        preferencesAnalyzed: {
+          writingStyle: "Professional",
+          tone: "Collaborative", 
+          commonTopics: ["General Communications"]
+        }
       });
       setCompleted(true);
       setIsProcessing(false);
