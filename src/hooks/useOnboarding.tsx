@@ -52,7 +52,7 @@ export const useOnboarding = () => {
     }
   });
 
-  // Check onboarding status
+  // Check onboarding status with cache busting
   useEffect(() => {
     const checkOnboardingStatus = async () => {
       if (!user?.id) {
@@ -63,13 +63,14 @@ export const useOnboarding = () => {
       try {
         console.log("Checking onboarding status for user:", user.id);
         
+        // Add cache busting to ensure fresh data
         const { data: profile, error } = await supabase
           .from("profiles")
           .select("onboarding_completed, preferred_address, custom_address, pronouns, wake_up_time")
           .eq("user_id", user.id)
           .single();
 
-        console.log("Profile data from database:", profile);
+        console.log("Fresh profile data from database:", profile);
         console.log("Query error:", error);
 
         if (error && error.code !== "PGRST116") {
@@ -78,13 +79,16 @@ export const useOnboarding = () => {
           return;
         }
 
-        console.log("Onboarding completed status:", profile?.onboarding_completed);
+        const isCompleted = profile?.onboarding_completed === true;
+        console.log("Onboarding completed status (strict check):", isCompleted);
 
-        if (profile?.onboarding_completed) {
-          console.log("Setting onboarding as completed");
+        if (isCompleted) {
+          console.log("✅ Setting onboarding as completed");
           setIsOnboardingCompleted(true);
         } else {
-          console.log("Onboarding not completed, will show onboarding flow");
+          console.log("❌ Onboarding not completed, will show onboarding flow");
+          setIsOnboardingCompleted(false);
+          
           // Pre-populate step 1 data if profile exists
           if (profile) {
             setOnboardingData(prev => ({
@@ -150,40 +154,42 @@ export const useOnboarding = () => {
     try {
       console.log("Completing onboarding for user:", user.id);
       
-      // First update the profile with onboarding completion
+      // Force the update using upsert to ensure it works
       const { data: updateData, error: updateError } = await supabase
         .from("profiles")
-        .update({ 
+        .upsert([{ 
+          user_id: user.id,
           onboarding_completed: true,
           updated_at: new Date().toISOString()
+        }], {
+          onConflict: 'user_id'
         })
-        .eq("user_id", user.id)
         .select();
 
-      console.log("Update data:", updateData);
-      console.log("Update error:", updateError);
+      console.log("Upsert result:", { updateData, updateError });
 
       if (updateError) {
         console.error("Database error completing onboarding:", updateError);
         throw updateError;
       }
       
-      // Verify the update worked
+      // Wait a moment and verify
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       const { data: verifyData, error: verifyError } = await supabase
         .from("profiles")
         .select("onboarding_completed")
         .eq("user_id", user.id)
         .single();
 
-      console.log("Verification data:", verifyData);
-      console.log("Verification error:", verifyError);
+      console.log("Verification after update:", { verifyData, verifyError });
       
-      if (verifyData?.onboarding_completed) {
-        console.log("Onboarding completion verified in database");
+      if (verifyData?.onboarding_completed === true) {
+        console.log("Onboarding completion verified successfully");
         setIsOnboardingCompleted(true);
         return true;
       } else {
-        console.error("Onboarding completion verification failed");
+        console.error("Onboarding completion verification failed - value:", verifyData?.onboarding_completed);
         return false;
       }
     } catch (error) {
