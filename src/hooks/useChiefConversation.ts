@@ -86,32 +86,6 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
     isSupported: microphoneSupported,
   } = useMicrophone();
 
-  // Hook into getUserMedia to register microphone streams
-  useEffect(() => {
-    const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(
-      navigator.mediaDevices
-    );
-
-    navigator.mediaDevices.getUserMedia = async (
-      constraints: MediaStreamConstraints
-    ) => {
-      const stream = await originalGetUserMedia(constraints);
-
-      // Register audio streams with the microphone hook
-      if (constraints.audio && stream.getAudioTracks().length > 0) {
-        setCurrentStream(stream);
-        console.log("🎤 Audio stream registered with microphone control");
-      }
-
-      return stream;
-    };
-
-    // Cleanup override on unmount
-    return () => {
-      navigator.mediaDevices.getUserMedia = originalGetUserMedia;
-    };
-  }, [setCurrentStream]);
-
   // Create client tools for MCP tool execution
   const createClientTools = useCallback(() => {
     const clientTools: Record<string, (params: any) => Promise<any>> = {};
@@ -240,6 +214,39 @@ export const useChiefConversation = (): UseChiefConversationReturn => {
     },
     clientTools: createClientTools(),
   });
+
+  // Hook into getUserMedia to register microphone streams only when connected
+  useEffect(() => {
+    // Only override getUserMedia when conversation is connected
+    if (conversation.status !== "connected") {
+      return;
+    }
+
+    const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(
+      navigator.mediaDevices
+    );
+
+    navigator.mediaDevices.getUserMedia = async (
+      constraints: MediaStreamConstraints
+    ) => {
+      const stream = await originalGetUserMedia(constraints);
+
+      // Register audio streams with the microphone hook
+      if (constraints.audio && stream.getAudioTracks().length > 0) {
+        setCurrentStream(stream);
+        console.log("🎤 Audio stream registered with microphone control");
+      }
+
+      return stream;
+    };
+
+    // Cleanup override when disconnected or unmount
+    return () => {
+      navigator.mediaDevices.getUserMedia = originalGetUserMedia;
+      // Clear the stream when disconnecting
+      setCurrentStream(null);
+    };
+  }, [setCurrentStream, conversation.status]);
 
   // Load user profile
   useEffect(() => {
