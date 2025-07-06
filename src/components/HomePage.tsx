@@ -1,8 +1,19 @@
 import { useAuth } from "@/hooks/useAuth";
+import { useOnboarding } from "@/hooks/useOnboarding";
+import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import RealtimeVoiceChief from "@/components/RealtimeVoiceChief";
 
 const HomePage = () => {
   const { user } = useAuth();
+  const { isOnboardingCompleted, loading } = useOnboarding();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && user && !isOnboardingCompleted) {
+      navigate("/onboarding", { replace: true });
+    }
+  }, [user, isOnboardingCompleted, loading, navigate]);
 
   if (!user) {
     return (
@@ -13,6 +24,21 @@ const HomePage = () => {
         </div>
       </div>
     );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full w-full bg-black text-white items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Loading...</h1>
+          <p className="text-gray-400">Setting up your Chief experience</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isOnboardingCompleted) {
+    return null; // Will redirect to onboarding
   }
 
   return <RealtimeVoiceChief />;

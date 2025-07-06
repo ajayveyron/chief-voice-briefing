@@ -11,6 +11,7 @@ import Data from "@/pages/Data";
 import Settings from "@/pages/Settings";
 import Login from "@/pages/auth/Login";
 import Signup from "@/pages/auth/Signup";
+import Onboarding from "@/pages/Onboarding";
 import NotFound from "@/pages/NotFound";
 import MCPServersPage from "@/pages/MCPServers";
 
@@ -29,6 +30,13 @@ const App = () => (
           {/* Auth routes */}
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/signup" element={<Signup />} />
+          
+          {/* Onboarding route - protected but outside main layout */}
+          <Route path="/onboarding" element={
+            <ProtectedRoute>
+              <Onboarding />
+            </ProtectedRoute>
+          } />
           
           {/* Protected app routes */}
           <Route path="" element={

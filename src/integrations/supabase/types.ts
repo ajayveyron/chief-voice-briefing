@@ -554,29 +554,44 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string | null
+          custom_address: string | null
           first_name: string | null
           id: number
           last_name: string | null
+          onboarding_completed: boolean | null
+          preferred_address: string | null
+          pronouns: string | null
           updated_at: string | null
           user_id: string | null
+          wake_up_time: string | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string | null
+          custom_address?: string | null
           first_name?: string | null
           id?: never
           last_name?: string | null
+          onboarding_completed?: boolean | null
+          preferred_address?: string | null
+          pronouns?: string | null
           updated_at?: string | null
           user_id?: string | null
+          wake_up_time?: string | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string | null
+          custom_address?: string | null
           first_name?: string | null
           id?: never
           last_name?: string | null
+          onboarding_completed?: boolean | null
+          preferred_address?: string | null
+          pronouns?: string | null
           updated_at?: string | null
           user_id?: string | null
+          wake_up_time?: string | null
         }
         Relationships: []
       }
@@ -869,11 +884,14 @@ export type Database = {
         Row: {
           common_topics: string[] | null
           communication_patterns: string[] | null
+          contacts_extracted: number | null
           created_at: string | null
+          email_analysis_completed: boolean | null
           formality_level: string | null
           id: string
           length_preference: string | null
           tone: string | null
+          total_emails_analyzed: number | null
           updated_at: string | null
           user_id: string | null
           writing_style: string | null
@@ -881,11 +899,14 @@ export type Database = {
         Insert: {
           common_topics?: string[] | null
           communication_patterns?: string[] | null
+          contacts_extracted?: number | null
           created_at?: string | null
+          email_analysis_completed?: boolean | null
           formality_level?: string | null
           id?: string
           length_preference?: string | null
           tone?: string | null
+          total_emails_analyzed?: number | null
           updated_at?: string | null
           user_id?: string | null
           writing_style?: string | null
@@ -893,11 +914,14 @@ export type Database = {
         Update: {
           common_topics?: string[] | null
           communication_patterns?: string[] | null
+          contacts_extracted?: number | null
           created_at?: string | null
+          email_analysis_completed?: boolean | null
           formality_level?: string | null
           id?: string
           length_preference?: string | null
           tone?: string | null
+          total_emails_analyzed?: number | null
           updated_at?: string | null
           user_id?: string | null
           writing_style?: string | null

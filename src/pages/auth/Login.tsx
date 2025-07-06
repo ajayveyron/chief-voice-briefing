@@ -44,7 +44,8 @@ const Login = () => {
           title: "Welcome back!",
           description: "You have been logged in successfully.",
         });
-        navigate("/home", { replace: true });
+        // Don't redirect here - let the auth state change handle redirection
+        // navigate("/home", { replace: true });
       }
     } catch (error) {
       toast({
@@ -63,7 +64,7 @@ const Login = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/home`,
+          redirectTo: `${window.location.origin}/home`, // Let HomePage handle onboarding redirect
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
