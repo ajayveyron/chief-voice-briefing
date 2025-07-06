@@ -49,6 +49,12 @@ const OnboardingStep3 = ({ onComplete, loading = false }: OnboardingStep3Props) 
       let contactsExtracted = 0;
       let emailsEmbedded = 0;
       
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      let fetchedEmails = null;
+
       // Step 1: Fetch Gmail emails
       setCurrentTask("Fetching your Gmail emails...");
       setProgress(10);
@@ -58,7 +64,8 @@ const OnboardingStep3 = ({ onComplete, loading = false }: OnboardingStep3Props) 
         if (gmailError) {
           console.error("Gmail fetch error:", gmailError);
         } else {
-          totalEmails = gmailData?.emailCount || 0;
+          fetchedEmails = gmailData?.emails || [];
+          totalEmails = fetchedEmails.length;
           console.log(`Fetched ${totalEmails} emails`);
         }
       } catch (error) {
@@ -68,17 +75,27 @@ const OnboardingStep3 = ({ onComplete, loading = false }: OnboardingStep3Props) 
       setProgress(25);
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Step 2: Analyze Gmail data
+      // Step 2: Analyze Gmail data (pass the fetched emails)
       setCurrentTask("Analyzing communication patterns...");
       setProgress(40);
       
       try {
-        const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-gmail');
-        if (analysisError) {
-          console.error("Gmail analysis error:", analysisError);
-        } else {
-          contactsExtracted = analysisData?.contactsExtracted || 0;
-          console.log(`Extracted ${contactsExtracted} contacts`);
+        if (fetchedEmails && fetchedEmails.length > 0) {
+          const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-gmail', {
+            body: {
+              emails: {
+                sent_emails: fetchedEmails.filter(email => email.from?.includes(user.email || '')),
+                received_emails: fetchedEmails.filter(email => !email.from?.includes(user.email || ''))
+              }
+            }
+          });
+          
+          if (analysisError) {
+            console.error("Gmail analysis error:", analysisError);
+          } else {
+            contactsExtracted = analysisData?.contacts?.length || 0;
+            console.log(`Extracted ${contactsExtracted} contacts`);
+          }
         }
       } catch (error) {
         console.error("Error analyzing Gmail:", error);
@@ -87,30 +104,29 @@ const OnboardingStep3 = ({ onComplete, loading = false }: OnboardingStep3Props) 
       setProgress(60);
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Step 3: Generate embeddings
+      // Step 3: Generate embeddings using fetched emails
       setCurrentTask("Creating intelligent embeddings...");
       setProgress(75);
       
       try {
-        // Get recent emails to embed
-        const { data: recentEmails } = await supabase
-          .from('processed_integration_data')
-          .select('*')
-          .eq('source', 'gmail')
-          .eq('user_id', user?.id)
-          .limit(10);
-
-        if (recentEmails && recentEmails.length > 0) {
-          for (const email of recentEmails) {
+        if (fetchedEmails && fetchedEmails.length > 0) {
+          const emailsToEmbed = fetchedEmails.slice(0, 10); // Process first 10 emails
+          
+          for (const email of emailsToEmbed) {
             try {
-              const emailContent = JSON.stringify(email.processed_data);
+              const emailContent = `From: ${email.from}\nSubject: ${email.subject || 'No Subject'}\n\n${email.snippet || email.body || ''}`;
               const { error: embeddingError } = await supabase.functions.invoke('generate-embeddings', {
                 body: {
-                  user_id: user?.id,
+                  user_id: user.id,
                   source_type: 'gmail',
-                  source_id: email.id,
+                  source_id: email.id || `email_${Date.now()}_${Math.random()}`,
                   content: emailContent,
-                  metadata: email.processed_data
+                  metadata: {
+                    subject: email.subject,
+                    from: email.from,
+                    date: email.date,
+                    snippet: email.snippet
+                  }
                 }
               });
               
