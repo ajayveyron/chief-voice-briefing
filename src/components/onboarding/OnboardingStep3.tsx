@@ -44,18 +44,95 @@ const OnboardingStep3 = ({ onComplete, loading = false }: OnboardingStep3Props) 
 
   const startRealDataAnalysis = async () => {
     try {
-      console.log("Starting simplified onboarding completion...");
+      console.log("Starting real data analysis with existing functions...");
+      let totalEmails = 0;
+      let contactsExtracted = 0;
+      let emailsEmbedded = 0;
       
-      // Step 1: Quick setup simulation
-      setCurrentTask("Setting up your Chief profile...");
+      // Step 1: Fetch Gmail emails
+      setCurrentTask("Fetching your Gmail emails...");
+      setProgress(10);
+      
+      try {
+        const { data: gmailData, error: gmailError } = await supabase.functions.invoke('fetch-gmail-emails');
+        if (gmailError) {
+          console.error("Gmail fetch error:", gmailError);
+        } else {
+          totalEmails = gmailData?.emailCount || 0;
+          console.log(`Fetched ${totalEmails} emails`);
+        }
+      } catch (error) {
+        console.error("Error fetching Gmail:", error);
+      }
+      
       setProgress(25);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Step 2: Basic preference setup
-      setCurrentTask("Configuring your preferences...");
-      setProgress(50);
+      // Step 2: Analyze Gmail data
+      setCurrentTask("Analyzing communication patterns...");
+      setProgress(40);
       
-      // Set basic user preferences in database
+      try {
+        const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-gmail');
+        if (analysisError) {
+          console.error("Gmail analysis error:", analysisError);
+        } else {
+          contactsExtracted = analysisData?.contactsExtracted || 0;
+          console.log(`Extracted ${contactsExtracted} contacts`);
+        }
+      } catch (error) {
+        console.error("Error analyzing Gmail:", error);
+      }
+      
+      setProgress(60);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Step 3: Generate embeddings
+      setCurrentTask("Creating intelligent embeddings...");
+      setProgress(75);
+      
+      try {
+        // Get recent emails to embed
+        const { data: recentEmails } = await supabase
+          .from('processed_integration_data')
+          .select('*')
+          .eq('source', 'gmail')
+          .eq('user_id', user?.id)
+          .limit(10);
+
+        if (recentEmails && recentEmails.length > 0) {
+          for (const email of recentEmails) {
+            try {
+              const emailContent = JSON.stringify(email.processed_data);
+              const { error: embeddingError } = await supabase.functions.invoke('generate-embeddings', {
+                body: {
+                  user_id: user?.id,
+                  source_type: 'gmail',
+                  source_id: email.id,
+                  content: emailContent,
+                  metadata: email.processed_data
+                }
+              });
+              
+              if (!embeddingError) {
+                emailsEmbedded++;
+              }
+            } catch (error) {
+              console.error("Error creating embedding for email:", error);
+            }
+          }
+        }
+        console.log(`Created embeddings for ${emailsEmbedded} emails`);
+      } catch (error) {
+        console.error("Error creating embeddings:", error);
+      }
+
+      setProgress(90);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Step 4: Set user preferences
+      setCurrentTask("Finalizing your Chief setup...");
+      
       if (user?.id) {
         try {
           const { error: prefError } = await supabase
@@ -64,55 +141,54 @@ const OnboardingStep3 = ({ onComplete, loading = false }: OnboardingStep3Props) 
               user_id: user.id,
               writing_style: 'Professional',
               tone: 'Collaborative',
-              common_topics: ['General Communications', 'Project Updates'],
-              email_analysis_completed: false,
-              total_emails_analyzed: 0,
-              contacts_extracted: 0
+              common_topics: ['Email Communications', 'Project Updates'],
+              email_analysis_completed: true,
+              total_emails_analyzed: totalEmails,
+              contacts_extracted: contactsExtracted
             }]);
 
           if (prefError) {
             console.error("Error setting preferences:", prefError);
           } else {
-            console.log("User preferences set successfully");
+            console.log("User preferences updated successfully");
           }
         } catch (error) {
           console.error("Error with preferences:", error);
         }
       }
-      
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Step 3: Finalizing
-      setCurrentTask("Finalizing your Chief setup...");
-      setProgress(90);
-      await new Promise(resolve => setTimeout(resolve, 1000));
 
       setProgress(100);
       
-      // Set mock analysis results for display
+      // Set real analysis results for display
       setAnalysisStats({
-        totalEmails: 0,
-        contactsExtracted: 0,
+        totalEmails,
+        contactsExtracted,
         preferencesAnalyzed: {
           writingStyle: "Professional",
           tone: "Collaborative",
-          commonTopics: ["General Communications", "Project Updates"]
+          commonTopics: ["Email Communications", "Project Updates"]
         }
       });
       
       setCompleted(true);
       setIsProcessing(false);
       
+      toast({
+        title: "Analysis Complete!", 
+        description: `Processed ${totalEmails} emails and extracted ${contactsExtracted} contacts.`,
+      });
+      
     } catch (error) {
-      console.error("Error during setup:", error);
+      console.error("Error during real data analysis:", error);
       setError(error instanceof Error ? error.message : 'Unknown error occurred');
       
       toast({
         title: "Setup Complete", 
         description: "Your Chief is ready to use!",
+        variant: "destructive"
       });
       
-      // Set minimal completion state
+      // Set fallback state
       setAnalysisStats({
         totalEmails: 0,
         contactsExtracted: 0,

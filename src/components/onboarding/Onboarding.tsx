@@ -2,12 +2,15 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import OnboardingStep1 from "./OnboardingStep1";
 import OnboardingStep2 from "./OnboardingStep2";
 import OnboardingStep3 from "./OnboardingStep3";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { useEffect } from "react";
 
 const Onboarding = () => {
   const navigate = useNavigate();
+  const { stepNumber } = useParams();
   const {
     currentStep,
+    setCurrentStep,
     onboardingData,
     updateStep1Data,
     saveStep1,
@@ -16,15 +19,30 @@ const Onboarding = () => {
     loading
   } = useOnboarding();
 
+  // Handle URL-based step navigation
+  useEffect(() => {
+    if (stepNumber) {
+      const step = parseInt(stepNumber);
+      if (step >= 1 && step <= 3 && step !== currentStep) {
+        setCurrentStep(step);
+      }
+    } else {
+      // If no step in URL, redirect to current step
+      navigate(`/onboarding/step/${currentStep}`, { replace: true });
+    }
+  }, [stepNumber, currentStep, setCurrentStep, navigate]);
+
   const handleStep1Continue = async (data: typeof onboardingData.step1) => {
     const success = await saveStep1(data);
     if (success) {
       nextStep();
+      navigate('/onboarding/step/2');
     }
   };
 
   const handleStep2Continue = () => {
     nextStep();
+    navigate('/onboarding/step/3');
   };
 
   const handleStep3Complete = async () => {

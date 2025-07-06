@@ -31,8 +31,13 @@ const App = () => (
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/signup" element={<Signup />} />
           
-          {/* Onboarding route - protected but outside main layout */}
+          {/* Onboarding routes - protected but outside main layout */}
           <Route path="/onboarding" element={
+            <ProtectedRoute>
+              <Onboarding />
+            </ProtectedRoute>
+          } />
+          <Route path="/onboarding/step/:stepNumber" element={
             <ProtectedRoute>
               <Onboarding />
             </ProtectedRoute>
