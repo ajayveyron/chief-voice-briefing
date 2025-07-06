@@ -34,10 +34,11 @@ const Onboarding = () => {
     
     if (success) {
       console.log("Navigating to home...");
-      // Add a small delay to ensure database is updated
+      // Add delay and force a refresh of the onboarding status
       setTimeout(() => {
-        navigate("/home", { replace: true });
-      }, 100);
+        // Force a page reload to ensure fresh data
+        window.location.href = "/home";
+      }, 500);
     } else {
       console.error("Failed to complete onboarding");
     }

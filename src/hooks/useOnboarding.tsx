@@ -150,19 +150,42 @@ export const useOnboarding = () => {
     try {
       console.log("Completing onboarding for user:", user.id);
       
-      const { error } = await supabase
+      // First update the profile with onboarding completion
+      const { data: updateData, error: updateError } = await supabase
         .from("profiles")
-        .update({ onboarding_completed: true })
-        .eq("user_id", user.id);
+        .update({ 
+          onboarding_completed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", user.id)
+        .select();
 
-      if (error) {
-        console.error("Database error completing onboarding:", error);
-        throw error;
+      console.log("Update data:", updateData);
+      console.log("Update error:", updateError);
+
+      if (updateError) {
+        console.error("Database error completing onboarding:", updateError);
+        throw updateError;
       }
       
-      console.log("Onboarding marked as completed in database");
-      setIsOnboardingCompleted(true);
-      return true;
+      // Verify the update worked
+      const { data: verifyData, error: verifyError } = await supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("user_id", user.id)
+        .single();
+
+      console.log("Verification data:", verifyData);
+      console.log("Verification error:", verifyError);
+      
+      if (verifyData?.onboarding_completed) {
+        console.log("Onboarding completion verified in database");
+        setIsOnboardingCompleted(true);
+        return true;
+      } else {
+        console.error("Onboarding completion verification failed");
+        return false;
+      }
     } catch (error) {
       console.error("Error completing onboarding:", error);
       return false;
