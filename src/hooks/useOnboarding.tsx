@@ -61,11 +61,16 @@ export const useOnboarding = () => {
       }
 
       try {
+        console.log("Checking onboarding status for user:", user.id);
+        
         const { data: profile, error } = await supabase
           .from("profiles")
           .select("onboarding_completed, preferred_address, custom_address, pronouns, wake_up_time")
           .eq("user_id", user.id)
           .single();
+
+        console.log("Profile data from database:", profile);
+        console.log("Query error:", error);
 
         if (error && error.code !== "PGRST116") {
           console.error("Error checking onboarding status:", error);
@@ -73,9 +78,13 @@ export const useOnboarding = () => {
           return;
         }
 
+        console.log("Onboarding completed status:", profile?.onboarding_completed);
+
         if (profile?.onboarding_completed) {
+          console.log("Setting onboarding as completed");
           setIsOnboardingCompleted(true);
         } else {
+          console.log("Onboarding not completed, will show onboarding flow");
           // Pre-populate step 1 data if profile exists
           if (profile) {
             setOnboardingData(prev => ({

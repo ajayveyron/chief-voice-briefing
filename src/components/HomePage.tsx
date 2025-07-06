@@ -10,8 +10,16 @@ const HomePage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log("HomePage useEffect triggered");
+    console.log("loading:", loading);
+    console.log("user:", !!user);
+    console.log("isOnboardingCompleted:", isOnboardingCompleted);
+    
     if (!loading && user && !isOnboardingCompleted) {
+      console.log("Redirecting to onboarding...");
       navigate("/onboarding", { replace: true });
+    } else if (!loading && user && isOnboardingCompleted) {
+      console.log("User has completed onboarding, staying on home page");
     }
   }, [user, isOnboardingCompleted, loading, navigate]);
 
