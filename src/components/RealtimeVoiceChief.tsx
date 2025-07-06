@@ -169,7 +169,7 @@ const RealtimeVoiceChief = () => {
           <h1 className="text-2xl font-medium text-white">
             {userName}'s Chief
           </h1>
-          <div className="flex items-center justify-center mt-2">
+          {/* <div className="flex items-center justify-center mt-2">
             <div className="flex space-x-1">
               {[...Array(3)].map((_, i) => (
                 <div
@@ -180,14 +180,14 @@ const RealtimeVoiceChief = () => {
                   }}
                 />
               ))}
-            </div>
-            <span className="text-xs text-white/60 ml-2">
+            </div> */}
+            {/* <span className="text-xs text-white/60 ml-2">
               Sound Effects Enabled
             </span>
-          </div>
+          </div> */}
 
           {/* Proximity and Audio Route Indicators */}
-          <div className="flex items-center justify-center mt-3 space-x-4">
+          {/* <div className="flex items-center justify-center mt-3 space-x-4">
             {isNearEar && (
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -219,7 +219,7 @@ const RealtimeVoiceChief = () => {
               </div>
             )}
           </div>
-        </div>
+        </div> */}
 
         {/* Central Avatar and Timer */}
         <div className="flex-1 flex flex-col items-center justify-center space-y-8">
